@@ -37,6 +37,19 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             build 2>&1 | tee build.log
 
+      - name: Report diagnostics
+        if: always()
+        run: |
+          # One annotation listing every Swift warning/error, readable via the checks API.
+          diags=$(grep -E "\.swift:[0-9]+:[0-9]+: (warning|error):" build.log \
+            | sed "s#${GITHUB_WORKSPACE}/##" | sort -u | head -80 || true)
+          if [ -n "$diags" ]; then
+            body=$(printf '%s' "$diags" | sed 's/%/%25/g' | awk 'BEGIN{ORS="%0A"} {print}')
+            echo "::notice title=Swift diagnostics::$body"
+          else
+            echo "::notice title=Swift diagnostics::none"
+          fi
+
       - name: Summarize errors
         if: failure()
         run: |
