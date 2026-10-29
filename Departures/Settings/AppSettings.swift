@@ -18,12 +18,31 @@ final class AppSettings {
 
     private let cloud = NSUbiquitousKeyValueStore.default
     private let local = UserDefaults.standard
+    @ObservationIgnored private var cloudObserver: (any NSObjectProtocol)?
 
     init() {
         cloud.synchronize()
-        homeCode = cloud.string(forKey: Key.home) ?? local.string(forKey: Key.home)
-        workCode = cloud.string(forKey: Key.work) ?? local.string(forKey: Key.work)
+        homeCode = Self.stored(Key.home, cloud: cloud, local: local)
+        workCode = Self.stored(Key.work, cloud: cloud, local: local)
         apiKey = Keychain.readAPIKey() ?? ""
+
+        // Home/work changed on another device.
+        cloudObserver = NotificationCenter.default.addObserver(
+            forName: NSUbiquitousKeyValueStore.didChangeExternallyNotification,
+            object: cloud,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.reloadFromCloud() }
+        }
+    }
+
+    /// iCloud is the source of truth when it's available, so a station cleared on one
+    /// device stays cleared everywhere. Local storage is only the fallback without iCloud.
+    private static func stored(_ key: String, cloud: NSUbiquitousKeyValueStore, local: UserDefaults) -> String? {
+        if FileManager.default.ubiquityIdentityToken != nil {
+            return cloud.string(forKey: key)
+        }
+        return local.string(forKey: key)
     }
 
     var hasAPIKey: Bool { !apiKey.isEmpty }
@@ -48,8 +67,8 @@ final class AppSettings {
     /// Picks up changes made on another device (call when the app becomes active).
     func reloadFromCloud() {
         cloud.synchronize()
-        let home = cloud.string(forKey: Key.home) ?? local.string(forKey: Key.home)
-        let work = cloud.string(forKey: Key.work) ?? local.string(forKey: Key.work)
+        let home = Self.stored(Key.home, cloud: cloud, local: local)
+        let work = Self.stored(Key.work, cloud: cloud, local: local)
         if home != homeCode { homeCode = home }
         if work != workCode { workCode = work }
         if apiKey.isEmpty, let key = Keychain.readAPIKey(), !key.isEmpty { apiKey = key }
@@ -94,12 +113,18 @@ enum Keychain {
     }
 
     static func saveAPIKey(_ value: String) {
-        SecItemDelete(baseQuery as CFDictionary)
-        guard !value.isEmpty else { return }
+        guard !value.isEmpty else {
+            SecItemDelete(baseQuery as CFDictionary)
+            return
+        }
+        // Update in place so a failed write never leaves you with no key at all.
+        let data = Data(value.utf8)
+        let status = SecItemUpdate(baseQuery as CFDictionary, [kSecValueData as String: data] as CFDictionary)
+        guard status == errSecItemNotFound else { return }
         var attributes = baseQuery
         attributes[kSecAttrSynchronizable as String] = kCFBooleanTrue
         attributes[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
-        attributes[kSecValueData as String] = Data(value.utf8)
+        attributes[kSecValueData as String] = data
         SecItemAdd(attributes as CFDictionary, nil)
     }
 }

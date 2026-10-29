@@ -25,14 +25,15 @@ struct SettingsView: View {
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done", systemImage: "checkmark") {
-                        settings.setAPIKey(keyDraft)
+                        saveDraftUnlessRejected()
                         dismiss()
                     }
                 }
             }
         }
         .onAppear { keyDraft = settings.apiKey }
-        .onDisappear { settings.setAPIKey(keyDraft) }
+        .onChange(of: keyDraft) { keyStatus = .idle }
+        .onDisappear { saveDraftUnlessRejected() }
     }
 
     // MARK: Sections
@@ -124,6 +125,12 @@ struct SettingsView: View {
     }
 
     // MARK: Helpers
+
+    /// Don't keep a key Metrolinx just rejected.
+    private func saveDraftUnlessRejected() {
+        if case .invalid("Rejected") = keyStatus { return }
+        settings.setAPIKey(keyDraft)
+    }
 
     private func name(for code: String?) -> String {
         guard let code else { return "Not set" }

@@ -17,6 +17,7 @@ actor BoardService {
     }
 
     private var tripCache: [String: [TripStop]] = [:]
+    private var tripMisses: [String: Date] = [:]
     private var tripCacheDay = ""
 
     func board(for station: Station, apiKey: String) async throws -> BoardSnapshot {
@@ -200,6 +201,7 @@ actor BoardService {
         let today = TorontoTime.dateWire(Date())
         if tripCacheDay != today || tripCache.count > 600 {
             tripCache.removeAll()
+            tripMisses.removeAll()
             tripCacheDay = today
         }
 
@@ -212,10 +214,13 @@ actor BoardService {
                 result[trip] = cached
                 continue
             }
+            // Don't hammer the API for trips Schedule/Trip doesn't know (e.g. override trips).
+            if let miss = tripMisses[key], Date().timeIntervalSince(miss) < 300 { continue }
             var dates = [day]
-            // Trips after midnight can belong to the previous service day.
+            // Trips after midnight belong to the previous service day (their times run past 24:00),
+            // and trip numbers repeat daily, so try the previous day first.
             if TorontoTime.hour(date) < 4 {
-                dates.append(TorontoTime.dateWire(date.addingTimeInterval(-86_400)))
+                dates.insert(TorontoTime.dateWire(date.addingTimeInterval(-86_400)), at: 0)
             }
             missing.append((trip: trip, key: key, dates: dates))
         }
@@ -237,7 +242,10 @@ actor BoardService {
                 return collected
             }
             for (trip, key, stops) in fetched {
-                guard let stops else { continue }
+                guard let stops else {
+                    tripMisses[key] = Date()
+                    continue
+                }
                 tripCache[key] = stops
                 result[trip] = stops
             }
@@ -300,9 +308,10 @@ actor BoardService {
         for message in alerts?.messages?.message ?? [] {
             let messageLines = Set((message.lines ?? []).compactMap { $0.code?.nonEmpty?.uppercased() })
             let messageStops = Set((message.stops ?? []).compactMap { $0.code?.nonEmpty })
-            let category = (message.category ?? "") + " " + (message.subCategory ?? "")
-            let isLineDisruption = !messageLines.isDisjoint(with: lineCodes)
-                && category.localizedCaseInsensitiveContains("disruption")
+            // Only service disruptions apply to a whole line; amenity alerts (elevators etc.)
+            // show only at the stations they name.
+            let isServiceDisruption = (message.category ?? "").localizedCaseInsensitiveContains("service disruption")
+            let isLineDisruption = isServiceDisruption && !messageLines.isDisjoint(with: lineCodes)
             guard isLineDisruption || messageStops.contains(station.code) else { continue }
             guard let subject = message.subjectEnglish?.nonEmpty else { continue }
             let body = (message.bodyEnglish ?? "").plainText

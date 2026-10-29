@@ -8,6 +8,8 @@ final class LocationProvider: NSObject, CLLocationManagerDelegate {
 
     private let manager = CLLocationManager()
     private var waiters: [CheckedContinuation<CLLocation?, Never>] = []
+    private var timeoutTask: Task<Void, Never>?
+    private var maxAge: TimeInterval = 120
 
     override init() {
         super.init()
@@ -30,22 +32,37 @@ final class LocationProvider: NSObject, CLLocationManagerDelegate {
             return cached
         }
         if isDenied { return nil }
+        self.maxAge = maxAge
 
         return await withCheckedContinuation { continuation in
             waiters.append(continuation)
-            if isAuthorized {
+            let authorized = isAuthorized
+            if authorized {
                 manager.requestLocation()
             } else {
                 manager.requestWhenInUseAuthorization()
             }
-            Task { [weak self] in
-                try? await Task.sleep(for: .seconds(timeout))
-                self?.finish(with: self?.manager.location)
+            // One timer per batch of waiters. Give the permission prompt longer to be answered.
+            if timeoutTask == nil {
+                let wait = authorized ? timeout : 60
+                timeoutTask = Task { [weak self] in
+                    try? await Task.sleep(for: .seconds(wait))
+                    guard !Task.isCancelled, let self else { return }
+                    self.finish(with: self.recentCachedLocation)
+                }
             }
         }
     }
 
+    /// The last known fix, only if it's fresh enough to trust.
+    private var recentCachedLocation: CLLocation? {
+        guard let location = manager.location, -location.timestamp.timeIntervalSinceNow < maxAge else { return nil }
+        return location
+    }
+
     private func finish(with location: CLLocation?) {
+        timeoutTask?.cancel()
+        timeoutTask = nil
         guard !waiters.isEmpty else { return }
         let pending = waiters
         waiters.removeAll()

@@ -226,7 +226,7 @@ struct PlatformCell: View {
             }
         } else if isUnion {
             // Union posts platforms about 10 minutes before departure.
-            let minutes = Int(ceil(row.scheduled.addingTimeInterval(-600).timeIntervalSince(now) / 60))
+            let minutes = Int(ceil(row.expected.addingTimeInterval(-600).timeIntervalSince(now) / 60))
             if minutes > 0 {
                 BilingualSmall(english: "Info in \(minutes) min", french: "Infos en \(minutes) min")
             } else {

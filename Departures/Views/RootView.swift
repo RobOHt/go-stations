@@ -10,6 +10,7 @@ struct RootView: View {
     @State private var detent: PresentationDetent = .medium
     @State private var showSettings = false
     @State private var backgroundedAt: Date?
+    @State private var pendingAutoSelect = false
     @Namespace private var mapScope
 
     private let network = RailNetwork.shared
@@ -34,13 +35,19 @@ struct RootView: View {
                     .presentationDragIndicator(.visible)
             }
         }
-        .sheet(isPresented: $showSettings) {
+        .sheet(isPresented: $showSettings, onDismiss: {
+            // First run: once the key is in, open the board you most likely want.
+            guard pendingAutoSelect, settings.hasAPIKey else { return }
+            pendingAutoSelect = false
+            Task { await autoSelect() }
+        }) {
             SettingsView()
         }
         .task {
             if settings.hasAPIKey {
                 await autoSelect()
             } else {
+                pendingAutoSelect = true
                 showSettings = true
             }
         }
@@ -141,6 +148,8 @@ struct RootView: View {
     /// Opens the board you most likely want: the station you're standing at,
     /// otherwise whichever of home/work is closer to you.
     private func autoSelect() async {
+        // SwiftUI can't show the station sheet on top of Settings.
+        guard !showSettings else { return }
         guard let here = await LocationProvider.shared.currentLocation() else {
             if let home = settings.homeCode.flatMap(network.station) {
                 select(home, detent: .large)
