@@ -1,7 +1,9 @@
 name: TestFlight
 
-# Archives the app, signs it with Apple's cloud-managed certificates via an
-# App Store Connect API key, and uploads it to TestFlight.
+# Builds an unsigned archive, then lets Xcode sign it for the App Store with
+# Apple's cloud-managed distribution certificate (via an App Store Connect API
+# key) and upload it to TestFlight. No device registration or certificates to
+# manage: the CI machine never needs a development profile.
 #
 # Repository secrets required (Settings -> Secrets and variables -> Actions):
 #   ASC_KEY_ID      Key ID of the App Store Connect API key (Admin role)
@@ -63,7 +65,17 @@ jobs:
           printf '%s\n' "$ASC_KEY_P8" > "$KEY_PATH"
           echo "KEY_PATH=$KEY_PATH" >> "$GITHUB_ENV"
 
-      - name: Archive
+      - name: Register bundle ID
+        if: steps.config.outputs.ready == 'true'
+        run: |
+          python3 -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install --quiet pyjwt cryptography
+          BUNDLE_ID=$(xcodebuild -project Departures.xcodeproj -target Departures -configuration Release \
+            -showBuildSettings 2>/dev/null | awk -F' = ' '/ PRODUCT_BUNDLE_IDENTIFIER = / {print $2; exit}')
+          echo "BUNDLE_ID=$BUNDLE_ID" >> "$GITHUB_ENV"
+          "$RUNNER_TEMP/venv/bin/python" .github/scripts/register_bundle_id.py "$BUNDLE_ID" "GO Stations"
+
+      - name: Archive (unsigned)
         if: steps.config.outputs.ready == 'true'
         run: |
           set -o pipefail
@@ -74,15 +86,32 @@ jobs:
             -configuration Release \
             -destination 'generic/platform=iOS' \
             -archivePath "$RUNNER_TEMP/GOStations.xcarchive" \
-            -allowProvisioningUpdates \
-            -authenticationKeyPath "$KEY_PATH" \
-            -authenticationKeyID "$ASC_KEY_ID" \
-            -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
             DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
-            CODE_SIGN_STYLE=Automatic \
+            CODE_SIGNING_ALLOWED=NO \
             CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
-            archive 2>&1 | tee archive.log | grep -E "error:|warning: .*[Pp]rovision|ARCHIVE (SUCCEEDED|FAILED)" || true
-          test -d "$RUNNER_TEMP/GOStations.xcarchive"
+            archive 2>&1 | tee archive.log | grep -E "error:|ARCHIVE (SUCCEEDED|FAILED)" || true
+          test -d "$RUNNER_TEMP/GOStations.xcarchive/Products/Applications"
+
+      - name: Attach entitlements
+        if: steps.config.outputs.ready == 'true'
+        run: |
+          # Xcode's export reads the entitlements from the archived app's signature,
+          # so give the unsigned app an ad-hoc signature that carries them.
+          APP=$(ls -d "$RUNNER_TEMP/GOStations.xcarchive/Products/Applications/"*.app | head -1)
+          APP_ID="${APPLE_TEAM_ID}.${BUNDLE_ID}"
+          cat > "$RUNNER_TEMP/entitlements.plist" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>application-identifier</key><string>${APP_ID}</string>
+            <key>com.apple.developer.team-identifier</key><string>${APPLE_TEAM_ID}</string>
+            <key>com.apple.developer.ubiquity-kvstore-identifier</key><string>${APP_ID}</string>
+          </dict>
+          </plist>
+          EOF
+          codesign --force --sign - --entitlements "$RUNNER_TEMP/entitlements.plist" "$APP"
+          codesign -d --entitlements - "$APP" 2>/dev/null | head -20
 
       - name: Upload to TestFlight
         if: steps.config.outputs.ready == 'true'
@@ -115,7 +144,7 @@ jobs:
       - name: Report failure details
         if: failure() && steps.config.outputs.ready == 'true'
         run: |
-          diags=$( (grep -hE "error:|error :|Error Domain|is not available|No profiles|No Account|App Store Connect" archive.log export.log 2>/dev/null || true) | sort -u | head -40)
+          diags=$( (grep -hE "error:|error :|Error Domain|is not available|No profiles|No Account|App Store Connect|application record|ITMS-|Upload failed|NSLocalizedDescription" archive.log export.log 2>/dev/null || true) | sort -u | head -40)
           body=$(printf '%s' "$diags" | sed 's/%/%25/g' | awk 'BEGIN{ORS="%0A"} {print}')
           echo "::error title=TestFlight failure::$body"
 
