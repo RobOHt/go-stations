@@ -3,7 +3,7 @@ import Foundation
 /// Where the app gets live data: the Cloudflare Worker in worker/, which adds the
 /// Metrolinx key server-side. `/v1` mirrors Metrolinx's `/OpenDataAPI/api/V1`.
 enum ProxyConfig {
-    static let baseURL = "https://go-stations.WORKERS_SUBDOMAIN.workers.dev/v1"
+    static let baseURL = "https://go-stations.robinzhongsh2.workers.dev/v1"
 }
 
 /// Client for Metrolinx Open Data, reached through the GO Stations proxy
