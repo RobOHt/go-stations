@@ -1,33 +1,32 @@
 import MapKit
 import SwiftUI
+import UIKit
 
 struct RootView: View {
     @Environment(AppSettings.self) private var settings
     @Environment(\.scenePhase) private var scenePhase
 
-    @State private var position: MapCameraPosition = .region(RailNetwork.overviewRegion)
+    @State private var mapController = MapController()
     @State private var selected: Station?
     @State private var detent: PresentationDetent = .medium
     @State private var showSettings = false
     @State private var backgroundedAt: Date?
     @State private var pendingAutoSelect = false
     @AppStorage("hasSeenSetup") private var hasSeenSetup = false
-    @Namespace private var mapScope
 
     private let network = RailNetwork.shared
 
     var body: some View {
         NetworkMapView(
-            position: $position,
+            controller: mapController,
             selectedCode: selected?.code,
             homeCode: settings.homeCode,
-            workCode: settings.workCode,
-            scope: mapScope
+            workCode: settings.workCode
         ) { station in
             select(station, detent: .medium)
         }
+        .ignoresSafeArea()
         .overlay(alignment: .topTrailing) { controls }
-        .mapScope(mapScope)
         .sheet(isPresented: stationSheetPresented) {
             if let selected {
                 StationSheet(station: selected) { self.selected = nil }
@@ -82,8 +81,13 @@ struct RootView: View {
     private var controls: some View {
         GlassEffectContainer(spacing: 10) {
             VStack(spacing: 10) {
-                MapUserLocationButton(scope: mapScope)
-                    .buttonBorderShape(.circle)
+                Button {
+                    Task { await showMyLocation() }
+                } label: {
+                    Image(systemName: "location.fill")
+                        .frame(width: 24, height: 24)
+                }
+                .accessibilityLabel("Show my location")
 
                 if let home = settings.homeCode.flatMap(network.station) {
                     Button {
@@ -129,18 +133,22 @@ struct RootView: View {
         center(on: station.coordinate, sheetOpen: true)
     }
 
-    /// Centres the map on a point, nudged up when a half-height sheet covers the bottom.
+    /// Centres the map on a point, placed above the half-height sheet when one is up.
     private func center(on coordinate: CLLocationCoordinate2D, sheetOpen: Bool) {
-        let span = 0.06
-        let center = CLLocationCoordinate2D(
-            latitude: coordinate.latitude - (sheetOpen ? span * 0.2 : 0),
-            longitude: coordinate.longitude
-        )
-        withAnimation(.smooth(duration: 0.6)) {
-            position = .region(MKCoordinateRegion(
-                center: center,
-                span: MKCoordinateSpan(latitudeDelta: span, longitudeDelta: span)
-            ))
+        mapController.show(coordinate, sheetOpen: sheetOpen)
+    }
+
+    private func showMyLocation() async {
+        if LocationProvider.shared.isDenied {
+            // Location was turned off for the app: take the user to where they can turn it on.
+            if let url = URL(string: UIApplication.openSettingsURLString) {
+                _ = await UIApplication.shared.open(url)
+            }
+            return
+        }
+        guard let here = await LocationProvider.shared.currentLocation(maxAge: 30) else { return }
+        if RailNetwork.isInServiceArea(here.coordinate) {
+            center(on: here.coordinate, sheetOpen: selected != nil)
         }
     }
 

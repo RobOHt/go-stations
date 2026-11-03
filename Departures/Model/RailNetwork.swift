@@ -1,6 +1,7 @@
 import CoreLocation
 import MapKit
 import SwiftUI
+import UIKit
 
 /// A GO rail station from the bundled network file.
 struct Station: Identifiable, Hashable {
@@ -36,6 +37,7 @@ struct TrackPath: Identifiable {
     let id: String
     let lineCode: String
     let color: Color
+    let uiColor: UIColor
     let coordinates: [CLLocationCoordinate2D]
 }
 
@@ -54,12 +56,15 @@ final class RailNetwork {
         span: MKCoordinateSpan(latitudeDelta: 1.7, longitudeDelta: 2.8)
     )
 
-    /// The map's centre stays inside the service area and can't zoom out much past it.
-    static let cameraBounds = MapCameraBounds(
-        centerCoordinateBounds: serviceArea,
-        minimumDistance: 300,
-        maximumDistance: 600_000
+    /// Where the map's centre may go: every station plus a little margin.
+    static let cameraCenterLimit = MKCoordinateRegion(
+        center: CLLocationCoordinate2D(latitude: 43.75, longitude: -79.93),
+        span: MKCoordinateSpan(latitudeDelta: 1.6, longitudeDelta: 2.4)
     )
+
+    /// Widest view allowed, in metres across the screen: about the whole network
+    /// (Stratford to Oshawa), so zooming out stops at southern Ontario.
+    static let maxVisibleWidth: Double = 190_000
 
     static func isInServiceArea(_ coordinate: CLLocationCoordinate2D) -> Bool {
         let region = serviceArea
@@ -180,7 +185,8 @@ final class RailNetwork {
                     return CLLocationCoordinate2D(latitude: pair[0], longitude: pair[1])
                 }
                 paths.append(TrackPath(id: "\(entry.code)-\(index)", lineCode: entry.code,
-                                       color: color, coordinates: coordinates))
+                                       color: color, uiColor: UIColor(hexString: entry.color),
+                                       coordinates: coordinates))
             }
         }
 
@@ -204,5 +210,18 @@ extension Color {
     init(hexString: String) {
         let cleaned = hexString.trimmingCharacters(in: CharacterSet(charactersIn: "# "))
         self.init(hex: UInt32(cleaned, radix: 16) ?? 0x888888)
+    }
+}
+
+extension UIColor {
+    convenience init(hexString: String) {
+        let cleaned = hexString.trimmingCharacters(in: CharacterSet(charactersIn: "# "))
+        let hex = UInt32(cleaned, radix: 16) ?? 0x888888
+        self.init(
+            red: CGFloat((hex >> 16) & 0xFF) / 255,
+            green: CGFloat((hex >> 8) & 0xFF) / 255,
+            blue: CGFloat(hex & 0xFF) / 255,
+            alpha: 1
+        )
     }
 }
