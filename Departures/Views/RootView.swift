@@ -151,14 +151,6 @@ struct RootView: View {
     private var controls: some View {
         GlassEffectContainer(spacing: 10) {
             VStack(spacing: 10) {
-                Button {
-                    Task { await showMyLocation() }
-                } label: {
-                    Image(systemName: "location.fill")
-                        .frame(width: 24, height: 24)
-                }
-                .accessibilityLabel("Show my location")
-
                 if let home = settings.homeCode.flatMap(network.station) {
                     Button {
                         select(home, detent: .medium)
@@ -180,6 +172,14 @@ struct RootView: View {
                     }
                     .accessibilityLabel("Work station: \(work.name)")
                 }
+
+                Button {
+                    Task { await showMyLocation() }
+                } label: {
+                    Image(systemName: "location.fill")
+                        .frame(width: 24, height: 24)
+                }
+                .accessibilityLabel("Show my location")
 
                 Button {
                     openSettings()
