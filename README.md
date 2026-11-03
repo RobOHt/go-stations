@@ -34,7 +34,7 @@ To build locally instead, open `Departures.xcodeproj` in Xcode 26 or later, pick
 | Cancellations | `ServiceUpdate/Exceptions/Train`; reasons from `ServiceUpdate/ServiceAlert/All` |
 | Station alerts under the board | `ServiceUpdate/ServiceAlert/All`, filtered to the station's lines |
 
-The board refreshes every 30 seconds while it's open and stops when you close it, so the app makes no requests in the background.
+The board refreshes every 20 seconds while it's open (matching the Worker's cache) and right away when you come back to the app. It stops when you close it, so the app makes no requests in the background. Metrolinx has no push feed, so polling is as fresh as it gets.
 
 Express trips are detected from the trip's stop list: if it skips two or more stations in a row that the line's all-stops pattern serves, it gets the ⚡. At Union the feed marks them directly.
 

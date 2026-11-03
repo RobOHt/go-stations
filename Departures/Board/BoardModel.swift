@@ -10,7 +10,8 @@ final class BoardModel {
     private(set) var isLoading = false
     private(set) var stationCode: String?
 
-    static let refreshInterval: Duration = .seconds(30)
+    /// Matches how long the proxy caches live answers, so each refresh can bring new data.
+    static let refreshInterval: Duration = .seconds(20)
 
     /// Runs until the calling task is cancelled (the sheet closes or the station changes).
     func run(station: Station) async {

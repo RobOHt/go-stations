@@ -6,7 +6,11 @@ struct StationSheet: View {
     let onClose: () -> Void
 
     @Environment(AppSettings.self) private var settings
+    @Environment(\.scenePhase) private var scenePhase
     @State private var model = BoardModel()
+    /// Bumped when the app comes back to the foreground, restarting the refresh loop
+    /// so the board updates right away instead of waiting out the interval.
+    @State private var wake = 0
 
     var body: some View {
         ScrollView {
@@ -30,11 +34,13 @@ struct StationSheet: View {
             .padding(.bottom, 32)
         }
         .scrollIndicators(.hidden)
-        .refreshable {
-            await model.refresh(station: station)
-        }
-        .task(id: station.code) {
+        // No pull-to-refresh: pulling down closes the sheet. The board keeps
+        // itself current instead.
+        .task(id: "\(station.code)#\(wake)") {
             await model.run(station: station)
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { wake += 1 }
         }
     }
 
