@@ -12,6 +12,9 @@ struct NetworkMapView: View {
     let onSelect: (Station) -> Void
 
     @State private var latitudeSpan: Double = RailNetwork.overviewRegion.span.latitudeDelta
+    /// MapKit's own selection, so tapping a station doesn't need a Button
+    /// (a Button swallows touches, which broke pinch-to-zoom over stations).
+    @State private var mapSelection: String?
 
     private let network = RailNetwork.shared
 
@@ -19,7 +22,7 @@ struct NetworkMapView: View {
     private var zoomedOut: Bool { latitudeSpan > 0.6 }
 
     var body: some View {
-        Map(position: $position, scope: scope) {
+        Map(position: $position, bounds: RailNetwork.cameraBounds, selection: $mapSelection, scope: scope) {
             // White casing first so overlapping lines stay readable.
             ForEach(network.trackPaths) { path in
                 MapPolyline(coordinates: path.coordinates)
@@ -35,18 +38,15 @@ struct NetworkMapView: View {
 
             ForEach(network.stations) { station in
                 Annotation(station.name, coordinate: station.coordinate, anchor: .center) {
-                    Button {
-                        onSelect(station)
-                    } label: {
-                        StationDot(
-                            isSelected: station.code == selectedCode,
-                            role: role(for: station),
-                            small: zoomedOut
-                        )
-                    }
-                    .buttonStyle(.plain)
+                    StationDot(
+                        isSelected: station.code == selectedCode,
+                        role: role(for: station),
+                        small: zoomedOut
+                    )
                     .accessibilityLabel(station.name)
+                    .accessibilityAddTraits(.isButton)
                 }
+                .tag(station.code)
                 .annotationTitles(showNames || station.code == selectedCode ? .visible : .hidden)
             }
 
@@ -60,6 +60,15 @@ struct NetworkMapView: View {
         }
         .onMapCameraChange(frequency: .onEnd) { context in
             latitudeSpan = context.region.span.latitudeDelta
+        }
+        .onChange(of: mapSelection) { _, code in
+            guard let code else { return }
+            // Hand the tap to the app and clear MapKit's selection so the same
+            // station can be tapped again later.
+            mapSelection = nil
+            if let station = network.station(code) {
+                onSelect(station)
+            }
         }
     }
 

@@ -48,6 +48,25 @@ final class RailNetwork {
         span: MKCoordinateSpan(latitudeDelta: 0.75, longitudeDelta: 0.95)
     )
 
+    /// Southern Ontario around the GO network (Niagara to Barrie, Stratford to Oshawa).
+    static let serviceArea = MKCoordinateRegion(
+        center: CLLocationCoordinate2D(latitude: 43.75, longitude: -79.9),
+        span: MKCoordinateSpan(latitudeDelta: 1.7, longitudeDelta: 2.8)
+    )
+
+    /// The map's centre stays inside the service area and can't zoom out much past it.
+    static let cameraBounds = MapCameraBounds(
+        centerCoordinateBounds: serviceArea,
+        minimumDistance: 300,
+        maximumDistance: 600_000
+    )
+
+    static func isInServiceArea(_ coordinate: CLLocationCoordinate2D) -> Bool {
+        let region = serviceArea
+        return abs(coordinate.latitude - region.center.latitude) <= region.span.latitudeDelta / 2
+            && abs(coordinate.longitude - region.center.longitude) <= region.span.longitudeDelta / 2
+    }
+
     let lines: [RailLine]
     let stations: [Station]
     let trackPaths: [TrackPath]

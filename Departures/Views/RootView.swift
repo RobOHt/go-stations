@@ -11,6 +11,7 @@ struct RootView: View {
     @State private var showSettings = false
     @State private var backgroundedAt: Date?
     @State private var pendingAutoSelect = false
+    @AppStorage("hasSeenSetup") private var hasSeenSetup = false
     @Namespace private var mapScope
 
     private let network = RailNetwork.shared
@@ -44,12 +45,14 @@ struct RootView: View {
             SettingsView()
         }
         .task {
-            if settings.hasAPIKey {
-                await autoSelect()
-            } else {
+            // Only push Settings on the very first launch; after that the station
+            // sheet shows a "add your key" card until there is one.
+            if !settings.hasAPIKey, !hasSeenSetup {
+                hasSeenSetup = true
                 pendingAutoSelect = true
                 showSettings = true
             }
+            await autoSelect()
         }
         .onChange(of: scenePhase) { _, phase in
             switch phase {
@@ -123,12 +126,20 @@ struct RootView: View {
     private func select(_ station: Station, detent newDetent: PresentationDetent) {
         detent = newDetent
         selected = station
-        // Keep the station visible above the sheet.
-        let center = CLLocationCoordinate2D(latitude: station.latitude - 0.012, longitude: station.longitude)
+        center(on: station.coordinate, sheetOpen: true)
+    }
+
+    /// Centres the map on a point, nudged up when a half-height sheet covers the bottom.
+    private func center(on coordinate: CLLocationCoordinate2D, sheetOpen: Bool) {
+        let span = 0.06
+        let center = CLLocationCoordinate2D(
+            latitude: coordinate.latitude - (sheetOpen ? span * 0.2 : 0),
+            longitude: coordinate.longitude
+        )
         withAnimation(.smooth(duration: 0.6)) {
             position = .region(MKCoordinateRegion(
                 center: center,
-                span: MKCoordinateSpan(latitudeDelta: 0.06, longitudeDelta: 0.06)
+                span: MKCoordinateSpan(latitudeDelta: span, longitudeDelta: span)
             ))
         }
     }
@@ -145,34 +156,42 @@ struct RootView: View {
         }
     }
 
-    /// Opens the board you most likely want: the station you're standing at,
-    /// otherwise whichever of home/work is closer to you.
+    /// Centres the map on you, and opens the board you most likely want: the
+    /// station you're standing at, otherwise whichever of home/work is closer.
     private func autoSelect() async {
-        // SwiftUI can't show the station sheet on top of Settings.
-        guard !showSettings else { return }
-        guard let here = await LocationProvider.shared.currentLocation() else {
-            if let home = settings.homeCode.flatMap(network.station) {
-                select(home, detent: .large)
+        let here = await LocationProvider.shared.currentLocation()
+
+        // SwiftUI can't show the station sheet on top of Settings, and there's
+        // no board to show without a key.
+        var board: Station?
+        if settings.hasAPIKey, !showSettings {
+            board = here.flatMap(bestStation(near:)) ?? settings.homeCode.flatMap(network.station)
+        }
+
+        if let here, RailNetwork.isInServiceArea(here.coordinate) {
+            if let board {
+                detent = .medium
+                selected = board
             }
-            return
+            center(on: here.coordinate, sheetOpen: selected != nil)
+        } else if let board {
+            select(board, detent: .medium)
         }
+    }
 
+    private func bestStation(near here: CLLocation) -> Station? {
         if let nearest = network.nearestStation(to: here), nearest.distance < 400 {
-            select(nearest.station, detent: .large)
-            return
+            return nearest.station
         }
-
         let saved = [settings.homeCode, settings.workCode]
             .compactMap { $0 }
             .compactMap { network.station($0) }
         if let best = saved.min(by: { $0.location.distance(from: here) < $1.location.distance(from: here) }) {
-            select(best, detent: .large)
-        } else if let nearest = network.nearestStation(to: here), nearest.distance < 3_000 {
-            select(nearest.station, detent: .medium)
-        } else {
-            withAnimation(.smooth) {
-                position = .userLocation(fallback: .region(RailNetwork.overviewRegion))
-            }
+            return best
         }
+        if let nearest = network.nearestStation(to: here), nearest.distance < 3_000 {
+            return nearest.station
+        }
+        return nil
     }
 }
