@@ -8,8 +8,56 @@ struct TripSelection: Identifiable {
     var id: String { "\(row.id)@\(station.code)" }
 }
 
-/// Every stop of one train along a line in its colour. Tapping a stop opens that
-/// station's board in another sheet, which can open another train, and so on.
+/// Compass direction of a trip, the way GO names it.
+enum TravelDirection {
+    case north, south, east, west
+
+    var label: String {
+        switch self {
+        case .north: return "Northbound"
+        case .south: return "Southbound"
+        case .east: return "Eastbound"
+        case .west: return "Westbound"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .north: return "arrow.up"
+        case .south: return "arrow.down"
+        case .east: return "arrow.right"
+        case .west: return "arrow.left"
+        }
+    }
+
+    var opposite: TravelDirection {
+        switch self {
+        case .north: return .south
+        case .south: return .north
+        case .east: return .west
+        case .west: return .east
+        }
+    }
+
+    /// Which way each line runs away from Union.
+    private static let outbound: [String: TravelDirection] = [
+        "LW": .west, "MI": .west, "KI": .west,
+        "LE": .east,
+        "BR": .north, "RH": .north, "ST": .north,
+    ]
+
+    /// Outbound when the trip ends farther from Union than it starts.
+    static func of(lineCode: String, from first: Station, to last: Station, network: RailNetwork) -> TravelDirection? {
+        guard let away = outbound[lineCode], let union = network.station("UN") else { return nil }
+        let startDistance = first.location.distance(from: union.location)
+        let endDistance = last.location.distance(from: union.location)
+        return endDistance >= startDistance ? away : away.opposite
+    }
+}
+
+/// Every stop of one train along a line in its colour, with chevrons flowing in the
+/// direction of travel and a marker where the train should be now. Tapping a stop
+/// opens that station's board in another sheet, which can open another train, and so on.
 struct TripSheet: View {
     let selection: TripSelection
 
@@ -19,6 +67,10 @@ struct TripSheet: View {
     @State private var openStation: Station?
 
     private let network = RailNetwork.shared
+
+    static let rowHeight: CGFloat = 56
+    /// Horizontal centre of the line inside a stop row (padding + time column + spacing + half the dot column).
+    static let lineX: CGFloat = 12 + 52 + 10 + 11
 
     private var row: BoardRow { selection.row }
     private var lineColor: Color { network.line(code: row.lineCode)?.color ?? .gray }
@@ -59,6 +111,12 @@ struct TripSheet: View {
         return row.destination
     }
 
+    private var direction: TravelDirection? {
+        guard let stops = detail?.stops, let first = stops.first.flatMap({ network.station($0.code) }),
+              let last = stops.last.flatMap({ network.station($0.code) }) else { return nil }
+        return TravelDirection.of(lineCode: row.lineCode, from: first, to: last, network: network)
+    }
+
     private var header: some View {
         HStack(alignment: .top, spacing: 12) {
             VStack(alignment: .leading, spacing: 6) {
@@ -77,6 +135,15 @@ struct TripSheet: View {
                     .font(.title2.bold())
                     .lineLimit(2)
                     .minimumScaleFactor(0.7)
+                if let direction {
+                    Label(direction.label, systemImage: direction.symbol)
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(lineColor, in: Capsule())
+                        .accessibilityLabel(direction.label)
+                }
                 Text("Train \(row.tripNumber) · \(TorontoTime.hourMinute(row.scheduled)) from \(selection.station.name)")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
@@ -105,26 +172,46 @@ struct TripSheet: View {
     // MARK: Stops
 
     private func stopList(_ detail: TripDetail) -> some View {
-        VStack(spacing: 0) {
-            ForEach(detail.stops) { stop in
-                Button {
-                    if let station = network.station(stop.code) { openStation = station }
-                } label: {
-                    StopRow(
-                        stop: stop,
-                        name: network.station(stop.code)?.name ?? stop.code,
-                        role: role(for: stop.code),
-                        isOrigin: stop.code == selection.station.code,
-                        isFirst: stop.index == 0,
-                        isLast: stop.index == detail.stops.count - 1,
-                        lineColor: lineColor
-                    )
+        let originIndex = detail.stops.firstIndex { $0.code == selection.station.code } ?? 0
+        return TimelineView(.periodic(from: .now, by: 10)) { context in
+            ZStack(alignment: .topLeading) {
+                TripLine(
+                    stops: detail.stops,
+                    originIndex: originIndex,
+                    now: context.date,
+                    color: lineColor
+                )
+
+                VStack(spacing: 0) {
+                    ForEach(detail.stops) { stop in
+                        Button {
+                            if let station = network.station(stop.code) { openStation = station }
+                        } label: {
+                            StopRow(
+                                stop: stop,
+                                name: network.station(stop.code)?.name ?? stop.code,
+                                role: role(for: stop.code),
+                                isOrigin: stop.index == originIndex,
+                                isEnd: stop.index == 0 || stop.index == detail.stops.count - 1,
+                                // Stops before yours, and stops the train has already left.
+                                isDimmed: stop.index < originIndex || Self.hasPassed(stop, now: context.date),
+                                lineColor: lineColor
+                            )
+                        }
+                        .buttonStyle(StopRowButtonStyle())
+                    }
                 }
-                .buttonStyle(StopRowButtonStyle())
+
+                TrainMarkerLayer(stops: detail.stops, now: context.date, color: lineColor)
             }
         }
         .padding(.vertical, 6)
         .background(.background.secondary, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+    }
+
+    private static func hasPassed(_ stop: TripDetail.Stop, now: Date) -> Bool {
+        guard let time = stop.expected ?? stop.time else { return false }
+        return time < now.addingTimeInterval(-30)
     }
 
     private func role(for code: String) -> StationRole {
@@ -140,7 +227,8 @@ struct TripSheet: View {
             case .live:
                 Label("Live times from Metrolinx", systemImage: "dot.radiowaves.left.and.right")
             case .schedule:
-                Label("Scheduled times, not live", systemImage: "calendar")
+                Label("Scheduled times, not live. The train's position is estimated from the timetable.",
+                      systemImage: "calendar")
             case nil:
                 Label("Times aren't available for this train", systemImage: "questionmark.circle")
             }
@@ -151,20 +239,132 @@ struct TripSheet: View {
     }
 }
 
-/// One stop: time, a segment of the line with a dot, the station name.
+/// The continuous line behind the stop dots: faded before your station, full colour
+/// after it with white chevrons flowing in the direction of travel.
+private struct TripLine: View {
+    let stops: [TripDetail.Stop]
+    let originIndex: Int
+    let now: Date
+    let color: Color
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private let rowHeight = TripSheet.rowHeight
+    private let lineX = TripSheet.lineX
+    private let lineWidth: CGFloat = 8
+
+    private func centerY(_ index: Int) -> CGFloat { CGFloat(index) * rowHeight + rowHeight / 2 }
+
+    var body: some View {
+        let top = centerY(0)
+        let bottom = centerY(max(stops.count - 1, 0))
+        let origin = centerY(min(originIndex, max(stops.count - 1, 0)))
+
+        ZStack(alignment: .topLeading) {
+            TimelineView(.animation(minimumInterval: 1.0 / 30, paused: reduceMotion)) { context in
+                let speed: Double = 14  // points per second
+                let spacing: CGFloat = 16
+                let phase = reduceMotion ? 0
+                    : CGFloat((context.date.timeIntervalSinceReferenceDate * speed).truncatingRemainder(dividingBy: Double(spacing)))
+
+                Canvas { canvas, _ in
+                    let style = StrokeStyle(lineWidth: lineWidth, lineCap: .round)
+                    if origin > top {
+                        var faded = Path()
+                        faded.move(to: CGPoint(x: lineX, y: top))
+                        faded.addLine(to: CGPoint(x: lineX, y: origin))
+                        canvas.stroke(faded, with: .color(color.opacity(0.35)), style: style)
+                    }
+                    var ahead = Path()
+                    ahead.move(to: CGPoint(x: lineX, y: origin))
+                    ahead.addLine(to: CGPoint(x: lineX, y: bottom))
+                    canvas.stroke(ahead, with: .color(color), style: style)
+
+                    // Chevrons pointing down the list, the way the train is going.
+                    var chevrons = Path()
+                    var y = origin + phase
+                    while y < bottom - 4 {
+                        chevrons.move(to: CGPoint(x: lineX - 2.6, y: y - 1.6))
+                        chevrons.addLine(to: CGPoint(x: lineX, y: y + 1.2))
+                        chevrons.addLine(to: CGPoint(x: lineX + 2.6, y: y - 1.6))
+                        y += spacing
+                    }
+                    canvas.stroke(chevrons, with: .color(.white.opacity(0.9)),
+                                  style: StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round))
+                }
+            }
+            .frame(height: bottom + rowHeight / 2)
+        }
+        .frame(height: bottom + rowHeight / 2, alignment: .topLeading)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+}
+
+/// The train marker, drawn above the stop rows.
+private struct TrainMarkerLayer: View {
+    let stops: [TripDetail.Stop]
+    let now: Date
+    let color: Color
+
+    private let rowHeight = TripSheet.rowHeight
+
+    private func centerY(_ index: Int) -> CGFloat { CGFloat(index) * rowHeight + rowHeight / 2 }
+
+    /// Where the train is along the list, or nil when it isn't running yet or has arrived.
+    private var trainY: CGFloat? {
+        let times = stops.map { $0.expected ?? $0.time }
+        guard let first = times.first ?? nil, let last = times.last ?? nil else { return nil }
+        if now < first.addingTimeInterval(-15 * 60) || now >= last { return nil }
+        if now <= first { return centerY(0) }
+        for index in 0..<(times.count - 1) {
+            guard let start = times[index], let end = times[index + 1], now >= start, now < end else { continue }
+            let fraction = end > start ? now.timeIntervalSince(start) / end.timeIntervalSince(start) : 0
+            return centerY(index) + CGFloat(fraction) * rowHeight
+        }
+        return nil
+    }
+
+    var body: some View {
+        let height = CGFloat(stops.count) * rowHeight
+        ZStack(alignment: .topLeading) {
+            Color.clear
+            if let trainY {
+                TrainMarker(color: color)
+                    .position(x: TripSheet.lineX, y: trainY)
+                    .animation(.linear(duration: 10), value: trainY)
+            }
+        }
+        .frame(height: height)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+}
+
+private struct TrainMarker: View {
+    let color: Color
+
+    var body: some View {
+        Image(systemName: "tram.fill")
+            .font(.system(size: 11, weight: .bold))
+            .foregroundStyle(.white)
+            .frame(width: 24, height: 24)
+            .background(color, in: Circle())
+            .overlay(Circle().strokeBorder(.white, lineWidth: 2.5))
+            .shadow(color: .black.opacity(0.35), radius: 3, y: 1)
+            .symbolEffect(.pulse, options: .repeating)
+    }
+}
+
+/// One stop: time, its dot on the line, the station name.
 private struct StopRow: View {
     let stop: TripDetail.Stop
     let name: String
     let role: StationRole
     let isOrigin: Bool
-    let isFirst: Bool
-    let isLast: Bool
+    let isEnd: Bool
+    let isDimmed: Bool
     let lineColor: Color
-
-    private var isPast: Bool {
-        guard let time = stop.expected ?? stop.time else { return false }
-        return time < Date().addingTimeInterval(-30)
-    }
 
     private var isDelayed: Bool {
         guard let time = stop.time, let expected = stop.expected else { return false }
@@ -186,7 +386,7 @@ private struct StopRow: View {
             .lineLimit(1)
             .frame(width: 52, alignment: .trailing)
 
-            timeline
+            dot
                 .frame(width: 22)
 
             HStack(spacing: 8) {
@@ -217,36 +417,27 @@ private struct StopRow: View {
                 .font(.footnote.weight(.semibold))
                 .foregroundStyle(.tertiary)
         }
-        .foregroundStyle(isPast ? .secondary : .primary)
+        .foregroundStyle(isDimmed ? .tertiary : .primary)
         .padding(.horizontal, 12)
-        .frame(minHeight: 52)
-        .background(role != .plain ? Color.primary.opacity(0.06) : .clear)
+        .frame(height: TripSheet.rowHeight)
+        .background(role != .plain ? Color.primary.opacity(0.06) : Color.clear)
         .contentShape(Rectangle())
     }
 
-    private var timeline: some View {
-        ZStack {
-            VStack(spacing: 0) {
-                Rectangle()
-                    .fill(isFirst ? Color.clear : lineColor)
-                    .frame(width: 5)
-                Rectangle()
-                    .fill(isLast ? Color.clear : lineColor)
-                    .frame(width: 5)
-            }
-            Circle()
-                .fill(isOrigin ? lineColor : Color.white)
-                .overlay(Circle().strokeBorder(isOrigin ? Color.white : lineColor, lineWidth: isOrigin ? 3 : 3.5))
-                .frame(width: isOrigin || isFirst || isLast ? 18 : 14,
-                       height: isOrigin || isFirst || isLast ? 18 : 14)
-        }
-        .frame(maxHeight: .infinity)
+    /// The line itself is drawn once behind all rows (TripLine); rows add the dots.
+    private var dot: some View {
+        let size: CGFloat = isOrigin || isEnd ? 18 : 14
+        return Circle()
+            .fill(isOrigin ? lineColor : Color.white)
+            .overlay(Circle().strokeBorder(isOrigin ? Color.white : lineColor, lineWidth: isOrigin ? 3 : 3.5))
+            .frame(width: size, height: size)
+            .opacity(isDimmed && !isOrigin ? 0.55 : 1)
     }
 }
 
 private struct StopRowButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .background(configuration.isPressed ? Color.primary.opacity(0.08) : .clear)
+            .background(configuration.isPressed ? Color.primary.opacity(0.08) : Color.clear)
     }
 }
