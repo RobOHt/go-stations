@@ -1,0 +1,85 @@
+name: Worker
+
+# Deploys the API proxy in worker/ to Cloudflare.
+#
+# Repository secrets (Settings -> Secrets and variables -> Actions):
+#   CLOUDFLARE_API_TOKEN    API token from the "Edit Cloudflare Workers" template
+#   CLOUDFLARE_ACCOUNT_ID   Cloudflare account ID
+#   METROLINX_API_KEY       Metrolinx Open Data API key (stored as a Worker secret)
+#
+# Until the Cloudflare secrets exist, runs stop at a "not configured" notice.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "worker/**"
+      - ".github/workflows/worker.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: worker
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to Cloudflare
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      METROLINX_API_KEY: ${{ secrets.METROLINX_API_KEY }}
+    steps:
+      - name: Check configuration
+        id: config
+        run: |
+          if [ -n "$CLOUDFLARE_API_TOKEN" ] && [ -n "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Worker::Not configured yet. Add CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID secrets."
+          fi
+
+      - uses: actions/checkout@v5
+        if: steps.config.outputs.ready == 'true'
+
+      - uses: actions/setup-node@v5
+        if: steps.config.outputs.ready == 'true'
+        with:
+          node-version: 22
+
+      - name: Deploy
+        if: steps.config.outputs.ready == 'true'
+        working-directory: worker
+        run: |
+          set -o pipefail
+          npx --yes wrangler@4 deploy 2>&1 | tee "$RUNNER_TEMP/deploy.log"
+          url=$(grep -oE 'https://[A-Za-z0-9.-]+\.workers\.dev' "$RUNNER_TEMP/deploy.log" | head -1 || true)
+          echo "WORKER_URL=$url" >> "$GITHUB_ENV"
+          echo "::notice title=Worker URL::${url:-not found in deploy output}"
+
+      - name: Store Metrolinx key
+        if: steps.config.outputs.ready == 'true' && env.METROLINX_API_KEY != ''
+        working-directory: worker
+        run: printf '%s' "$METROLINX_API_KEY" | npx --yes wrangler@4 secret put METROLINX_API_KEY
+
+      - name: Health check
+        if: steps.config.outputs.ready == 'true' && env.WORKER_URL != ''
+        run: |
+          # A brand-new workers.dev hostname can take a minute to start answering.
+          for i in $(seq 1 12); do
+            if body=$(curl -fsS "$WORKER_URL/health" 2>/dev/null); then
+              echo "::notice title=Worker health::$body"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "::warning title=Worker health::$WORKER_URL/health did not answer yet"
+
+      - name: Report failure details
+        if: failure() && steps.config.outputs.ready == 'true'
+        run: |
+          diags=$( (grep -hiE "error|✘|failed|subdomain" "$RUNNER_TEMP/deploy.log" 2>/dev/null || true) | head -30)
+          body=$(printf '%s' "$diags" | sed 's/%/%25/g' | awk 'BEGIN{ORS="%0A"} {print}')
+          echo "::error title=Worker deploy failed::$body"

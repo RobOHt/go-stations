@@ -22,6 +22,8 @@ on:
       - ".github/workflows/build.yml"
       - ".github/workflows/asc-status.yml"
       - ".github/scripts/asc_status.py"
+      - ".github/workflows/worker.yml"
+      - "worker/**"
   workflow_dispatch:
 
 concurrency:

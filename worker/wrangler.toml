@@ -1,0 +1,23 @@
+# GO Stations API proxy. Deployed by .github/workflows/worker.yml.
+name = "go-stations"
+main = "src/index.js"
+compatibility_date = "2026-11-01"
+workers_dev = true
+preview_urls = false
+
+# Cloudflare caches responses per their Cache-Control header (set in src/index.js),
+# and collapses identical concurrent requests into one.
+[cache]
+enabled = true
+
+# Per-IP limit on requests that miss the cache (and so reach Metrolinx).
+[[ratelimits]]
+name = "LIMITER"
+namespace_id = "1001"
+
+  [ratelimits.simple]
+  limit = 300
+  period = 60
+
+[observability]
+enabled = true
