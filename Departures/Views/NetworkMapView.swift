@@ -209,7 +209,7 @@ struct NetworkMapView: UIViewRepresentable {
         Coordinator()
     }
 
-    func makeUIView(context: Context) -> LayoutAwareMapView {
+    func makeUIView(context: Context) -> MapHostView {
         let coordinator = context.coordinator
         _ = coordinator.update(from: self)
 
@@ -269,10 +269,11 @@ struct NetworkMapView: UIViewRepresentable {
         coordinator.controller = controller
         controller.attach(mapView)
         coordinator.syncPlace(place, in: mapView)
-        return mapView
+        return MapHostView(mapView: mapView)
     }
 
-    func updateUIView(_ mapView: LayoutAwareMapView, context: Context) {
+    func updateUIView(_ host: MapHostView, context: Context) {
+        let mapView = host.mapView
         let coordinator = context.coordinator
         coordinator.controller = controller
         if coordinator.update(from: self) {
@@ -504,6 +505,67 @@ struct NetworkMapView: UIViewRepresentable {
                 renderer.setNeedsDisplay()
             }
         }
+    }
+}
+
+/// Holds the map in a scroll view that never scrolls, so iOS draws its own soft
+/// scroll edge effect over the top of the map: the progressive blur system apps
+/// have under the status bar. UIKit only draws that effect on scroll view content
+/// passing under an element registered with `UIScrollEdgeElementContainerInteraction`,
+/// here a clear view covering the status bar.
+final class MapHostView: UIView {
+    let mapView: LayoutAwareMapView
+    private let scrollView = UIScrollView()
+    private let statusBarElement = UIView()
+
+    init(mapView: LayoutAwareMapView) {
+        self.mapView = mapView
+        super.init(frame: .zero)
+
+        // A container only: the map handles every touch, with no delay.
+        scrollView.isScrollEnabled = false
+        scrollView.delaysContentTouches = false
+        scrollView.canCancelContentTouches = false
+        scrollView.scrollsToTop = false
+        scrollView.contentInsetAdjustmentBehavior = .never
+        scrollView.showsVerticalScrollIndicator = false
+        scrollView.showsHorizontalScrollIndicator = false
+        scrollView.topEdgeEffect.style = .soft
+        scrollView.bottomEdgeEffect.isHidden = true
+        scrollView.leftEdgeEffect.isHidden = true
+        scrollView.rightEdgeEffect.isHidden = true
+        addSubview(scrollView)
+        scrollView.addSubview(mapView)
+
+        statusBarElement.isUserInteractionEnabled = false
+        statusBarElement.backgroundColor = .clear
+        let edge = UIScrollEdgeElementContainerInteraction()
+        edge.scrollView = scrollView
+        edge.edge = .top
+        statusBarElement.addInteraction(edge)
+        addSubview(statusBarElement)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        scrollView.frame = bounds
+        scrollView.contentSize = bounds.size
+        mapView.frame = CGRect(origin: .zero, size: bounds.size)
+        let statusBar = max(window?.safeAreaInsets.top ?? 0, safeAreaInsets.top)
+        statusBarElement.frame = CGRect(x: 0, y: 0, width: bounds.width, height: statusBar)
+    }
+
+    override func safeAreaInsetsDidChange() {
+        super.safeAreaInsetsDidChange()
+        setNeedsLayout()
+    }
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        setNeedsLayout()
     }
 }
 

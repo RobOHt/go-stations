@@ -95,37 +95,6 @@ struct GlassCloseButton: View {
     }
 }
 
-// MARK: - Status bar blur
-
-/// The soft blur under the status bar that system apps have at the top of the
-/// screen: a material that fades out just below the status bar.
-struct StatusBarBlur: View {
-    let statusBarHeight: CGFloat
-
-    var body: some View {
-        Rectangle()
-            .fill(.ultraThinMaterial)
-            .mask(fade(solidUntil: 0.3))
-            .frame(height: statusBarHeight + 28)
-            .frame(maxHeight: .infinity, alignment: .top)
-            .ignoresSafeArea()
-            .allowsHitTesting(false)
-            .accessibilityHidden(true)
-    }
-
-    private func fade(solidUntil solid: CGFloat) -> LinearGradient {
-        LinearGradient(
-            stops: [
-                .init(color: .black, location: 0),
-                .init(color: .black, location: solid),
-                .init(color: .clear, location: 1),
-            ],
-            startPoint: .top,
-            endPoint: .bottom
-        )
-    }
-}
-
 // MARK: - Wrapping row
 
 /// Lays its children out in a row, wrapping onto further lines when they run out

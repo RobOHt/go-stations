@@ -21,7 +21,6 @@ struct RootView: View {
     /// Bottom edge of the area the floating UI lives in: just above the search
     /// field (which itself rides above the keyboard while typing).
     @State private var floatingBottom: CGFloat = 0
-    @State private var statusBarHeight: CGFloat = 0
 
     private let network = RailNetwork.shared
 
@@ -117,7 +116,6 @@ struct RootView: View {
             onSelect: { station in select(station, detent: .medium) }
         )
         .ignoresSafeArea()
-        .overlay(alignment: .top) { StatusBarBlur(statusBarHeight: statusBarHeight) }
         .overlay { floatingUI }
     }
 
@@ -174,8 +172,6 @@ struct RootView: View {
         .padding(.bottom, sheetLift.map { $0 + 12 } ?? BottomBarMetrics.gapAbove)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
         .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).maxY } action: { floatingBottom = $0 }
-        // The floating area respects the top safe area, so its top is the status bar's bottom.
-        .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minY } action: { statusBarHeight = $0 }
         .animation(.smooth(duration: 0.3), value: selected == nil)
         .animation(.smooth(duration: 0.3), value: showsControls)
         .animation(.smooth(duration: 0.25), value: sheetLift)
