@@ -172,7 +172,7 @@ struct RootView: View {
 
                 if let home = settings.homeCode.flatMap(network.station) {
                     Button {
-                        select(home, detent: .large)
+                        select(home, detent: .medium)
                     } label: {
                         Image(systemName: "house.fill")
                             .frame(width: 24, height: 24)
@@ -182,7 +182,7 @@ struct RootView: View {
 
                 if let work = settings.workCode.flatMap(network.station) {
                     Button {
-                        select(work, detent: .large)
+                        select(work, detent: .medium)
                     } label: {
                         Image(systemName: "briefcase.fill")
                             .frame(width: 24, height: 24)

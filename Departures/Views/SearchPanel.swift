@@ -274,13 +274,18 @@ struct SearchPanel: View {
     }
 
     var body: some View {
-        VStack(spacing: 10) {
-            if showsResults {
-                results
-                    .layoutPriority(1)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+        // One glass container for the results, the bar and the close button, so they
+        // all render as the same standard Liquid Glass. Its spacing is under the gaps
+        // between them, so they stay separate shapes instead of blending.
+        GlassEffectContainer(spacing: 8) {
+            VStack(spacing: 12) {
+                if showsResults {
+                    results
+                        .layoutPriority(1)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+                searchBar
             }
-            searchBar
         }
         .animation(.snappy, value: showsResults)
     }
@@ -288,12 +293,10 @@ struct SearchPanel: View {
     // MARK: Bar
 
     private var searchBar: some View {
-        GlassEffectContainer(spacing: 10) {
-            HStack(spacing: 10) {
-                field
-                if isFocused {
-                    closeButton
-                }
+        HStack(spacing: 12) {
+            field
+            if isFocused {
+                closeButton
             }
         }
         .animation(.smooth(duration: 0.35), value: isFocused)
@@ -325,16 +328,11 @@ struct SearchPanel: View {
         }
         .padding(.horizontal, isFocused ? 16 : 22)
         .frame(height: isFocused ? BottomBarMetrics.focusedHeight : BottomBarMetrics.restingHeight)
-        // A touch of extra frost on the glass while typing.
-        .background {
-            Capsule()
-                .fill(.ultraThinMaterial)
-                .opacity(isFocused ? 1 : 0)
-        }
         .contentShape(Capsule())
         // The whole bar, not just the text, opens the keyboard.
         .onTapGesture { isFocused = true }
-        .glassEffect(.regular.interactive(), in: Capsule())
+        // Same glass as the results above it.
+        .glassEffect(.regular, in: Capsule())
         .glassEffectID("field", in: glass)
     }
 

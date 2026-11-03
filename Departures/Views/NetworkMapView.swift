@@ -82,20 +82,20 @@ final class MapController {
         }
     }
 
-    /// Shows `coordinate` with about `width` metres across. With a half-height
-    /// sheet up, the point lands in the visible top half of the screen.
+    /// Room the search bar takes at the bottom of the screen.
+    private static let searchBarRoom = BottomBarMetrics.edgeInset + BottomBarMetrics.restingHeight + 12
+
+    /// Shows `coordinate` with about `width` metres across, in the middle of the
+    /// part of the map you can see: below the Dynamic Island and above the
+    /// half-height sheet (or above the search bar when no sheet is up).
     func show(_ coordinate: CLLocationCoordinate2D, width: CLLocationDistance = 5_000, sheetOpen: Bool) {
         perform { mapView in
-            let size = MKMapPointsPerMeterAtLatitude(coordinate.latitude) * width
-            let point = MKMapPoint(coordinate)
-            let rect = MKMapRect(x: point.x - size / 2, y: point.y - size / 2, width: size, height: size)
-            let insets = UIEdgeInsets(
-                top: mapView.safeAreaInsets.top,
-                left: 0,
-                bottom: sheetOpen ? mapView.bounds.height * 0.5 : mapView.safeAreaInsets.bottom,
-                right: 0
-            )
-            mapView.setVisibleMapRect(rect, edgePadding: insets, animated: true)
+            let size = mapView.bounds.size
+            let visibleTop = Self.topInset(of: mapView)
+            let visibleBottom = sheetOpen ? size.height * 0.5 : size.height - Self.searchBarRoom
+            let target = CGPoint(x: size.width / 2, y: (visibleTop + visibleBottom) / 2)
+            let mapPerPoint = width * MKMapPointsPerMeterAtLatitude(coordinate.latitude) / Double(size.width)
+            Self.place(MKMapPoint(coordinate), at: target, mapPerPoint: mapPerPoint, in: mapView)
         }
     }
 
@@ -108,21 +108,39 @@ final class MapController {
             let points = coordinates.map { MKMapPoint($0) }
             let minX = points.map(\.x).min() ?? 0, maxX = points.map(\.x).max() ?? 0
             let minY = points.map(\.y).min() ?? 0, maxY = points.map(\.y).max() ?? 0
-            var rect = MKMapRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
             let minSize = MKMapPointsPerMeterAtLatitude(first.latitude) * minWidth
-            if rect.size.width < minSize || rect.size.height < minSize {
-                let width = max(rect.size.width, minSize)
-                let height = max(rect.size.height, minSize)
-                rect = MKMapRect(x: rect.midX - width / 2, y: rect.midY - height / 2, width: width, height: height)
-            }
-            let insets = UIEdgeInsets(
-                top: mapView.safeAreaInsets.top + 48,
-                left: 40,
-                bottom: mapView.bounds.height * coveredFraction + 24,
-                right: 40
-            )
-            mapView.setVisibleMapRect(rect, edgePadding: insets, animated: true)
+            let width = max(maxX - minX, minSize)
+            let height = max(maxY - minY, minSize)
+
+            let size = mapView.bounds.size
+            let top = Self.topInset(of: mapView) + 48
+            let bottom = max(top + 80, size.height * (1 - coveredFraction) - 24)
+            let left: CGFloat = 40
+            let right = size.width - 40
+            let mapPerPoint = max(width / Double(right - left), height / Double(bottom - top))
+            let target = CGPoint(x: (left + right) / 2, y: (top + bottom) / 2)
+            Self.place(MKMapPoint(x: (minX + maxX) / 2, y: (minY + maxY) / 2), at: target,
+                       mapPerPoint: mapPerPoint, in: mapView)
         }
+    }
+
+    /// The status bar / Dynamic Island inset, whatever safe area SwiftUI gives the map.
+    private static func topInset(of mapView: MKMapView) -> CGFloat {
+        max(mapView.window?.safeAreaInsets.top ?? 0, mapView.safeAreaInsets.top)
+    }
+
+    /// Moves the camera so `point` lands exactly at `target` (in the map view's
+    /// points), at `mapPerPoint` map units per point. The whole visible rect is set,
+    /// shaped like the view, so MapKit has nothing to adjust.
+    private static func place(_ point: MKMapPoint, at target: CGPoint, mapPerPoint: Double, in mapView: MKMapView) {
+        let size = mapView.bounds.size
+        let rect = MKMapRect(
+            x: point.x - Double(target.x) * mapPerPoint,
+            y: point.y - Double(target.y) * mapPerPoint,
+            width: Double(size.width) * mapPerPoint,
+            height: Double(size.height) * mapPerPoint
+        )
+        mapView.setVisibleMapRect(rect, animated: true)
     }
 }
 
