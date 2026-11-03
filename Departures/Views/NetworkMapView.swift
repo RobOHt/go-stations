@@ -63,6 +63,8 @@ enum StationRole { case plain, home, work }
 final class MapController {
     fileprivate weak var mapView: MKMapView?
     private var pending: ((MKMapView) -> Void)?
+    /// Where the last camera move meant to put a point, checked once the move ends.
+    private var goal: (point: MKMapPoint, target: CGPoint, issued: Date)?
 
     fileprivate func attach(_ mapView: MKMapView) {
         self.mapView = mapView
@@ -95,7 +97,7 @@ final class MapController {
             let visibleBottom = sheetOpen ? size.height * 0.5 : size.height - Self.searchBarRoom
             let target = CGPoint(x: size.width / 2, y: (visibleTop + visibleBottom) / 2)
             let mapPerPoint = width * MKMapPointsPerMeterAtLatitude(coordinate.latitude) / Double(size.width)
-            Self.place(MKMapPoint(coordinate), at: target, mapPerPoint: mapPerPoint, in: mapView)
+            self.place(MKMapPoint(coordinate), at: target, mapPerPoint: mapPerPoint, in: mapView)
         }
     }
 
@@ -119,7 +121,7 @@ final class MapController {
             let right = size.width - 40
             let mapPerPoint = max(width / Double(right - left), height / Double(bottom - top))
             let target = CGPoint(x: (left + right) / 2, y: (top + bottom) / 2)
-            Self.place(MKMapPoint(x: (minX + maxX) / 2, y: (minY + maxY) / 2), at: target,
+            self.place(MKMapPoint(x: (minX + maxX) / 2, y: (minY + maxY) / 2), at: target,
                        mapPerPoint: mapPerPoint, in: mapView)
         }
     }
@@ -129,18 +131,54 @@ final class MapController {
         max(mapView.window?.safeAreaInsets.top ?? 0, mapView.safeAreaInsets.top)
     }
 
-    /// Moves the camera so `point` lands exactly at `target` (in the map view's
-    /// points), at `mapPerPoint` map units per point. The whole visible rect is set,
-    /// shaped like the view, so MapKit has nothing to adjust.
-    private static func place(_ point: MKMapPoint, at target: CGPoint, mapPerPoint: Double, in mapView: MKMapView) {
-        let size = mapView.bounds.size
+    /// Moves the camera so `point` lands at `target` (in the map view's points),
+    /// at `mapPerPoint` map units per point.
+    ///
+    /// MapKit's visible rect may not span the whole view (it can leave out the
+    /// layout margins), so first measure which part of the screen it covers right
+    /// now, then build the new rect in those same terms. Once the move ends,
+    /// `checkPlacement` confirms the point really landed there.
+    private func place(_ point: MKMapPoint, at target: CGPoint, mapPerPoint: Double, in mapView: MKMapView) {
+        let current = mapView.visibleMapRect
+        let topLeft = mapView.convert(MKMapPoint(x: current.minX, y: current.minY).coordinate, toPointTo: mapView)
+        let bottomRight = mapView.convert(MKMapPoint(x: current.maxX, y: current.maxY).coordinate, toPointTo: mapView)
+        var box = CGRect(x: topLeft.x, y: topLeft.y, width: bottomRight.x - topLeft.x, height: bottomRight.y - topLeft.y)
+        if !(box.width > 1 && box.height > 1) || !box.origin.x.isFinite || !box.origin.y.isFinite {
+            box = mapView.bounds
+        }
+
         let rect = MKMapRect(
-            x: point.x - Double(target.x) * mapPerPoint,
-            y: point.y - Double(target.y) * mapPerPoint,
-            width: Double(size.width) * mapPerPoint,
-            height: Double(size.height) * mapPerPoint
+            x: point.x - Double(target.x - box.minX) * mapPerPoint,
+            y: point.y - Double(target.y - box.minY) * mapPerPoint,
+            width: Double(box.width) * mapPerPoint,
+            height: Double(box.height) * mapPerPoint
         )
+        goal = (point, target, Date())
         mapView.setVisibleMapRect(rect, animated: true)
+    }
+
+    /// After a camera move: if the point isn't where it was meant to be (MapKit
+    /// adjusted the move), slide the map the rest of the way. Runs once per move.
+    fileprivate func checkPlacement(_ mapView: MKMapView) {
+        guard let goal else { return }
+        let age = Date().timeIntervalSince(goal.issued)
+        // A change reported right as a move starts is the previous move being cut
+        // short, not this one finishing.
+        guard age > 0.2 else { return }
+        self.goal = nil
+        guard age < 3 else { return }
+        let actual = mapView.convert(goal.point.coordinate, toPointTo: mapView)
+        let dx = Double(actual.x - goal.target.x)
+        let dy = Double(actual.y - goal.target.y)
+        guard abs(dx) > 6 || abs(dy) > 6, dx.isFinite, dy.isFinite else { return }
+        let mapPerPoint = mapView.visibleMapRect.size.width / Double(max(mapView.bounds.width, 1))
+        let shifted = mapView.visibleMapRect.offsetBy(dx: dx * mapPerPoint, dy: dy * mapPerPoint)
+        mapView.setVisibleMapRect(shifted, animated: true)
+    }
+
+    /// You moved the map yourself, so leave it where you put it.
+    fileprivate func cancelPlacementCheck() {
+        goal = nil
     }
 }
 
@@ -157,9 +195,6 @@ struct NetworkMapView: UIViewRepresentable {
     let workCode: String?
     /// A place picked in search, shown as a red pin.
     var place: SearchPlace? = nil
-    /// Room taken at the bottom by floating UI, from the screen's bottom edge;
-    /// Apple's logo and Legal link sit above it.
-    var bottomInset: CGFloat = 0
     /// Any tap on the map, station or not (used to put the keyboard away).
     var onTapMap: () -> Void = {}
     let onSelect: (Station) -> Void
@@ -201,6 +236,25 @@ struct NetworkMapView: UIViewRepresentable {
         tap.delegate = coordinator
         mapView.addGestureRecognizer(tap)
 
+        // Watch (never block) pans and pinches, so a camera move you interrupt
+        // isn't "corrected" afterwards.
+        for watcher in [UIPanGestureRecognizer(), UIPinchGestureRecognizer()] {
+            watcher.addTarget(coordinator, action: #selector(Coordinator.userMovedMap(_:)))
+            watcher.delegate = coordinator
+            watcher.cancelsTouchesInView = false
+            mapView.addGestureRecognizer(watcher)
+        }
+
+        // Apple's logo and Legal link sit inside the layout margins: keep them just
+        // above the search bar. These margins never change afterwards, because
+        // MapKit treats them as covered space and re-centres the map when they do.
+        mapView.insetsLayoutMarginsFromSafeArea = false
+        mapView.layoutMargins = UIEdgeInsets(
+            top: 8, left: 8,
+            bottom: BottomBarMetrics.edgeInset + BottomBarMetrics.restingHeight + 6,
+            right: 8
+        )
+
         mapView.onLayout = { [weak coordinator, weak mapView] in
             guard let coordinator, let mapView else { return }
             coordinator.mapDidLayout(mapView)
@@ -209,7 +263,6 @@ struct NetworkMapView: UIViewRepresentable {
         coordinator.controller = controller
         controller.attach(mapView)
         coordinator.syncPlace(place, in: mapView)
-        applyBottomInset(to: mapView)
         return mapView
     }
 
@@ -221,18 +274,6 @@ struct NetworkMapView: UIViewRepresentable {
             coordinator.refreshStations(in: mapView)
         }
         coordinator.syncPlace(place, in: mapView)
-        applyBottomInset(to: mapView)
-    }
-
-    /// MapKit places its logo and Legal link inside the layout margins.
-    /// `bottomInset` is measured from the bottom edge of the screen; with nothing
-    /// covering the map they sit just above the home indicator.
-    private func applyBottomInset(to mapView: MKMapView) {
-        mapView.insetsLayoutMarginsFromSafeArea = false
-        let resting = (mapView.window?.safeAreaInsets.bottom ?? 0) + 4
-        let bottom = max(bottomInset, resting)
-        guard abs(mapView.layoutMargins.bottom - bottom) > 0.5 else { return }
-        mapView.layoutMargins.bottom = bottom
     }
 
     // MARK: Coordinator
@@ -433,6 +474,14 @@ struct NetworkMapView: UIViewRepresentable {
             renderer.lineJoin = .round
             renderers[ObjectIdentifier(track)] = renderer
             return renderer
+        }
+
+        @objc func userMovedMap(_ recognizer: UIGestureRecognizer) {
+            if recognizer.state == .began { controller?.cancelPlacementCheck() }
+        }
+
+        func mapView(_ mapView: MKMapView, regionDidChangeAnimated animated: Bool) {
+            controller?.checkPlacement(mapView)
         }
 
         func mapViewDidChangeVisibleRegion(_ mapView: MKMapView) {

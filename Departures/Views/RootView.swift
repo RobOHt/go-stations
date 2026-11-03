@@ -29,7 +29,6 @@ struct RootView: View {
             homeCode: settings.homeCode,
             workCode: settings.workCode,
             place: search.place,
-            bottomInset: mapBottomInset,
             onTapMap: { searchFocused = false },
             onSelect: { station in select(station, detent: .medium) }
         )
@@ -106,16 +105,6 @@ struct RootView: View {
             return sheetTop > 300
         }
         return !searchActive
-    }
-
-    /// Room, from the bottom edge of the screen, for Apple's logo and Legal link
-    /// to sit above whatever covers the bottom of the map.
-    private var mapBottomInset: CGFloat {
-        if selected != nil {
-            guard detent != .large, let sheetLift else { return 0 }
-            return sheetLift + 6
-        }
-        return panelHeight + BottomBarMetrics.edgeInset + 6
     }
 
     private var floatingSideInset: CGFloat {

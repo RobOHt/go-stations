@@ -79,7 +79,7 @@ struct StationSheet: View {
                     if let role = roleLabel {
                         Text(role)
                             .font(.footnote.weight(.semibold))
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(roleColor)
                             .padding(.leading, 4)
                     }
                 }
@@ -90,20 +90,24 @@ struct StationSheet: View {
             GlassEffectContainer(spacing: 8) {
                 HStack(spacing: 8) {
                     Button {
-                        settings.setHome(settings.homeCode == station.code ? nil : station.code)
+                        settings.setHome(isHome ? nil : station.code)
                     } label: {
-                        Image(systemName: settings.homeCode == station.code ? "house.fill" : "house")
+                        Image(systemName: isHome ? "house.fill" : "house")
                             .frame(width: 22, height: 22)
                     }
-                    .accessibilityLabel(settings.homeCode == station.code ? "Remove as home station" : "Set as home station")
+                    .modifier(RoleToggleStyle(isOn: isHome, tint: RoleColor.home))
+                    .accessibilityLabel(isHome ? "Remove as home station" : "Set as home station")
+                    .accessibilityAddTraits(isHome ? .isSelected : [])
 
                     Button {
-                        settings.setWork(settings.workCode == station.code ? nil : station.code)
+                        settings.setWork(isWork ? nil : station.code)
                     } label: {
-                        Image(systemName: settings.workCode == station.code ? "briefcase.fill" : "briefcase")
+                        Image(systemName: isWork ? "briefcase.fill" : "briefcase")
                             .frame(width: 22, height: 22)
                     }
-                    .accessibilityLabel(settings.workCode == station.code ? "Remove as work station" : "Set as work station")
+                    .modifier(RoleToggleStyle(isOn: isWork, tint: RoleColor.work))
+                    .accessibilityLabel(isWork ? "Remove as work station" : "Set as work station")
+                    .accessibilityAddTraits(isWork ? .isSelected : [])
 
                     Button {
                         dismiss()
@@ -117,6 +121,17 @@ struct StationSheet: View {
                 .buttonBorderShape(.circle)
                 .controlSize(.large)
             }
+        }
+    }
+
+    private var isHome: Bool { settings.homeCode == station.code }
+    private var isWork: Bool { settings.workCode == station.code }
+
+    private var roleColor: Color {
+        switch (isHome, isWork) {
+        case (true, false): return RoleColor.home
+        case (false, true): return RoleColor.work
+        default: return .secondary
         }
     }
 
@@ -214,5 +229,28 @@ private struct AlertCard: View {
         }
         .buttonStyle(.plain)
         .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+    }
+}
+
+/// Home and work colours, as in Apple Maps: home blue, work brown.
+enum RoleColor {
+    static let home = Color.blue
+    static let work = Color.brown
+}
+
+/// A home/work button: plain glass when off, filled with its colour when on.
+private struct RoleToggleStyle: ViewModifier {
+    let isOn: Bool
+    let tint: Color
+
+    func body(content: Content) -> some View {
+        if isOn {
+            content
+                .buttonStyle(.glassProminent)
+                .tint(tint)
+        } else {
+            content
+                .buttonStyle(.glass)
+        }
     }
 }
