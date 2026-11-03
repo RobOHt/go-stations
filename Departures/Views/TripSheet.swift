@@ -174,44 +174,46 @@ struct TripSheet: View {
     private func stopList(_ detail: TripDetail) -> some View {
         let originIndex = detail.stops.firstIndex { $0.code == selection.station.code } ?? 0
         return TimelineView(.periodic(from: .now, by: 10)) { context in
-            ZStack(alignment: .topLeading) {
-                TripLine(
+            let state = TrainState(stops: detail.stops, now: context.date)
+            VStack(alignment: .leading, spacing: 12) {
+                TrainStatusBanner(
+                    state: state,
                     stops: detail.stops,
                     originIndex: originIndex,
+                    source: detail.source,
                     now: context.date,
                     color: lineColor
                 )
 
-                VStack(spacing: 0) {
-                    ForEach(detail.stops) { stop in
-                        Button {
-                            if let station = network.station(stop.code) { openStation = station }
-                        } label: {
-                            StopRow(
-                                stop: stop,
-                                name: network.station(stop.code)?.name ?? stop.code,
-                                role: role(for: stop.code),
-                                isOrigin: stop.index == originIndex,
-                                isEnd: stop.index == 0 || stop.index == detail.stops.count - 1,
-                                // Stops before yours, and stops the train has already left.
-                                isDimmed: stop.index < originIndex || Self.hasPassed(stop, now: context.date),
-                                lineColor: lineColor
-                            )
-                        }
-                        .buttonStyle(StopRowButtonStyle())
-                    }
-                }
+                ZStack(alignment: .topLeading) {
+                    TripLine(stopCount: detail.stops.count, state: state, color: lineColor)
 
-                TrainMarkerLayer(stops: detail.stops, now: context.date, color: lineColor)
+                    VStack(spacing: 0) {
+                        ForEach(detail.stops) { stop in
+                            Button {
+                                if let station = network.station(stop.code) { openStation = station }
+                            } label: {
+                                StopRow(
+                                    stop: stop,
+                                    name: network.station(stop.code)?.name ?? stop.code,
+                                    role: role(for: stop.code),
+                                    isOrigin: stop.index == originIndex,
+                                    isEnd: stop.index == 0 || stop.index == detail.stops.count - 1,
+                                    // Dimmed once the train has left it.
+                                    isDimmed: state.hasPassed(stop.index, stopCount: detail.stops.count),
+                                    lineColor: lineColor
+                                )
+                            }
+                            .buttonStyle(StopRowButtonStyle())
+                        }
+                    }
+
+                    TrainMarkerLayer(stopCount: detail.stops.count, state: state, color: lineColor)
+                }
+                .padding(.vertical, 6)
+                .background(.background.secondary, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
             }
         }
-        .padding(.vertical, 6)
-        .background(.background.secondary, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-    }
-
-    private static func hasPassed(_ stop: TripDetail.Stop, now: Date) -> Bool {
-        guard let time = stop.expected ?? stop.time else { return false }
-        return time < now.addingTimeInterval(-30)
     }
 
     private func role(for code: String) -> StationRole {
@@ -227,8 +229,7 @@ struct TripSheet: View {
             case .live:
                 Label("Live times from Metrolinx", systemImage: "dot.radiowaves.left.and.right")
             case .schedule:
-                Label("Scheduled times, not live. The train's position is estimated from the timetable.",
-                      systemImage: "calendar")
+                Label("Scheduled times, not live", systemImage: "calendar")
             case nil:
                 Label("Times aren't available for this train", systemImage: "questionmark.circle")
             }
@@ -239,12 +240,159 @@ struct TripSheet: View {
     }
 }
 
-/// The continuous line behind the stop dots: faded before your station, full colour
-/// after it with white chevrons flowing in the direction of travel.
-private struct TripLine: View {
+// MARK: - Where the train is
+
+/// Where the train should be right now, worked out from its stop times
+/// (live estimates when there are any, otherwise the timetable).
+enum TrainState {
+    /// Hasn't left its first stop yet.
+    case waiting(departs: Date)
+    /// Between two stops; `fraction` of the way from `from` to `from + 1`.
+    case moving(from: Int, fraction: Double)
+    /// Reached its last stop.
+    case arrived(at: Date)
+    /// Not enough times to tell.
+    case unknown
+
+    init(stops: [TripDetail.Stop], now: Date) {
+        let times = stops.map { $0.expected ?? $0.time }
+        guard let first = times.first ?? nil, let last = times.last ?? nil else {
+            self = .unknown
+            return
+        }
+        if now < first {
+            self = .waiting(departs: first)
+            return
+        }
+        if now >= last {
+            self = .arrived(at: last)
+            return
+        }
+        for index in 0..<(times.count - 1) {
+            guard let start = times[index], let end = times[index + 1], now >= start, now < end else { continue }
+            let fraction = end > start ? now.timeIntervalSince(start) / end.timeIntervalSince(start) : 0
+            self = .moving(from: index, fraction: fraction)
+            return
+        }
+        self = .unknown
+    }
+
+    /// Position along the list, in stops (0 = first stop).
+    func progress(stopCount: Int) -> Double? {
+        switch self {
+        case .waiting: return 0
+        case .moving(let from, let fraction): return Double(from) + fraction
+        case .arrived: return Double(max(stopCount - 1, 0))
+        case .unknown: return nil
+        }
+    }
+
+    /// Whether the train has already left this stop.
+    func hasPassed(_ index: Int, stopCount: Int) -> Bool {
+        switch self {
+        case .waiting, .unknown: return false
+        case .moving(let from, _): return index <= from
+        case .arrived: return index < stopCount - 1
+        }
+    }
+
+    var isMoving: Bool {
+        if case .moving = self { return true }
+        return false
+    }
+}
+
+/// One line explaining the train marker: waiting, between which stops, or arrived,
+/// plus when it reaches the station you came from.
+private struct TrainStatusBanner: View {
+    let state: TrainState
     let stops: [TripDetail.Stop]
     let originIndex: Int
+    let source: BoardSnapshot.Source?
     let now: Date
+    let color: Color
+
+    private let network = RailNetwork.shared
+
+    private func name(_ index: Int) -> String {
+        guard stops.indices.contains(index) else { return "" }
+        return network.station(stops[index].code)?.name ?? stops[index].code
+    }
+
+    private func time(_ index: Int) -> Date? {
+        guard stops.indices.contains(index) else { return nil }
+        return stops[index].expected ?? stops[index].time
+    }
+
+    private func relative(_ date: Date) -> String {
+        let minutes = Int((date.timeIntervalSince(now) / 60).rounded(.up))
+        if minutes <= 0 { return "now" }
+        if minutes < 60 { return "in \(minutes) min" }
+        return "in \(minutes / 60) h \(minutes % 60) min"
+    }
+
+    private var headline: (symbol: String, title: String, detail: String)? {
+        switch state {
+        case .waiting(let departs):
+            return ("zzz", "Waiting at \(name(0))", "Departs \(TorontoTime.hourMinute(departs)), \(relative(departs))")
+        case .moving(let from, _):
+            let next = from + 1
+            let arrival = time(next).map { "\(TorontoTime.hourMinute($0)), \(relative($0))" } ?? ""
+            return ("tram.fill", "Between \(name(from)) and \(name(next))", "Next stop \(name(next)) \(arrival)")
+        case .arrived(let at):
+            return ("flag.checkered", "Arrived at \(name(stops.count - 1))", "At \(TorontoTime.hourMinute(at))")
+        case .unknown:
+            return nil
+        }
+    }
+
+    /// When the train reaches the station whose board this came from, if it hasn't yet.
+    private var originLine: String? {
+        guard originIndex > 0, !state.hasPassed(originIndex, stopCount: stops.count),
+              let at = time(originIndex), at > now else { return nil }
+        if case .arrived = state { return nil }
+        return "Reaches \(name(originIndex)) \(TorontoTime.hourMinute(at)), \(relative(at))"
+    }
+
+    var body: some View {
+        if let headline {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: headline.symbol)
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(width: 34, height: 34)
+                    .background(state.isMoving ? color : Color.gray, in: Circle())
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(headline.title)
+                        .font(.subheadline.weight(.semibold))
+                    Text(headline.detail)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                    if let originLine {
+                        Text(originLine)
+                            .font(.footnote.weight(.semibold))
+                    }
+                    if source == .schedule {
+                        Text("Estimated from the timetable")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(12)
+            .background(.background.secondary, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .accessibilityElement(children: .combine)
+        }
+    }
+}
+
+/// The continuous line behind the stop dots: faded where the train has already been,
+/// full colour ahead of it, with white chevrons flowing toward the terminus while
+/// the train is moving.
+private struct TripLine: View {
+    let stopCount: Int
+    let state: TrainState
     let color: Color
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -253,89 +401,73 @@ private struct TripLine: View {
     private let lineX = TripSheet.lineX
     private let lineWidth: CGFloat = 8
 
-    private func centerY(_ index: Int) -> CGFloat { CGFloat(index) * rowHeight + rowHeight / 2 }
+    private func y(_ stops: Double) -> CGFloat { CGFloat(stops) * rowHeight + rowHeight / 2 }
 
     var body: some View {
-        let top = centerY(0)
-        let bottom = centerY(max(stops.count - 1, 0))
-        let origin = centerY(min(originIndex, max(stops.count - 1, 0)))
+        let top = y(0)
+        let bottom = y(Double(max(stopCount - 1, 0)))
+        let train = min(max(y(state.progress(stopCount: stopCount) ?? 0), top), bottom)
+        let animate = state.isMoving && !reduceMotion
 
-        ZStack(alignment: .topLeading) {
-            TimelineView(.animation(minimumInterval: 1.0 / 30, paused: reduceMotion)) { context in
-                let speed: Double = 14  // points per second
-                let spacing: CGFloat = 16
-                let phase = reduceMotion ? 0
-                    : CGFloat((context.date.timeIntervalSinceReferenceDate * speed).truncatingRemainder(dividingBy: Double(spacing)))
+        TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !animate)) { context in
+            let spacing: CGFloat = 16
+            let phase = animate
+                ? CGFloat((context.date.timeIntervalSinceReferenceDate * 14).truncatingRemainder(dividingBy: Double(spacing)))
+                : 0
 
-                Canvas { canvas, _ in
-                    let style = StrokeStyle(lineWidth: lineWidth, lineCap: .round)
-                    if origin > top {
-                        var faded = Path()
-                        faded.move(to: CGPoint(x: lineX, y: top))
-                        faded.addLine(to: CGPoint(x: lineX, y: origin))
-                        canvas.stroke(faded, with: .color(color.opacity(0.35)), style: style)
-                    }
+            Canvas { canvas, _ in
+                let style = StrokeStyle(lineWidth: lineWidth, lineCap: .round)
+                if train > top {
+                    var behind = Path()
+                    behind.move(to: CGPoint(x: lineX, y: top))
+                    behind.addLine(to: CGPoint(x: lineX, y: train))
+                    canvas.stroke(behind, with: .color(color.opacity(0.3)), style: style)
+                }
+                if bottom > train {
                     var ahead = Path()
-                    ahead.move(to: CGPoint(x: lineX, y: origin))
+                    ahead.move(to: CGPoint(x: lineX, y: train))
                     ahead.addLine(to: CGPoint(x: lineX, y: bottom))
                     canvas.stroke(ahead, with: .color(color), style: style)
-
-                    // Chevrons pointing down the list, the way the train is going.
-                    var chevrons = Path()
-                    var y = origin + phase
-                    while y < bottom - 4 {
-                        chevrons.move(to: CGPoint(x: lineX - 2.6, y: y - 1.6))
-                        chevrons.addLine(to: CGPoint(x: lineX, y: y + 1.2))
-                        chevrons.addLine(to: CGPoint(x: lineX + 2.6, y: y - 1.6))
-                        y += spacing
-                    }
-                    canvas.stroke(chevrons, with: .color(.white.opacity(0.9)),
-                                  style: StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round))
                 }
+
+                // Chevrons pointing down the list, the way the train is going.
+                guard state.isMoving else { return }
+                var chevrons = Path()
+                var position = train + 16 + phase
+                while position < bottom - 4 {
+                    chevrons.move(to: CGPoint(x: lineX - 2.6, y: position - 1.6))
+                    chevrons.addLine(to: CGPoint(x: lineX, y: position + 1.2))
+                    chevrons.addLine(to: CGPoint(x: lineX + 2.6, y: position - 1.6))
+                    position += spacing
+                }
+                canvas.stroke(chevrons, with: .color(.white.opacity(0.9)),
+                              style: StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round))
             }
-            .frame(height: bottom + rowHeight / 2)
         }
-        .frame(height: bottom + rowHeight / 2, alignment: .topLeading)
+        .frame(height: bottom + rowHeight / 2)
+        .animation(.linear(duration: 10), value: train)
         .allowsHitTesting(false)
         .accessibilityHidden(true)
     }
 }
 
-/// The train marker, drawn above the stop rows.
+/// The train itself, drawn above the stop rows.
 private struct TrainMarkerLayer: View {
-    let stops: [TripDetail.Stop]
-    let now: Date
+    let stopCount: Int
+    let state: TrainState
     let color: Color
 
-    private let rowHeight = TripSheet.rowHeight
-
-    private func centerY(_ index: Int) -> CGFloat { CGFloat(index) * rowHeight + rowHeight / 2 }
-
-    /// Where the train is along the list, or nil when it isn't running yet or has arrived.
-    private var trainY: CGFloat? {
-        let times = stops.map { $0.expected ?? $0.time }
-        guard let first = times.first ?? nil, let last = times.last ?? nil else { return nil }
-        if now < first.addingTimeInterval(-15 * 60) || now >= last { return nil }
-        if now <= first { return centerY(0) }
-        for index in 0..<(times.count - 1) {
-            guard let start = times[index], let end = times[index + 1], now >= start, now < end else { continue }
-            let fraction = end > start ? now.timeIntervalSince(start) / end.timeIntervalSince(start) : 0
-            return centerY(index) + CGFloat(fraction) * rowHeight
-        }
-        return nil
-    }
-
     var body: some View {
-        let height = CGFloat(stops.count) * rowHeight
+        let rowHeight = TripSheet.rowHeight
         ZStack(alignment: .topLeading) {
             Color.clear
-            if let trainY {
-                TrainMarker(color: color)
-                    .position(x: TripSheet.lineX, y: trainY)
-                    .animation(.linear(duration: 10), value: trainY)
+            if let progress = state.progress(stopCount: stopCount) {
+                TrainMarker(color: color, isSleeping: !state.isMoving)
+                    .position(x: TripSheet.lineX, y: CGFloat(progress) * rowHeight + rowHeight / 2)
+                    .animation(.linear(duration: 10), value: progress)
             }
         }
-        .frame(height: height)
+        .frame(height: CGFloat(stopCount) * rowHeight)
         .allowsHitTesting(false)
         .accessibilityHidden(true)
     }
@@ -343,16 +475,28 @@ private struct TrainMarkerLayer: View {
 
 private struct TrainMarker: View {
     let color: Color
+    /// Waiting to depart, or done for the trip.
+    let isSleeping: Bool
 
     var body: some View {
         Image(systemName: "tram.fill")
-            .font(.system(size: 11, weight: .bold))
+            .font(.system(size: 13, weight: .bold))
             .foregroundStyle(.white)
-            .frame(width: 24, height: 24)
-            .background(color, in: Circle())
+            .frame(width: 30, height: 30)
+            .background(isSleeping ? Color.gray : color, in: Circle())
             .overlay(Circle().strokeBorder(.white, lineWidth: 2.5))
+            .overlay(alignment: .topTrailing) {
+                if isSleeping {
+                    Image(systemName: "zzz")
+                        .font(.system(size: 9, weight: .heavy))
+                        .foregroundStyle(.primary)
+                        .padding(3)
+                        .background(.background, in: Capsule())
+                        .offset(x: 10, y: -8)
+                }
+            }
             .shadow(color: .black.opacity(0.35), radius: 3, y: 1)
-            .symbolEffect(.pulse, options: .repeating)
+            .symbolEffect(.pulse, options: .repeating, isActive: !isSleeping)
     }
 }
 
