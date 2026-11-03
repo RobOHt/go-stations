@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// Bottom sheet for one station: its name and lines, the board below. Tapping a
-/// train opens its stop list in another sheet.
+/// Bottom sheet for one station: name, lines and home/work toggles on glass, the
+/// board below. Tapping a train opens its stop list in another sheet.
 struct StationSheet: View {
     let station: Station
 
@@ -87,16 +87,36 @@ struct StationSheet: View {
 
             Spacer(minLength: 8)
 
-            Button {
-                dismiss()
-            } label: {
-                Image(systemName: "xmark")
-                    .frame(width: 22, height: 22)
+            GlassEffectContainer(spacing: 8) {
+                HStack(spacing: 8) {
+                    Button {
+                        settings.setHome(settings.homeCode == station.code ? nil : station.code)
+                    } label: {
+                        Image(systemName: settings.homeCode == station.code ? "house.fill" : "house")
+                            .frame(width: 22, height: 22)
+                    }
+                    .accessibilityLabel(settings.homeCode == station.code ? "Remove as home station" : "Set as home station")
+
+                    Button {
+                        settings.setWork(settings.workCode == station.code ? nil : station.code)
+                    } label: {
+                        Image(systemName: settings.workCode == station.code ? "briefcase.fill" : "briefcase")
+                            .frame(width: 22, height: 22)
+                    }
+                    .accessibilityLabel(settings.workCode == station.code ? "Remove as work station" : "Set as work station")
+
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .frame(width: 22, height: 22)
+                    }
+                    .accessibilityLabel("Close")
+                }
+                .buttonStyle(.glass)
+                .buttonBorderShape(.circle)
+                .controlSize(.large)
             }
-            .buttonStyle(.glass)
-            .buttonBorderShape(.circle)
-            .controlSize(.large)
-            .accessibilityLabel("Close")
         }
     }
 
