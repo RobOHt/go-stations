@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// Bottom sheet for one station: name, lines and home/work toggles on glass, the
 /// board below. Tapping a train opens its stop list in another sheet.
@@ -232,10 +233,11 @@ private struct AlertCard: View {
     }
 }
 
-/// Home and work colours, as in Apple Maps: home blue, work brown.
+/// Home and work colours, as in Apple Maps: home blue, work brown. Used on the
+/// map pins, the buttons, Settings, search and the trip sheet.
 enum RoleColor {
-    static let home = Color.blue
-    static let work = Color.brown
+    static let home = Color(uiColor: StationRole.home.uiColor)
+    static let work = Color(uiColor: StationRole.work.uiColor)
 }
 
 /// A home/work button: plain glass when off, filled with its colour when on.

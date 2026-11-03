@@ -164,6 +164,7 @@ struct RootView: View {
                         select(home, detent: .medium)
                     } label: {
                         Image(systemName: "house.fill")
+                            .foregroundStyle(RoleColor.home)
                             .frame(width: 24, height: 24)
                     }
                     .accessibilityLabel("Home station: \(home.name)")
@@ -174,6 +175,7 @@ struct RootView: View {
                         select(work, detent: .medium)
                     } label: {
                         Image(systemName: "briefcase.fill")
+                            .foregroundStyle(RoleColor.work)
                             .frame(width: 24, height: 24)
                     }
                     .accessibilityLabel("Work station: \(work.name)")

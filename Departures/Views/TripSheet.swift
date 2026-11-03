@@ -535,11 +535,11 @@ private struct StopRow: View {
 
             HStack(spacing: 8) {
                 if role != .plain {
-                    Image(systemName: role == .home ? "house.fill" : "briefcase.fill")
+                    Image(systemName: role.symbolName)
                         .font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(Color(uiColor: .systemBackground))
+                        .foregroundStyle(.white)
                         .frame(width: 24, height: 24)
-                        .background(Color.primary, in: Circle())
+                        .background(role == .home ? RoleColor.home : RoleColor.work, in: Circle())
                         .accessibilityLabel(role == .home ? "Home" : "Work")
                 }
                 VStack(alignment: .leading, spacing: 1) {

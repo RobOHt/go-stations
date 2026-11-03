@@ -29,21 +29,29 @@ struct SettingsView: View {
     private var stationsSection: some View {
         Section {
             NavigationLink {
-                StationPicker(title: "Home station", selection: settings.homeCode) { settings.setHome($0) }
+                StationPicker(title: "Home station", selection: settings.homeCode, color: RoleColor.home) { settings.setHome($0) }
             } label: {
                 LabeledContent {
                     Text(name(for: settings.homeCode))
                 } label: {
-                    Label("Home", systemImage: "house.fill")
+                    Label {
+                        Text("Home")
+                    } icon: {
+                        Image(systemName: "house.fill").foregroundStyle(RoleColor.home)
+                    }
                 }
             }
             NavigationLink {
-                StationPicker(title: "Work station", selection: settings.workCode) { settings.setWork($0) }
+                StationPicker(title: "Work station", selection: settings.workCode, color: RoleColor.work) { settings.setWork($0) }
             } label: {
                 LabeledContent {
                     Text(name(for: settings.workCode))
                 } label: {
-                    Label("Work", systemImage: "briefcase.fill")
+                    Label {
+                        Text("Work")
+                    } icon: {
+                        Image(systemName: "briefcase.fill").foregroundStyle(RoleColor.work)
+                    }
                 }
             }
         } header: {
@@ -75,6 +83,8 @@ struct SettingsView: View {
 struct StationPicker: View {
     let title: String
     let selection: String?
+    /// Blue for home, brown for work.
+    var color: Color = .accentColor
     let onPick: (String?) -> Void
 
     @Environment(\.dismiss) private var dismiss
@@ -115,7 +125,7 @@ struct StationPicker: View {
                         if station.code == selection {
                             Image(systemName: "checkmark")
                                 .fontWeight(.semibold)
-                                .foregroundStyle(.tint)
+                                .foregroundStyle(color)
                         }
                     }
                 }

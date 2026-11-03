@@ -257,8 +257,9 @@ struct SearchPanel: View {
     private let network = RailNetwork.shared
 
     private struct SavedStation: Identifiable {
-        let label: String
+        let role: StationRole
         let station: Station
+        var label: String { role == .work ? "Work" : "Home" }
         var id: String { label + station.code }
     }
 
@@ -268,8 +269,8 @@ struct SearchPanel: View {
 
     private var savedStations: [SavedStation] {
         var result: [SavedStation] = []
-        if let home = settings.homeCode.flatMap(network.station) { result.append(SavedStation(label: "Home", station: home)) }
-        if let work = settings.workCode.flatMap(network.station) { result.append(SavedStation(label: "Work", station: work)) }
+        if let home = settings.homeCode.flatMap(network.station) { result.append(SavedStation(role: .home, station: home)) }
+        if let work = settings.workCode.flatMap(network.station) { result.append(SavedStation(role: .work, station: work)) }
         return result
     }
 
@@ -388,7 +389,7 @@ struct SearchPanel: View {
                 } else {
                     sectionTitle("Your stations")
                     ForEach(savedStations) { saved in
-                        stationRow(saved.station, detail: saved.label) { openStation(saved.station) }
+                        stationRow(saved.station, detail: saved.label, role: saved.role) { openStation(saved.station) }
                     }
                 }
             }
@@ -450,14 +451,15 @@ struct SearchPanel: View {
             .padding(.bottom, 2)
     }
 
-    private func stationRow(_ station: Station, detail: String?, action: @escaping () -> Void) -> some View {
+    private func stationRow(_ station: Station, detail: String?, role: StationRole = .plain,
+                            action: @escaping () -> Void) -> some View {
         Button(action: action) {
             HStack(spacing: 12) {
-                Image(systemName: "tram.fill")
+                Image(systemName: role == .plain ? "tram.fill" : role.symbolName)
                     .font(.footnote.weight(.bold))
                     .foregroundStyle(.white)
                     .frame(width: 30, height: 30)
-                    .background(network.line(code: station.lineCodes.first ?? "")?.color ?? .gray, in: Circle())
+                    .background(iconColor(for: station, role: role), in: Circle())
                 VStack(alignment: .leading, spacing: 2) {
                     Text(station.name).font(.body.weight(.semibold)).foregroundStyle(.primary)
                     if let detail {
@@ -474,6 +476,14 @@ struct SearchPanel: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+    }
+
+    private func iconColor(for station: Station, role: StationRole) -> Color {
+        switch role {
+        case .home: return RoleColor.home
+        case .work: return RoleColor.work
+        case .plain: return network.line(code: station.lineCodes.first ?? "")?.color ?? .gray
+        }
     }
 
     private func placeRow(_ completion: MKLocalSearchCompletion) -> some View {

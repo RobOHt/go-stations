@@ -53,7 +53,13 @@ enum MapZoom: Int, Comparable {
     var casingWidth: CGFloat { lineWidth + (self <= .city ? 3.5 : 2) }
 }
 
-enum StationRole { case plain, home, work }
+enum StationRole {
+    case plain, home, work
+
+    /// Apple Maps colours: home blue, work brown (same as `RoleColor`).
+    var uiColor: UIColor { self == .work ? .systemBrown : .systemBlue }
+    var symbolName: String { self == .work ? "briefcase.fill" : "house.fill" }
+}
 
 // MARK: - Camera control from SwiftUI
 
@@ -661,15 +667,17 @@ final class RoleAnnotation: NSObject, MKAnnotation {
 /// A round home/work badge with a small triangle pointing down at the station dot.
 /// Same size at every zoom level. Like the dots it never takes touches; the map's
 /// tap handler checks pins first.
+/// The home/work marker: Apple Maps' balloon pin (a round head with a point
+/// underneath), blue for home and brown for work, with a white glyph. It stays
+/// the same size at every zoom, and its point sits just above the station dot.
 final class RolePinView: MKAnnotationView {
     static let reuseID = "role"
-    private static let bubbleSize: CGFloat = 30
-    private static let tipSize = CGSize(width: 12, height: 7)
+    private static let headSize: CGFloat = 30
+    private static let pointLength: CGFloat = 7
 
-    private let ring = UIView()
-    private let bubble = UIView()
+    private let balloon = CAShapeLayer()
     private let icon = UIImageView()
-    private let tip = UIView()
+    private var role: StationRole = .home
 
     override init(annotation: MKAnnotation?, reuseIdentifier: String?) {
         super.init(annotation: annotation, reuseIdentifier: reuseIdentifier)
@@ -680,43 +688,29 @@ final class RolePinView: MKAnnotationView {
         collisionMode = .none
         backgroundColor = .clear
 
-        let side = Self.bubbleSize
-        let tipSize = Self.tipSize
-        bounds = CGRect(x: 0, y: 0, width: side, height: side + tipSize.height - 2)
+        let side = Self.headSize
+        bounds = CGRect(x: 0, y: 0, width: side, height: side + Self.pointLength)
 
-        // Inverted colours read clearly on both light and dark maps; the ring
-        // (background colour) separates the badge from the lines underneath.
-        ring.frame = CGRect(x: 0, y: 0, width: side, height: side)
-        ring.backgroundColor = .systemBackground
-        ring.layer.cornerRadius = side / 2
-        addSubview(ring)
+        balloon.path = Self.balloonPath().cgPath
+        balloon.strokeColor = UIColor.black.withAlphaComponent(0.12).cgColor
+        balloon.lineWidth = 0.5
+        layer.addSublayer(balloon)
 
-        bubble.frame = ring.bounds.insetBy(dx: 2, dy: 2)
-        bubble.backgroundColor = .label
-        bubble.layer.cornerRadius = bubble.bounds.width / 2
-        ring.addSubview(bubble)
-
-        icon.frame = bubble.bounds
+        icon.frame = CGRect(x: 0, y: 0, width: side, height: side)
         icon.contentMode = .center
-        icon.tintColor = .systemBackground
-        bubble.addSubview(icon)
-
-        tip.frame = CGRect(x: (side - tipSize.width) / 2, y: side - 2, width: tipSize.width, height: tipSize.height)
-        tip.backgroundColor = .label
-        let triangle = UIBezierPath()
-        triangle.move(to: .zero)
-        triangle.addLine(to: CGPoint(x: tipSize.width, y: 0))
-        triangle.addLine(to: CGPoint(x: tipSize.width / 2, y: tipSize.height))
-        triangle.close()
-        let mask = CAShapeLayer()
-        mask.path = triangle.cgPath
-        tip.layer.mask = mask
-        insertSubview(tip, belowSubview: ring)
+        icon.tintColor = .white
+        addSubview(icon)
 
         layer.shadowColor = UIColor.black.cgColor
-        layer.shadowOpacity = 0.3
-        layer.shadowRadius = 3
-        layer.shadowOffset = CGSize(width: 0, height: 1)
+        layer.shadowOpacity = 0.28
+        layer.shadowRadius = 2.5
+        layer.shadowOffset = CGSize(width: 0, height: 1.5)
+        layer.shadowPath = balloon.path
+
+        // Layer colours don't follow light/dark mode by themselves.
+        registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (pin: RolePinView, _) in
+            pin.applyColor()
+        }
     }
 
     @available(*, unavailable)
@@ -724,16 +718,41 @@ final class RolePinView: MKAnnotationView {
         fatalError("init(coder:) is not supported")
     }
 
-    /// Puts the triangle's tip `tipGap` points above the station's centre.
+    /// A circle with its two tangents meeting at a point below it.
+    private static func balloonPath() -> UIBezierPath {
+        let radius = headSize / 2
+        let center = CGPoint(x: radius, y: radius)
+        let point = CGPoint(x: radius, y: headSize + pointLength)
+        let reach = radius + pointLength
+        // Where the tangent lines from the point touch the circle.
+        let spread = CGFloat.pi / 2 - asin(radius / reach)
+        let right = CGFloat.pi / 2 - spread
+        let left = CGFloat.pi / 2 + spread
+
+        let path = UIBezierPath()
+        path.move(to: point)
+        path.addLine(to: CGPoint(x: center.x + radius * cos(right), y: center.y + radius * sin(right)))
+        path.addArc(withCenter: center, radius: radius, startAngle: right, endAngle: left, clockwise: false)
+        path.close()
+        return path
+    }
+
+    /// Puts the balloon's point `tipGap` points above the station's centre.
     func configure(role: StationRole, tipGap: CGFloat, xOffset: CGFloat) {
         isUserInteractionEnabled = false
+        self.role = role
+        applyColor()
         icon.image = UIImage(
-            systemName: role == .work ? "briefcase.fill" : "house.fill",
-            withConfiguration: UIImage.SymbolConfiguration(pointSize: 14, weight: .bold)
+            systemName: role.symbolName,
+            withConfiguration: UIImage.SymbolConfiguration(pointSize: 14, weight: .semibold)
         )
         centerOffset = CGPoint(x: xOffset, y: -(bounds.height / 2 + tipGap))
         zPriority = MKAnnotationViewZPriority(rawValue: 800)
         accessibilityLabel = role == .work ? "Work station" : "Home station"
+    }
+
+    private func applyColor() {
+        balloon.fillColor = role.uiColor.resolvedColor(with: traitCollection).cgColor
     }
 }
 
