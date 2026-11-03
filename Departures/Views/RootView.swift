@@ -39,7 +39,14 @@ struct RootView: View {
         .sheet(isPresented: stationSheetPresented) {
             if let selected {
                 StationSheet(station: selected)
-                    .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minY } action: { sheetTop = $0 }
+                    // The sheet's visible top edge. Its content starts lower (iOS keeps a
+                    // safe area at the top of the sheet for the grabber), so measure a
+                    // background that ignores the safe area and spans the whole sheet.
+                    .background {
+                        Color.clear
+                            .ignoresSafeArea()
+                            .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minY } action: { sheetTop = $0 }
+                    }
                     .presentationDetents([.medium, .large], selection: $detent)
                     .presentationBackgroundInteraction(.enabled(upThrough: .medium))
                     .presentationDragIndicator(.visible)
