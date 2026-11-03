@@ -80,6 +80,14 @@ jobs:
           echo "BUNDLE_ID=$BUNDLE_ID" >> "$GITHUB_ENV"
           "$RUNNER_TEMP/venv/bin/python" .github/scripts/register_bundle_id.py "$BUNDLE_ID" "GO Stations"
 
+      - name: Bundle a fresh timetable
+        if: steps.config.outputs.ready == 'true'
+        run: |
+          # The app's offline fallback. If GO's feed can't be fetched, ship the committed copy;
+          # the app also downloads the daily timetable on its own.
+          python3 tools/build_schedule.py --output Departures/Resources/schedule.json \
+            || echo "::warning title=Timetable::Couldn't build a fresh timetable; bundling the committed copy"
+
       - name: Archive (unsigned)
         if: steps.config.outputs.ready == 'true'
         run: |

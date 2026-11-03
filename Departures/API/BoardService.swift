@@ -20,7 +20,19 @@ actor BoardService {
     private var tripMisses: [String: Date] = [:]
     private var tripCacheDay = ""
 
+    /// Live board, or the timetable when live data can't be had.
     func board(for station: Station) async throws -> BoardSnapshot {
+        do {
+            return try await liveBoard(for: station)
+        } catch {
+            if error is CancellationError { throw error }
+            if let urlError = error as? URLError, urlError.code == .cancelled { throw error }
+            if let scheduled = await scheduledBoard(for: station, liveError: error) { return scheduled }
+            throw error
+        }
+    }
+
+    private func liveBoard(for station: Station) async throws -> BoardSnapshot {
         let client = MetrolinxClient()
         let network = RailNetwork.shared
         let now = Date()
@@ -66,6 +78,40 @@ actor BoardService {
             alerts: Self.stationAlerts(alerts, station: station, network: network),
             fetchedAt: now
         )
+    }
+
+    // MARK: Timetable fallback
+
+    private func scheduledBoard(for station: Station, liveError: Error) async -> BoardSnapshot? {
+        let now = Date()
+        guard let departures = await ScheduleStore.shared.departures(from: station.code, after: now, limit: 16) else {
+            return nil
+        }
+        let network = RailNetwork.shared
+        let rows = departures.map { departure -> BoardRow in
+            let line = network.line(code: departure.lineCode)
+            let code = line?.code ?? departure.lineCode
+            let name = line?.name ?? code
+            let onward = Array(departure.pattern[(departure.stopIndex + 1)...])
+            // Union's board shows the line in the "To" column; other stations show the terminus.
+            let destination = station.isUnion ? name : (onward.last.flatMap { network.station($0)?.name } ?? name)
+            return BoardRow(
+                tripNumber: departure.tripNumber,
+                lineCode: code,
+                lineName: name,
+                destination: destination,
+                stops: onward.compactMap { network.station($0)?.name },
+                scheduled: departure.time,
+                expected: departure.time,
+                platform: nil,
+                isExpress: network.isExpress(lineCode: code, stops: Array(departure.pattern[departure.stopIndex...])),
+                isCancelled: false,
+                reasonEnglish: nil,
+                reasonFrench: nil
+            )
+        }
+        let reason = (liveError as? LocalizedError)?.errorDescription ?? liveError.localizedDescription
+        return BoardSnapshot(rows: rows, alerts: [], fetchedAt: now, source: .schedule, note: reason)
     }
 
     // MARK: Union Station

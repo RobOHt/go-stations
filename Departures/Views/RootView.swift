@@ -37,6 +37,8 @@ struct RootView: View {
             SettingsView()
         }
         .task {
+            // Keep the fallback timetable fresh in the background.
+            Task.detached(priority: .background) { await ScheduleStore.shared.refreshIfNeeded() }
             await autoSelect()
         }
         .onChange(of: scenePhase) { _, phase in
@@ -45,6 +47,7 @@ struct RootView: View {
                 backgroundedAt = .now
             case .active:
                 settings.reloadFromCloud()
+                Task.detached(priority: .background) { await ScheduleStore.shared.refreshIfNeeded() }
                 if let backgroundedAt, Date.now.timeIntervalSince(backgroundedAt) > 180 {
                     Task { await autoSelect() }
                 }

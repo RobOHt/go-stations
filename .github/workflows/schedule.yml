@@ -1,0 +1,50 @@
+name: Timetable
+
+# Publishes the fallback timetable (next 14 days of GO trains, built from GO's
+# public GTFS feed) to the schedule-data branch, where the app downloads it:
+# https://raw.githubusercontent.com/RobOHt/go-stations/schedule-data/schedule.json
+# The branch holds a single commit that is replaced on every run.
+
+on:
+  schedule:
+    - cron: "17 8 * * *"  # daily, ~3-4 am Toronto
+  push:
+    branches: [main]
+    paths:
+      - "tools/build_schedule.py"
+      - ".github/workflows/schedule.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: timetable
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    name: Build and publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Build timetable
+        run: |
+          python3 tools/build_schedule.py --output "$RUNNER_TEMP/schedule.json" 2> "$RUNNER_TEMP/build.log"
+          cat "$RUNNER_TEMP/build.log"
+          echo "::notice title=Timetable::$(tail -1 "$RUNNER_TEMP/build.log")"
+
+      - name: Publish to schedule-data
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/publish" && cd "$RUNNER_TEMP/publish"
+          git init -q -b schedule-data
+          cp "$RUNNER_TEMP/schedule.json" .
+          printf '# GO Stations timetable\n\nThe next 14 days of GO train departures, rebuilt daily by `.github/workflows/schedule.yml` from GO Transit GTFS.\nContains information licensed under the Open Government Licence – Ontario.\n' > README.md
+          git add schedule.json README.md
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -q -m "Timetable $(date -u +%Y-%m-%d)"
+          git push -q -f "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" schedule-data

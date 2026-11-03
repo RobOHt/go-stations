@@ -9,6 +9,8 @@ struct BoardView: View {
     let now: Date
     var message: String? = nil
     var isLoading: Bool = false
+    /// Timetable rows: no platforms or delays to show.
+    var isScheduled: Bool = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -21,7 +23,8 @@ struct BoardView: View {
                 DottedRule()
             } else {
                 ForEach(rows) { row in
-                    BoardRowView(row: row, isUnion: station.isUnion, accessible: station.accessible, now: now)
+                    BoardRowView(row: row, isUnion: station.isUnion, accessible: station.accessible, now: now,
+                                 showsPlatform: !isScheduled)
                     DottedRule()
                 }
             }
@@ -119,6 +122,7 @@ struct BoardRowView: View {
     let isUnion: Bool
     let accessible: Bool
     let now: Date
+    var showsPlatform: Bool = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
@@ -148,7 +152,7 @@ struct BoardRowView: View {
 
                 Spacer(minLength: 6)
 
-                if !row.isCancelled {
+                if !row.isCancelled, showsPlatform {
                     PlatformCell(row: row, isUnion: isUnion, accessible: accessible, now: now)
                 }
             }

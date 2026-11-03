@@ -33,9 +33,19 @@ struct StationAlert: Identifiable, Equatable, Sendable {
 }
 
 struct BoardSnapshot: Equatable, Sendable {
+    enum Source: Equatable, Sendable {
+        /// Live Metrolinx data.
+        case live
+        /// The GTFS timetable, used when live data isn't available.
+        case schedule
+    }
+
     var rows: [BoardRow]
     var alerts: [StationAlert]
     var fetchedAt: Date
+    var source: Source = .live
+    /// Why live data wasn't used, when `source` is `.schedule`.
+    var note: String? = nil
 }
 
 /// Metrolinx timestamps are naive Toronto wall-clock strings ("2026-07-17 16:46:52").

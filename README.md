@@ -33,6 +33,7 @@ To build locally instead, open `Departures.xcodeproj` in Xcode 26 or later, pick
 | Delays | `ComputedDepartureTime` vs `ScheduledDepartureTime` from NextService |
 | Cancellations | `ServiceUpdate/Exceptions/Train`; reasons from `ServiceUpdate/ServiceAlert/All` |
 | Station alerts under the board | `ServiceUpdate/ServiceAlert/All`, filtered to the station's lines |
+| Fallback when live data is unavailable | `schedule.json`: the next 14 days of trains from GO's GTFS, rebuilt daily on the `schedule-data` branch and bundled into each build (`tools/build_schedule.py`) |
 
 The board refreshes every 20 seconds while it's open (matching the Worker's cache) and right away when you come back to the app. It stops when you close it, so the app makes no requests in the background. Metrolinx has no push feed, so polling is as fresh as it gets.
 

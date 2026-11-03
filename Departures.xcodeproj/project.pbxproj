@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		333FBA9314F3494575C93A0E /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = BD19958788A805717D008E2E /* Assets.xcassets */; };
 		4330800974904FA294B8E785 /* network.json in Resources */ = {isa = PBXBuildFile; fileRef = A9BE92FD3DD0AB0A0A401EED /* network.json */; };
+		488BB9FF5561346B8614F7E0 /* schedule.json in Resources */ = {isa = PBXBuildFile; fileRef = 290D6E9F76D46363F2480265 /* schedule.json */; };
 		50E4247C83789EF3EE516DCE /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 082D21D2D2C770F357B53552 /* AppSettings.swift */; };
 		5FB905A092DA55E4EC67121C /* StationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8DD54A97E3BD853130248E1 /* StationSheet.swift */; };
 		6187E3925EF1CE27D740E4C9 /* DeparturesApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74808329CCF6884C750FCF09 /* DeparturesApp.swift */; };
@@ -20,6 +21,7 @@
 		8F7D2B46FED169B5C6580C7A /* BoardTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = C622B10E2C34C13846A534A2 /* BoardTheme.swift */; };
 		9622C81409924DE23AB13537 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55E96A0A4A812C9938B0E829 /* RootView.swift */; };
 		989E9B8E29A47B603985F044 /* BoardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26FA8B31A1F2728E021C5B6A /* BoardView.swift */; };
+		BF4FAF1018F15829F06FF536 /* ScheduleStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEECCC300CF5D0431410FAAE /* ScheduleStore.swift */; };
 		C72CEF65C6D4FA826441D360 /* LocationProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9948AB743F7973496F01FC60 /* LocationProvider.swift */; };
 		CC907A8260921EE1A4252FB4 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 420AD3DBFC5C7096B0B3CA0A /* SettingsView.swift */; };
 		F631C973BB509053AD53E5B1 /* NetworkMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C62F099FD3615F422C7C6289 /* NetworkMapView.swift */; };
@@ -31,6 +33,7 @@
 		12948FD6FD773B6E0FBBE382 /* RailNetwork.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RailNetwork.swift; sourceTree = "<group>"; };
 		1CC72142AD9025AD2F76DE07 /* Departures.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; path = Departures.entitlements; sourceTree = "<group>"; };
 		26FA8B31A1F2728E021C5B6A /* BoardView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BoardView.swift; sourceTree = "<group>"; };
+		290D6E9F76D46363F2480265 /* schedule.json */ = {isa = PBXFileReference; includeInIndex = 1; path = schedule.json; sourceTree = "<group>"; };
 		3DC1C5302C0F878B3001639D /* BoardModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BoardModels.swift; sourceTree = "<group>"; };
 		420AD3DBFC5C7096B0B3CA0A /* SettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		52CF198FA6EEC18089A74BB2 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
@@ -46,6 +49,7 @@
 		E16713FA8D25912C5662B0DD /* BoardModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BoardModel.swift; sourceTree = "<group>"; };
 		E30604C09783E66179545ED6 /* BoardService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BoardService.swift; sourceTree = "<group>"; };
 		F46A25BFC1C2C367380E4C69 /* Departures.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Departures.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		FEECCC300CF5D0431410FAAE /* ScheduleStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ScheduleStore.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -84,6 +88,7 @@
 			children = (
 				BD19958788A805717D008E2E /* Assets.xcassets */,
 				A9BE92FD3DD0AB0A0A401EED /* network.json */,
+				290D6E9F76D46363F2480265 /* schedule.json */,
 			);
 			name = Resources;
 			path = Resources;
@@ -103,6 +108,7 @@
 			children = (
 				E30604C09783E66179545ED6 /* BoardService.swift */,
 				DFE6B35F3135D0FF6BF810DA /* MetrolinxClient.swift */,
+				FEECCC300CF5D0431410FAAE /* ScheduleStore.swift */,
 			);
 			name = API;
 			path = API;
@@ -252,6 +258,7 @@
 			files = (
 				333FBA9314F3494575C93A0E /* Assets.xcassets in Resources */,
 				4330800974904FA294B8E785 /* network.json in Resources */,
+				488BB9FF5561346B8614F7E0 /* schedule.json in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -276,6 +283,7 @@
 				9622C81409924DE23AB13537 /* RootView.swift in Sources */,
 				CC907A8260921EE1A4252FB4 /* SettingsView.swift in Sources */,
 				5FB905A092DA55E4EC67121C /* StationSheet.swift in Sources */,
+				BF4FAF1018F15829F06FF536 /* ScheduleStore.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

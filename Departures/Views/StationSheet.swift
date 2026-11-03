@@ -23,7 +23,8 @@ struct StationSheet: View {
                         station: station,
                         now: context.date,
                         message: boardMessage,
-                        isLoading: model.snapshot == nil && model.errorMessage == nil
+                        isLoading: model.snapshot == nil && model.errorMessage == nil,
+                        isScheduled: model.snapshot?.source == .schedule
                     )
                 }
                 statusLine
@@ -119,8 +120,17 @@ struct StationSheet: View {
     @ViewBuilder
     private var statusLine: some View {
         if let snapshot = model.snapshot {
-            HStack(spacing: 6) {
-                if model.errorMessage != nil {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                if snapshot.source == .schedule {
+                    Image(systemName: "calendar")
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("Scheduled times, not live: no delays or platforms")
+                        if let note = snapshot.note {
+                            Text(note)
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
+                } else if model.errorMessage != nil {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .foregroundStyle(.orange)
                     Text("Couldn't refresh · showing \(TorontoTime.hourMinute(snapshot.fetchedAt))")
