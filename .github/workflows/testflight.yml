@@ -20,6 +20,8 @@ on:
       - "**.md"
       - "tools/**"
       - ".github/workflows/build.yml"
+      - ".github/workflows/asc-status.yml"
+      - ".github/scripts/asc_status.py"
   workflow_dispatch:
 
 concurrency:

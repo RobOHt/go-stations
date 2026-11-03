@@ -1,0 +1,28 @@
+name: TestFlight status
+
+# Read-only check of App Store Connect: build processing state and testing
+# groups. Run it from the Actions tab (or `gh workflow run asc-status.yml`).
+
+on:
+  workflow_dispatch:
+
+jobs:
+  status:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Check status
+        run: |
+          KEY_PATH="$RUNNER_TEMP/AuthKey.p8"
+          printf '%s\n' "$ASC_KEY_P8" > "$KEY_PATH"
+          export KEY_PATH
+          python3 -m pip install --quiet --user pyjwt cryptography
+          BUNDLE_ID=$(grep -m1 -oE 'PRODUCT_BUNDLE_IDENTIFIER = [^;]+' Departures.xcodeproj/project.pbxproj | sed 's/.* = //')
+          python3 .github/scripts/asc_status.py "$BUNDLE_ID"
+          rm -f "$KEY_PATH"
