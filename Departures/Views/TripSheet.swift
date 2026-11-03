@@ -78,7 +78,6 @@ struct TripSheet: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                header
                 if let detail {
                     stopList(detail)
                     sourceNote(detail)
@@ -89,10 +88,11 @@ struct TripSheet: View {
                 }
             }
             .padding(.horizontal, 16)
-            .padding(.top, 20)
             .padding(.bottom, 32)
         }
         .scrollIndicators(.hidden)
+        // The train's line, terminus and close button stay pinned over the stops.
+        .pinnedHeader { header }
         .task {
             detail = await BoardService.shared.tripDetail(for: row, from: selection.station)
         }
@@ -153,19 +153,11 @@ struct TripSheet: View {
                         .foregroundStyle(.red)
                 }
             }
+            .padding(.top, PinnedHeaderMetrics.textTop)
 
             Spacer(minLength: 8)
 
-            Button {
-                dismiss()
-            } label: {
-                Image(systemName: "xmark")
-                    .frame(width: 22, height: 22)
-            }
-            .buttonStyle(.glass)
-            .buttonBorderShape(.circle)
-            .controlSize(.large)
-            .accessibilityLabel("Close")
+            GlassCloseButton { dismiss() }
         }
     }
 

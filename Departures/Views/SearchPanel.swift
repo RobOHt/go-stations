@@ -240,6 +240,8 @@ enum StationFinder {
 enum BottomBarMetrics {
     static let height: CGFloat = 48
     static let focusedSideInset: CGFloat = 16
+    /// The map buttons sit closer to the edge than the bar, as in Apple Maps.
+    static let controlsTrailingInset: CGFloat = 16
     static let keyboardGap: CGFloat = 12
     /// Display corner radius to assume until the real one is measured.
     static let typicalCornerRadius: CGFloat = 55

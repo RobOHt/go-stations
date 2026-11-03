@@ -34,19 +34,11 @@ struct StationSheet: View {
                 alerts
             }
             .padding(.horizontal, 14)
-            .padding(.top, 4)
             .padding(.bottom, 32)
         }
         .scrollIndicators(.hidden)
-        // The name, lines and buttons stay pinned in a bar over the board, which
-        // scrolls under it with the system's soft edge.
-        .scrollEdgeEffectStyle(.soft, for: .top)
-        .safeAreaBar(edge: .top) {
-            header
-                .padding(.horizontal, 14)
-                .padding(.top, 18)
-                .padding(.bottom, 8)
-        }
+        // The name, lines and buttons stay pinned in a bar over the board.
+        .pinnedHeader { header }
         // No pull-to-refresh: pulling down closes the sheet. The board keeps
         // itself current instead.
         // Paused while a trip sheet covers this board; resumes (and refreshes) when it closes.
@@ -92,6 +84,7 @@ struct StationSheet: View {
                     }
                 }
             }
+            .padding(.top, PinnedHeaderMetrics.textTop)
 
             Spacer(minLength: 8)
 
@@ -118,14 +111,7 @@ struct StationSheet: View {
                         .accessibilityAddTraits(isWork ? .isSelected : [])
                     }
 
-                    Button {
-                        dismiss()
-                    } label: {
-                        GlassIcon(systemName: "xmark")
-                    }
-                    .buttonStyle(.plain)
-                    .glassEffect(.regular.interactive(), in: Circle())
-                    .accessibilityLabel("Close")
+                    GlassCloseButton { dismiss() }
                 }
             }
         }

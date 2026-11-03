@@ -121,8 +121,8 @@ struct RootView: View {
         BottomBarMetrics.edgeInset(displayCornerRadius: displayCornerRadius)
     }
 
-    private var floatingSideInset: CGFloat {
-        searchFocused && selected == nil ? BottomBarMetrics.focusedSideInset : edgeInset
+    private var searchSideInset: CGFloat {
+        searchFocused ? BottomBarMetrics.focusedSideInset : edgeInset
     }
 
     /// Bottom spacing, from the screen edge (or the keyboard's top while typing).
@@ -138,18 +138,19 @@ struct RootView: View {
             Spacer(minLength: 0)
             if showsControls {
                 controls
+                    .padding(.trailing, BottomBarMetrics.controlsTrailingInset)
                     .transition(.scale(scale: 0.85, anchor: .bottomTrailing).combined(with: .opacity))
             }
             if selected == nil {
                 SearchPanel(model: search, isFocused: $searchFocused) { station in
                     openFromSearch(station)
                 }
+                .padding(.horizontal, searchSideInset)
                 .layoutPriority(1)
                 .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { panelHeight = $0 }
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
-        .padding(.horizontal, floatingSideInset)
         .padding(.bottom, floatingBottomPadding)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
         // Like system bars, measure from the screen's bottom edge rather than the
