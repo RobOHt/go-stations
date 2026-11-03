@@ -1,28 +1,32 @@
 import Foundation
 
-/// Thin client for the Metrolinx Open Data API (https://api.openmetrolinx.com).
-/// Every call needs a personal key: register for free at
-/// https://api.openmetrolinx.com/OpenDataAPI/Help/Registration/en
+/// Where the app gets live data: the Cloudflare Worker in worker/, which adds the
+/// Metrolinx key server-side. `/v1` mirrors Metrolinx's `/OpenDataAPI/api/V1`.
+enum ProxyConfig {
+    static let baseURL = "https://go-stations.WORKERS_SUBDOMAIN.workers.dev/v1"
+}
+
+/// Client for Metrolinx Open Data, reached through the GO Stations proxy
+/// (worker/ in the repo). The proxy holds the API key, so nothing secret ships
+/// in the app; paths are the same as Metrolinx's (`/Stop/NextService/UN`, ...).
 struct MetrolinxClient: Sendable {
-    let apiKey: String
-
-    static let baseURL = "https://api.openmetrolinx.com/OpenDataAPI/api/V1"
-    static let registrationURL = URL(string: "https://api.openmetrolinx.com/OpenDataAPI/Help/Registration/en")!
-
     func fetch<T: Decodable & MetrolinxEnvelope>(_ path: String) async throws -> T {
-        let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !key.isEmpty else { throw MetrolinxError.missingKey }
-        guard var components = URLComponents(string: Self.baseURL + path) else { throw MetrolinxError.badResponse }
-        components.queryItems = [URLQueryItem(name: "key", value: key)]
-        guard let url = components.url else { throw MetrolinxError.badResponse }
+        guard let url = URL(string: ProxyConfig.baseURL + path) else { throw MetrolinxError.badResponse }
 
         var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 15)
         request.setValue("application/json", forHTTPHeaderField: "Accept")
 
         let (data, response) = try await URLSession.shared.data(for: request)
-        if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
-            if http.statusCode == 401 || http.statusCode == 403 { throw MetrolinxError.badKey }
-            throw MetrolinxError.http(http.statusCode)
+        let status = (response as? HTTPURLResponse)?.statusCode ?? 200
+
+        guard (200..<300).contains(status) else {
+            // The proxy answers errors in Metrolinx's own envelope.
+            let message = (try? Self.decoder.decode(ErrorEnvelope.self, from: data))?.metadata?.errorMessage
+            switch status {
+            case 503: throw MetrolinxError.notSetUp
+            case 429: throw MetrolinxError.busy
+            default: throw MetrolinxError.unavailable(message)
+            }
         }
 
         let decoded: T
@@ -32,15 +36,15 @@ struct MetrolinxClient: Sendable {
             throw MetrolinxError.badResponse
         }
 
-        // The API reports most failures inside a 200 response via Metadata.ErrorCode.
+        // Metrolinx reports most failures inside a 200 response via Metadata.ErrorCode.
         let code = decoded.metadata?.errorCode?.trimmingCharacters(in: .whitespaces) ?? "200"
         switch code {
         case "200", "204", "":
             return decoded
-        case "401", "403":
-            throw MetrolinxError.badKey
+        case "429":
+            throw MetrolinxError.busy
         default:
-            throw MetrolinxError.api(decoded.metadata?.errorMessage ?? "Error \(code)")
+            throw MetrolinxError.unavailable(decoded.metadata?.errorMessage)
         }
     }
 
@@ -63,22 +67,26 @@ struct MetrolinxClient: Sendable {
         }
         return decoder
     }()
+
+    private struct ErrorEnvelope: Decodable, MetrolinxEnvelope {
+        let metadata: APIMetadata?
+    }
 }
 
 enum MetrolinxError: LocalizedError {
-    case missingKey
-    case badKey
-    case http(Int)
-    case api(String)
+    case notSetUp
+    case busy
+    case unavailable(String?)
     case badResponse
 
     var errorDescription: String? {
         switch self {
-        case .missingKey: return "Add your Metrolinx API key in Settings."
-        case .badKey: return "Metrolinx rejected the API key. Check it in Settings."
-        case .http(let status): return "Metrolinx returned HTTP \(status)."
-        case .api(let message): return "Metrolinx: \(message)"
-        case .badResponse: return "Couldn't read the response from Metrolinx."
+        case .notSetUp: return "Live departures aren't switched on yet."
+        case .busy: return "Too many requests right now. Trying again shortly."
+        case .unavailable(let message):
+            if let message, !message.isEmpty { return "Live data unavailable: \(message)" }
+            return "Live data is unavailable right now."
+        case .badResponse: return "Couldn't read the live data."
         }
     }
 }

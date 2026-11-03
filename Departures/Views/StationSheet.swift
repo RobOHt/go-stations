@@ -7,28 +7,23 @@ struct StationSheet: View {
 
     @Environment(AppSettings.self) private var settings
     @State private var model = BoardModel()
-    @State private var showSettings = false
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
                 header
 
-                if settings.hasAPIKey {
-                    TimelineView(.periodic(from: .now, by: 1)) { context in
-                        BoardView(
-                            rows: model.snapshot?.rows ?? [],
-                            station: station,
-                            now: context.date,
-                            message: boardMessage,
-                            isLoading: model.snapshot == nil && model.errorMessage == nil
-                        )
-                    }
-                    statusLine
-                    alerts
-                } else {
-                    MissingKeyCard { showSettings = true }
+                TimelineView(.periodic(from: .now, by: 1)) { context in
+                    BoardView(
+                        rows: model.snapshot?.rows ?? [],
+                        station: station,
+                        now: context.date,
+                        message: boardMessage,
+                        isLoading: model.snapshot == nil && model.errorMessage == nil
+                    )
                 }
+                statusLine
+                alerts
             }
             .padding(.horizontal, 14)
             .padding(.top, 20)
@@ -36,13 +31,10 @@ struct StationSheet: View {
         }
         .scrollIndicators(.hidden)
         .refreshable {
-            await model.refresh(station: station, apiKey: settings.apiKey)
+            await model.refresh(station: station)
         }
-        .task(id: "\(station.code)|\(settings.apiKey)") {
-            await model.run(station: station, apiKey: settings.apiKey)
-        }
-        .sheet(isPresented: $showSettings) {
-            SettingsView()
+        .task(id: station.code) {
+            await model.run(station: station)
         }
     }
 
@@ -192,29 +184,5 @@ private struct AlertCard: View {
         }
         .buttonStyle(.plain)
         .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-    }
-}
-
-private struct MissingKeyCard: View {
-    let action: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Label("Add your Metrolinx API key", systemImage: "key.fill")
-                .font(.headline)
-            Text("GO Stations reads live data straight from Metrolinx's free Open Data API. Paste your key once and it syncs to your other devices through iCloud Keychain.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-            HStack {
-                Button("Open Settings", action: action)
-                    .buttonStyle(.glassProminent)
-                Link("Get a free key", destination: MetrolinxClient.registrationURL)
-                    .buttonStyle(.glass)
-            }
-            .padding(.top, 4)
-        }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
     }
 }

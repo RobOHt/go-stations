@@ -13,26 +13,23 @@ final class BoardModel {
     static let refreshInterval: Duration = .seconds(30)
 
     /// Runs until the calling task is cancelled (the sheet closes or the station changes).
-    func run(station: Station, apiKey: String) async {
+    func run(station: Station) async {
         if stationCode != station.code {
             stationCode = station.code
             snapshot = nil
             errorMessage = nil
         }
-        guard !apiKey.isEmpty else { return }
-
         while !Task.isCancelled {
-            await refresh(station: station, apiKey: apiKey)
+            await refresh(station: station)
             try? await Task.sleep(for: Self.refreshInterval)
         }
     }
 
-    func refresh(station: Station, apiKey: String) async {
-        guard !apiKey.isEmpty else { return }
+    func refresh(station: Station) async {
         isLoading = true
         defer { isLoading = false }
         do {
-            let snapshot = try await BoardService.shared.board(for: station, apiKey: apiKey)
+            let snapshot = try await BoardService.shared.board(for: station)
             guard stationCode == station.code else { return }
             self.snapshot = snapshot
             errorMessage = nil

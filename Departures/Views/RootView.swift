@@ -11,8 +11,6 @@ struct RootView: View {
     @State private var detent: PresentationDetent = .medium
     @State private var showSettings = false
     @State private var backgroundedAt: Date?
-    @State private var pendingAutoSelect = false
-    @AppStorage("hasSeenSetup") private var hasSeenSetup = false
 
     private let network = RailNetwork.shared
 
@@ -35,22 +33,10 @@ struct RootView: View {
                     .presentationDragIndicator(.visible)
             }
         }
-        .sheet(isPresented: $showSettings, onDismiss: {
-            // First run: once the key is in, open the board you most likely want.
-            guard pendingAutoSelect, settings.hasAPIKey else { return }
-            pendingAutoSelect = false
-            Task { await autoSelect() }
-        }) {
+        .sheet(isPresented: $showSettings) {
             SettingsView()
         }
         .task {
-            // Only push Settings on the very first launch; after that the station
-            // sheet shows a "add your key" card until there is one.
-            if !settings.hasAPIKey, !hasSeenSetup {
-                hasSeenSetup = true
-                pendingAutoSelect = true
-                showSettings = true
-            }
             await autoSelect()
         }
         .onChange(of: scenePhase) { _, phase in
@@ -169,10 +155,9 @@ struct RootView: View {
     private func autoSelect() async {
         let here = await LocationProvider.shared.currentLocation()
 
-        // SwiftUI can't show the station sheet on top of Settings, and there's
-        // no board to show without a key.
+        // SwiftUI can't show the station sheet on top of Settings.
         var board: Station?
-        if settings.hasAPIKey, !showSettings {
+        if !showSettings {
             board = here.flatMap(bestStation(near:)) ?? settings.homeCode.flatMap(network.station)
         }
 

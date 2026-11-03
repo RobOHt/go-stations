@@ -20,8 +20,8 @@ actor BoardService {
     private var tripMisses: [String: Date] = [:]
     private var tripCacheDay = ""
 
-    func board(for station: Station, apiKey: String) async throws -> BoardSnapshot {
-        let client = MetrolinxClient(apiKey: apiKey)
+    func board(for station: Station) async throws -> BoardSnapshot {
+        let client = MetrolinxClient()
         let network = RailNetwork.shared
         let now = Date()
 

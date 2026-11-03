@@ -4,19 +4,11 @@ struct SettingsView: View {
     @Environment(AppSettings.self) private var settings
     @Environment(\.dismiss) private var dismiss
 
-    @State private var keyDraft = ""
-    @State private var keyStatus: KeyStatus = .idle
-
     private let network = RailNetwork.shared
-
-    enum KeyStatus: Equatable {
-        case idle, checking, valid, invalid(String)
-    }
 
     var body: some View {
         NavigationStack {
             Form {
-                apiKeySection
                 stationsSection
                 aboutSection
             }
@@ -25,66 +17,14 @@ struct SettingsView: View {
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done", systemImage: "checkmark") {
-                        saveDraftUnlessRejected()
                         dismiss()
                     }
                 }
             }
         }
-        .onAppear { keyDraft = settings.apiKey }
-        .onChange(of: keyDraft) { keyStatus = .idle }
-        .onDisappear { saveDraftUnlessRejected() }
     }
 
     // MARK: Sections
-
-    private var apiKeySection: some View {
-        Section {
-            TextField("Paste your key", text: $keyDraft)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-                .font(.body.monospaced())
-                .onSubmit { Task { await checkKey() } }
-
-            Button {
-                Task { await checkKey() }
-            } label: {
-                HStack {
-                    Text("Save & test key")
-                    Spacer()
-                    keyStatusView
-                }
-            }
-            .disabled(keyDraft.trimmingCharacters(in: .whitespaces).isEmpty || keyStatus == .checking)
-
-            Link(destination: MetrolinxClient.registrationURL) {
-                Label("Request a free key from Metrolinx", systemImage: "arrow.up.right.square")
-            }
-        } header: {
-            Text("Metrolinx API key")
-        } footer: {
-            Text("Live departures come straight from Metrolinx Open Data. Approval is manual and can take a few business days. The key is stored in your iCloud Keychain and only ever sent to api.openmetrolinx.com.")
-        }
-    }
-
-    @ViewBuilder
-    private var keyStatusView: some View {
-        switch keyStatus {
-        case .idle:
-            EmptyView()
-        case .checking:
-            ProgressView()
-        case .valid:
-            Label("Works", systemImage: "checkmark.circle.fill")
-                .labelStyle(.titleAndIcon)
-                .foregroundStyle(.green)
-        case .invalid(let message):
-            Label(message, systemImage: "xmark.octagon.fill")
-                .labelStyle(.titleAndIcon)
-                .foregroundStyle(.red)
-                .lineLimit(1)
-        }
-    }
 
     private var stationsSection: some View {
         Section {
@@ -120,36 +60,15 @@ struct SettingsView: View {
         } header: {
             Text("About")
         } footer: {
-            Text("Contains information licensed under the Open Government Licence – Ontario (Metrolinx). Not affiliated with or endorsed by Metrolinx or GO Transit. Free, open source, no ads, no tracking.")
+            Text("Contains information licensed under the Open Government Licence – Ontario (Metrolinx). Not affiliated with or endorsed by Metrolinx or GO Transit. Live data comes from Metrolinx Open Data through the GO Stations server. Free, open source, no ads, no tracking.")
         }
     }
 
     // MARK: Helpers
 
-    /// Don't keep a key Metrolinx just rejected.
-    private func saveDraftUnlessRejected() {
-        if case .invalid("Rejected") = keyStatus { return }
-        settings.setAPIKey(keyDraft)
-    }
-
     private func name(for code: String?) -> String {
         guard let code else { return "Not set" }
         return network.station(code)?.name ?? code
-    }
-
-    private func checkKey() async {
-        let key = keyDraft.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !key.isEmpty else { return }
-        keyStatus = .checking
-        do {
-            let _: NextServiceResponse = try await MetrolinxClient(apiKey: key).fetch("/Stop/NextService/UN")
-            settings.setAPIKey(key)
-            keyStatus = .valid
-        } catch MetrolinxError.badKey {
-            keyStatus = .invalid("Rejected")
-        } catch {
-            keyStatus = .invalid("Couldn't check")
-        }
     }
 }
 
