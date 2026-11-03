@@ -91,7 +91,7 @@ final class MapController {
     }
 
     /// Room the search bar takes at the bottom of the screen.
-    private static let searchBarRoom = BottomBarMetrics.edgeInset + BottomBarMetrics.restingHeight + 12
+    private static let searchBarRoom = BottomBarMetrics.typicalRoom
 
     /// Shows `coordinate` with about `width` metres across, in the middle of the
     /// part of the map you can see: below the Dynamic Island and above the
@@ -257,7 +257,7 @@ struct NetworkMapView: UIViewRepresentable {
         mapView.insetsLayoutMarginsFromSafeArea = false
         mapView.layoutMargins = UIEdgeInsets(
             top: 8, left: 8,
-            bottom: BottomBarMetrics.edgeInset + BottomBarMetrics.restingHeight + 6,
+            bottom: BottomBarMetrics.maximumRoom,
             right: 8
         )
 

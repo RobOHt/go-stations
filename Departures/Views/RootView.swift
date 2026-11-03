@@ -19,6 +19,9 @@ struct RootView: View {
     /// Bottom edge of the area the floating UI lives in: the screen's bottom edge, or the keyboard's top.
     @State private var floatingBottom: CGFloat = 0
     @State private var panelHeight: CGFloat = 0
+    /// The screen's corner radius (0 until measured), so the search bar can be concentric with it.
+    @State private var displayCornerRadius: CGFloat = 0
+    @State private var statusBarHeight: CGFloat = 0
 
     private let network = RailNetwork.shared
 
@@ -33,6 +36,12 @@ struct RootView: View {
             onSelect: { station in select(station, detent: .medium) }
         )
         .ignoresSafeArea()
+        .background(alignment: .bottomTrailing) {
+            DisplayCornerProbe { displayCornerRadius = $0 }
+                .frame(width: 160, height: 160)
+                .ignoresSafeArea()
+        }
+        .overlay(alignment: .top) { StatusBarBlur(statusBarHeight: statusBarHeight) }
         .overlay { floatingUI }
         .sheet(isPresented: stationSheetPresented) {
             if let selected {
@@ -107,14 +116,19 @@ struct RootView: View {
         return !searchActive
     }
 
+    /// Gap to the sides and bottom edge that keeps the search bar concentric with the screen corners.
+    private var edgeInset: CGFloat {
+        BottomBarMetrics.edgeInset(displayCornerRadius: displayCornerRadius)
+    }
+
     private var floatingSideInset: CGFloat {
-        searchFocused && selected == nil ? BottomBarMetrics.focusedSideInset : BottomBarMetrics.edgeInset
+        searchFocused && selected == nil ? BottomBarMetrics.focusedSideInset : edgeInset
     }
 
     /// Bottom spacing, from the screen edge (or the keyboard's top while typing).
     private var floatingBottomPadding: CGFloat {
         if let sheetLift { return sheetLift + 12 }
-        return searchFocused ? BottomBarMetrics.keyboardGap : BottomBarMetrics.edgeInset
+        return searchFocused ? BottomBarMetrics.keyboardGap : edgeInset
     }
 
     /// The four buttons, bottom right, sitting on the search bar (or on the sheet
@@ -142,56 +156,58 @@ struct RootView: View {
         // home-indicator safe area. The keyboard still pushes everything up.
         .ignoresSafeArea(.container, edges: .bottom)
         .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).maxY } action: { floatingBottom = $0 }
+        // The floating area still respects the top safe area, so its top is the status bar's bottom.
+        .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minY } action: { statusBarHeight = $0 }
         .animation(.smooth(duration: 0.35), value: searchFocused)
         .animation(.smooth(duration: 0.3), value: selected == nil)
         .animation(.smooth(duration: 0.3), value: showsControls)
         .animation(.smooth(duration: 0.25), value: sheetLift)
     }
 
+    /// Home and work share one glass; settings and my location share another,
+    /// like Apple Maps' map controls. My location is at the very bottom.
     private var controls: some View {
-        GlassEffectContainer(spacing: 10) {
-            VStack(spacing: 10) {
-                if let home = settings.homeCode.flatMap(network.station) {
-                    Button {
-                        select(home, detent: .medium)
-                    } label: {
-                        Image(systemName: "house.fill")
-                            .foregroundStyle(RoleColor.home)
-                            .frame(width: 24, height: 24)
+        let home = settings.homeCode.flatMap(network.station)
+        let work = settings.workCode.flatMap(network.station)
+        return GlassEffectContainer(spacing: 10) {
+            VStack(spacing: 12) {
+                if home != nil || work != nil {
+                    GlassButtonGroup {
+                        if let home {
+                            Button {
+                                select(home, detent: .medium)
+                            } label: {
+                                GlassIcon(systemName: "house.fill", color: RoleColor.home)
+                            }
+                            .accessibilityLabel("Home station: \(home.name)")
+                        }
+                        if let work {
+                            Button {
+                                select(work, detent: .medium)
+                            } label: {
+                                GlassIcon(systemName: "briefcase.fill", color: RoleColor.work)
+                            }
+                            .accessibilityLabel("Work station: \(work.name)")
+                        }
                     }
-                    .accessibilityLabel("Home station: \(home.name)")
                 }
 
-                if let work = settings.workCode.flatMap(network.station) {
+                GlassButtonGroup {
                     Button {
-                        select(work, detent: .medium)
+                        openSettings()
                     } label: {
-                        Image(systemName: "briefcase.fill")
-                            .foregroundStyle(RoleColor.work)
-                            .frame(width: 24, height: 24)
+                        GlassIcon(systemName: "gearshape.fill")
                     }
-                    .accessibilityLabel("Work station: \(work.name)")
-                }
+                    .accessibilityLabel("Settings")
 
-                Button {
-                    Task { await showMyLocation() }
-                } label: {
-                    Image(systemName: "location.fill")
-                        .frame(width: 24, height: 24)
+                    Button {
+                        Task { await showMyLocation() }
+                    } label: {
+                        GlassIcon(systemName: "location.fill")
+                    }
+                    .accessibilityLabel("Show my location")
                 }
-                .accessibilityLabel("Show my location")
-
-                Button {
-                    openSettings()
-                } label: {
-                    Image(systemName: "gearshape.fill")
-                        .frame(width: 24, height: 24)
-                }
-                .accessibilityLabel("Settings")
             }
-            .buttonStyle(.glass)
-            .buttonBorderShape(.circle)
-            .controlSize(.large)
         }
     }
 

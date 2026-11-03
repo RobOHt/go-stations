@@ -22,6 +22,7 @@
 		8FCB966F59164CF7F1FF5522 /* SearchPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E4A5E2C07E880206D354461 /* SearchPanel.swift */; };
 		9622C81409924DE23AB13537 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55E96A0A4A812C9938B0E829 /* RootView.swift */; };
 		989E9B8E29A47B603985F044 /* BoardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26FA8B31A1F2728E021C5B6A /* BoardView.swift */; };
+		A29E9D60A166B42FD5174F50 /* GlassControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = F59BE7F9EC5EA81504DA78A5 /* GlassControls.swift */; };
 		BF4FAF1018F15829F06FF536 /* ScheduleStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEECCC300CF5D0431410FAAE /* ScheduleStore.swift */; };
 		C72CEF65C6D4FA826441D360 /* LocationProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9948AB743F7973496F01FC60 /* LocationProvider.swift */; };
 		CC907A8260921EE1A4252FB4 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 420AD3DBFC5C7096B0B3CA0A /* SettingsView.swift */; };
@@ -53,6 +54,7 @@
 		E16713FA8D25912C5662B0DD /* BoardModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BoardModel.swift; sourceTree = "<group>"; };
 		E30604C09783E66179545ED6 /* BoardService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BoardService.swift; sourceTree = "<group>"; };
 		F46A25BFC1C2C367380E4C69 /* Departures.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Departures.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		F59BE7F9EC5EA81504DA78A5 /* GlassControls.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GlassControls.swift; sourceTree = "<group>"; };
 		FEECCC300CF5D0431410FAAE /* ScheduleStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ScheduleStore.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -145,6 +147,7 @@
 				D8DD54A97E3BD853130248E1 /* StationSheet.swift */,
 				3939C3EBFFD629B1B5AFB65B /* TripSheet.swift */,
 				4E4A5E2C07E880206D354461 /* SearchPanel.swift */,
+				F59BE7F9EC5EA81504DA78A5 /* GlassControls.swift */,
 			);
 			name = Views;
 			path = Views;
@@ -292,6 +295,7 @@
 				BF4FAF1018F15829F06FF536 /* ScheduleStore.swift in Sources */,
 				F84F4DE9239838E432A25741 /* TripSheet.swift in Sources */,
 				8FCB966F59164CF7F1FF5522 /* SearchPanel.swift in Sources */,
+				A29E9D60A166B42FD5174F50 /* GlassControls.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

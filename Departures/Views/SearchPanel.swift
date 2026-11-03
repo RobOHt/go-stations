@@ -231,18 +231,28 @@ enum StationFinder {
 
 // MARK: - View
 
-/// Geometry of the bottom search bar, taken from iOS 26's own floating bar
-/// (the tab bar in Apple's apps): 62 pt tall and 21 pt in from the sides and
-/// from the bottom edge of the screen, so its rounded ends follow the curve of
-/// the display corners. While typing it works like system search fields: the
-/// field drops to 48 pt, rides just above the keyboard, and a separate glass
-/// close button grows out of it.
+/// Geometry of the bottom search bar: a normal 48 pt search field, placed so
+/// its rounded ends are concentric with the screen's corners. For a capsule
+/// that means the gap to the sides and bottom edge equals the display corner
+/// radius minus half the bar's height (about 38 pt on current iPhones). While
+/// typing it works like system search fields: it rides just above the
+/// keyboard and a separate glass close button grows out of it.
 enum BottomBarMetrics {
-    static let restingHeight: CGFloat = 62
-    static let edgeInset: CGFloat = 21
-    static let focusedHeight: CGFloat = 48
+    static let height: CGFloat = 48
     static let focusedSideInset: CGFloat = 16
     static let keyboardGap: CGFloat = 12
+    /// Display corner radius to assume until the real one is measured.
+    static let typicalCornerRadius: CGFloat = 55
+
+    static func edgeInset(displayCornerRadius radius: CGFloat) -> CGFloat {
+        let radius = radius > 1 ? radius : typicalCornerRadius
+        return min(max(radius - height / 2, 16), 40)
+    }
+
+    /// Room the bar takes at the bottom of the screen, for framing the map.
+    static let typicalRoom = edgeInset(displayCornerRadius: typicalCornerRadius) + height + 12
+    /// The most room it can take, for keeping Apple's Legal link above it.
+    static let maximumRoom: CGFloat = 40 + height + 8
 }
 
 /// The glass search bar at the bottom of the map, with results above it.
@@ -324,8 +334,8 @@ struct SearchPanel: View {
                 .accessibilityLabel("Clear search")
             }
         }
-        .padding(.horizontal, isFocused ? 16 : 22)
-        .frame(height: isFocused ? BottomBarMetrics.focusedHeight : BottomBarMetrics.restingHeight)
+        .padding(.horizontal, 16)
+        .frame(height: BottomBarMetrics.height)
         .contentShape(Capsule())
         // The whole bar, not just the text, opens the keyboard.
         .onTapGesture { isFocused = true }
@@ -342,7 +352,7 @@ struct SearchPanel: View {
             Image(systemName: "xmark")
                 .font(.body.weight(.semibold))
                 .foregroundStyle(.primary)
-                .frame(width: BottomBarMetrics.focusedHeight, height: BottomBarMetrics.focusedHeight)
+                .frame(width: BottomBarMetrics.height, height: BottomBarMetrics.height)
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)

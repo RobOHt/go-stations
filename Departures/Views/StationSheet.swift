@@ -18,8 +18,6 @@ struct StationSheet: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
-                header
-
                 TimelineView(.periodic(from: .now, by: 1)) { context in
                     BoardView(
                         rows: model.snapshot?.rows ?? [],
@@ -36,10 +34,19 @@ struct StationSheet: View {
                 alerts
             }
             .padding(.horizontal, 14)
-            .padding(.top, 20)
+            .padding(.top, 4)
             .padding(.bottom, 32)
         }
         .scrollIndicators(.hidden)
+        // The name, lines and buttons stay pinned in a bar over the board, which
+        // scrolls under it with the system's soft edge.
+        .scrollEdgeEffectStyle(.soft, for: .top)
+        .safeAreaBar(edge: .top) {
+            header
+                .padding(.horizontal, 14)
+                .padding(.top, 18)
+                .padding(.bottom, 8)
+        }
         // No pull-to-refresh: pulling down closes the sheet. The board keeps
         // itself current instead.
         // Paused while a trip sheet covers this board; resumes (and refreshes) when it closes.
@@ -88,39 +95,38 @@ struct StationSheet: View {
 
             Spacer(minLength: 8)
 
-            GlassEffectContainer(spacing: 8) {
-                HStack(spacing: 8) {
-                    Button {
-                        settings.setHome(isHome ? nil : station.code)
-                    } label: {
-                        Image(systemName: isHome ? "house.fill" : "house")
-                            .frame(width: 22, height: 22)
-                    }
-                    .modifier(RoleToggleStyle(isOn: isHome, tint: RoleColor.home))
-                    .accessibilityLabel(isHome ? "Remove as home station" : "Set as home station")
-                    .accessibilityAddTraits(isHome ? .isSelected : [])
+            // Home and work share one glass, the close button has its own.
+            GlassEffectContainer(spacing: 10) {
+                HStack(spacing: 10) {
+                    GlassButtonGroup(axis: .horizontal) {
+                        Button {
+                            settings.setHome(isHome ? nil : station.code)
+                        } label: {
+                            GlassIcon(systemName: isHome ? "house.fill" : "house",
+                                      fill: isHome ? RoleColor.home : nil)
+                        }
+                        .accessibilityLabel(isHome ? "Remove as home station" : "Set as home station")
+                        .accessibilityAddTraits(isHome ? .isSelected : [])
 
-                    Button {
-                        settings.setWork(isWork ? nil : station.code)
-                    } label: {
-                        Image(systemName: isWork ? "briefcase.fill" : "briefcase")
-                            .frame(width: 22, height: 22)
+                        Button {
+                            settings.setWork(isWork ? nil : station.code)
+                        } label: {
+                            GlassIcon(systemName: isWork ? "briefcase.fill" : "briefcase",
+                                      fill: isWork ? RoleColor.work : nil)
+                        }
+                        .accessibilityLabel(isWork ? "Remove as work station" : "Set as work station")
+                        .accessibilityAddTraits(isWork ? .isSelected : [])
                     }
-                    .modifier(RoleToggleStyle(isOn: isWork, tint: RoleColor.work))
-                    .accessibilityLabel(isWork ? "Remove as work station" : "Set as work station")
-                    .accessibilityAddTraits(isWork ? .isSelected : [])
 
                     Button {
                         dismiss()
                     } label: {
-                        Image(systemName: "xmark")
-                            .frame(width: 22, height: 22)
+                        GlassIcon(systemName: "xmark")
                     }
+                    .buttonStyle(.plain)
+                    .glassEffect(.regular.interactive(), in: Circle())
                     .accessibilityLabel("Close")
                 }
-                .buttonStyle(.glass)
-                .buttonBorderShape(.circle)
-                .controlSize(.large)
             }
         }
     }
@@ -238,21 +244,4 @@ private struct AlertCard: View {
 enum RoleColor {
     static let home = Color(uiColor: StationRole.home.uiColor)
     static let work = Color(uiColor: StationRole.work.uiColor)
-}
-
-/// A home/work button: plain glass when off, filled with its colour when on.
-private struct RoleToggleStyle: ViewModifier {
-    let isOn: Bool
-    let tint: Color
-
-    func body(content: Content) -> some View {
-        if isOn {
-            content
-                .buttonStyle(.glassProminent)
-                .tint(tint)
-        } else {
-            content
-                .buttonStyle(.glass)
-        }
-    }
 }
