@@ -98,6 +98,32 @@ final class MapController {
             mapView.setVisibleMapRect(rect, edgePadding: insets, animated: true)
         }
     }
+
+    /// Fits all `coordinates` in the part of the map above the bottom `coveredFraction`
+    /// (search results or a sheet), at least `minWidth` metres across.
+    func frame(_ coordinates: [CLLocationCoordinate2D], minWidth: CLLocationDistance = 3_000,
+               coveredFraction: CGFloat = 0.45) {
+        guard let first = coordinates.first else { return }
+        perform { mapView in
+            let points = coordinates.map { MKMapPoint($0) }
+            let minX = points.map(\.x).min() ?? 0, maxX = points.map(\.x).max() ?? 0
+            let minY = points.map(\.y).min() ?? 0, maxY = points.map(\.y).max() ?? 0
+            var rect = MKMapRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
+            let minSize = MKMapPointsPerMeterAtLatitude(first.latitude) * minWidth
+            if rect.size.width < minSize || rect.size.height < minSize {
+                let width = max(rect.size.width, minSize)
+                let height = max(rect.size.height, minSize)
+                rect = MKMapRect(x: rect.midX - width / 2, y: rect.midY - height / 2, width: width, height: height)
+            }
+            let insets = UIEdgeInsets(
+                top: mapView.safeAreaInsets.top + 48,
+                left: 40,
+                bottom: mapView.bounds.height * coveredFraction + 24,
+                right: 40
+            )
+            mapView.setVisibleMapRect(rect, edgePadding: insets, animated: true)
+        }
+    }
 }
 
 // MARK: - Map
@@ -111,6 +137,12 @@ struct NetworkMapView: UIViewRepresentable {
     let selectedCode: String?
     let homeCode: String?
     let workCode: String?
+    /// A place picked in search, shown as a red pin.
+    var place: SearchPlace? = nil
+    /// Room taken at the bottom by floating UI; Apple's logo and Legal link sit above it.
+    var bottomInset: CGFloat = 0
+    /// Any tap on the map, station or not (used to put the keyboard away).
+    var onTapMap: () -> Void = {}
     let onSelect: (Station) -> Void
 
     func makeCoordinator() -> Coordinator {
@@ -141,6 +173,7 @@ struct NetworkMapView: UIViewRepresentable {
 
         mapView.register(StationAnnotationView.self, forAnnotationViewWithReuseIdentifier: StationAnnotationView.reuseID)
         mapView.register(RolePinView.self, forAnnotationViewWithReuseIdentifier: RolePinView.reuseID)
+        mapView.register(PlacePinView.self, forAnnotationViewWithReuseIdentifier: PlacePinView.reuseID)
         coordinator.installOverlays(on: mapView)
         mapView.addAnnotations(RailNetwork.shared.stations.map { StationAnnotation(station: $0) })
         coordinator.syncRolePins(in: mapView)
@@ -156,6 +189,8 @@ struct NetworkMapView: UIViewRepresentable {
 
         coordinator.controller = controller
         controller.attach(mapView)
+        coordinator.syncPlace(place, in: mapView)
+        applyBottomInset(to: mapView)
         return mapView
     }
 
@@ -166,6 +201,18 @@ struct NetworkMapView: UIViewRepresentable {
             coordinator.syncRolePins(in: mapView)
             coordinator.refreshStations(in: mapView)
         }
+        coordinator.syncPlace(place, in: mapView)
+        applyBottomInset(to: mapView)
+    }
+
+    /// MapKit places its logo and Legal link inside the layout margins. Measure
+    /// from the screen edge (the window's home-indicator inset plus `bottomInset`),
+    /// whatever safe area SwiftUI hands the map view.
+    private func applyBottomInset(to mapView: MKMapView) {
+        mapView.insetsLayoutMarginsFromSafeArea = false
+        let bottom = max(0, bottomInset) + (mapView.window?.safeAreaInsets.bottom ?? 0) + 4
+        guard abs(mapView.layoutMargins.bottom - bottom) > 0.5 else { return }
+        mapView.layoutMargins.bottom = bottom
     }
 
     // MARK: Coordinator
@@ -175,6 +222,8 @@ struct NetworkMapView: UIViewRepresentable {
         var controller: MapController?
 
         private var onSelect: (Station) -> Void = { _ in }
+        private var onTapMap: () -> Void = {}
+        private var placePin: PlaceAnnotation?
         private var selectedCode: String?
         private var homeCode: String?
         private var workCode: String?
@@ -187,6 +236,7 @@ struct NetworkMapView: UIViewRepresentable {
         /// Returns true when anything the station dots depend on changed.
         func update(from view: NetworkMapView) -> Bool {
             onSelect = view.onSelect
+            onTapMap = view.onTapMap
             let changed = selectedCode != view.selectedCode
                 || homeCode != view.homeCode
                 || workCode != view.workCode
@@ -260,6 +310,20 @@ struct NetworkMapView: UIViewRepresentable {
             mapView.addAnnotations(rolePins)
         }
 
+        /// Shows, moves or removes the search pin.
+        func syncPlace(_ place: SearchPlace?, in mapView: MKMapView) {
+            if let current = placePin, let place, current.place == place { return }
+            if let current = placePin {
+                mapView.removeAnnotation(current)
+                placePin = nil
+            }
+            if let place {
+                let pin = PlaceAnnotation(place: place)
+                placePin = pin
+                mapView.addAnnotation(pin)
+            }
+        }
+
         private func configure(_ view: RolePinView, for pin: RoleAnnotation) {
             let isSelected = pin.station.code == selectedCode
             let dotSize = isSelected ? min(22, max(12, zoom.dotSize + 7)) : zoom.dotSize
@@ -292,6 +356,7 @@ struct NetworkMapView: UIViewRepresentable {
 
         @objc func handleTap(_ recognizer: UITapGestureRecognizer) {
             guard recognizer.state == .ended, let mapView = recognizer.view as? MKMapView else { return }
+            onTapMap()
             let point = recognizer.location(in: mapView)
             for pin in rolePins {
                 guard let view = mapView.view(for: pin) else { continue }
@@ -323,6 +388,9 @@ struct NetworkMapView: UIViewRepresentable {
         // MARK: MKMapViewDelegate
 
         func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
+            if let place = annotation as? PlaceAnnotation {
+                return mapView.dequeueReusableAnnotationView(withIdentifier: PlacePinView.reuseID, for: place)
+            }
             if let pin = annotation as? RoleAnnotation {
                 let view = mapView.dequeueReusableAnnotationView(withIdentifier: RolePinView.reuseID, for: pin)
                 guard let pinView = view as? RolePinView else { return view }
@@ -401,6 +469,40 @@ final class StationAnnotation: NSObject, MKAnnotation {
     }
 
     var title: String? { station.name }
+}
+
+final class PlaceAnnotation: NSObject, MKAnnotation {
+    let place: SearchPlace
+    let coordinate: CLLocationCoordinate2D
+
+    init(place: SearchPlace) {
+        self.place = place
+        self.coordinate = place.coordinate
+    }
+
+    var title: String? { place.name }
+}
+
+/// The red Apple Maps-style pin for a searched place. Like the station dots it
+/// ignores touches, so gestures always reach the map.
+final class PlacePinView: MKMarkerAnnotationView {
+    static let reuseID = "place"
+
+    override init(annotation: MKAnnotation?, reuseIdentifier: String?) {
+        super.init(annotation: annotation, reuseIdentifier: reuseIdentifier)
+        isUserInteractionEnabled = false
+        isEnabled = false
+        canShowCallout = false
+        markerTintColor = .systemRed
+        titleVisibility = .hidden
+        subtitleVisibility = .hidden
+        displayPriority = .required
+        zPriority = .max
+        animatesWhenAdded = true
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 }
 
 /// A station dot with an optional name tag. It never takes touches: the map

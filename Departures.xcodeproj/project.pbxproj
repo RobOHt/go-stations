@@ -19,6 +19,7 @@
 		81DDC4ED82A4427124258725 /* RailNetwork.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12948FD6FD773B6E0FBBE382 /* RailNetwork.swift */; };
 		8A41B2C4EBBA0B79F9C9D2B4 /* BoardModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E16713FA8D25912C5662B0DD /* BoardModel.swift */; };
 		8F7D2B46FED169B5C6580C7A /* BoardTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = C622B10E2C34C13846A534A2 /* BoardTheme.swift */; };
+		8FCB966F59164CF7F1FF5522 /* SearchPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E4A5E2C07E880206D354461 /* SearchPanel.swift */; };
 		9622C81409924DE23AB13537 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55E96A0A4A812C9938B0E829 /* RootView.swift */; };
 		989E9B8E29A47B603985F044 /* BoardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26FA8B31A1F2728E021C5B6A /* BoardView.swift */; };
 		BF4FAF1018F15829F06FF536 /* ScheduleStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEECCC300CF5D0431410FAAE /* ScheduleStore.swift */; };
@@ -38,6 +39,7 @@
 		3939C3EBFFD629B1B5AFB65B /* TripSheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TripSheet.swift; sourceTree = "<group>"; };
 		3DC1C5302C0F878B3001639D /* BoardModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BoardModels.swift; sourceTree = "<group>"; };
 		420AD3DBFC5C7096B0B3CA0A /* SettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		4E4A5E2C07E880206D354461 /* SearchPanel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SearchPanel.swift; sourceTree = "<group>"; };
 		52CF198FA6EEC18089A74BB2 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
 		55E96A0A4A812C9938B0E829 /* RootView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		74808329CCF6884C750FCF09 /* DeparturesApp.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DeparturesApp.swift; sourceTree = "<group>"; };
@@ -142,6 +144,7 @@
 				420AD3DBFC5C7096B0B3CA0A /* SettingsView.swift */,
 				D8DD54A97E3BD853130248E1 /* StationSheet.swift */,
 				3939C3EBFFD629B1B5AFB65B /* TripSheet.swift */,
+				4E4A5E2C07E880206D354461 /* SearchPanel.swift */,
 			);
 			name = Views;
 			path = Views;
@@ -288,6 +291,7 @@
 				5FB905A092DA55E4EC67121C /* StationSheet.swift in Sources */,
 				BF4FAF1018F15829F06FF536 /* ScheduleStore.swift in Sources */,
 				F84F4DE9239838E432A25741 /* TripSheet.swift in Sources */,
+				8FCB966F59164CF7F1FF5522 /* SearchPanel.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

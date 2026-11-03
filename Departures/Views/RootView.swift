@@ -12,6 +12,14 @@ struct RootView: View {
     @State private var showSettings = false
     @State private var backgroundedAt: Date?
 
+    @State private var search = PlaceSearchModel()
+    @FocusState private var searchFocused: Bool
+    /// Top edge of the station sheet on screen, so the buttons can sit just above it.
+    @State private var sheetTop: CGFloat?
+    /// Bottom edge of the area the floating UI lives in (above the home indicator or keyboard).
+    @State private var floatingBottom: CGFloat = 0
+    @State private var panelHeight: CGFloat = 0
+
     private let network = RailNetwork.shared
 
     var body: some View {
@@ -19,15 +27,18 @@ struct RootView: View {
             controller: mapController,
             selectedCode: selected?.code,
             homeCode: settings.homeCode,
-            workCode: settings.workCode
-        ) { station in
-            select(station, detent: .medium)
-        }
+            workCode: settings.workCode,
+            place: search.place,
+            bottomInset: mapBottomInset,
+            onTapMap: { searchFocused = false },
+            onSelect: { station in select(station, detent: .medium) }
+        )
         .ignoresSafeArea()
-        .overlay(alignment: .topTrailing) { controls }
+        .overlay { floatingUI }
         .sheet(isPresented: stationSheetPresented) {
             if let selected {
                 StationSheet(station: selected)
+                    .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minY } action: { sheetTop = $0 }
                     .presentationDetents([.medium, .large], selection: $detent)
                     .presentationBackgroundInteraction(.enabled(upThrough: .medium))
                     .presentationDragIndicator(.visible)
@@ -35,6 +46,17 @@ struct RootView: View {
         }
         .sheet(isPresented: $showSettings) {
             SettingsView()
+        }
+        .onChange(of: selected == nil) { _, closed in
+            if closed { sheetTop = nil }
+        }
+        .onChange(of: search.place) { _, place in
+            guard let place else { return }
+            mapController.frame([place.coordinate], minWidth: 4_000)
+        }
+        .onChange(of: search.nearby.map(\.id)) { _, ids in
+            guard let place = search.place, !ids.isEmpty else { return }
+            mapController.frame([place.coordinate] + search.nearby.map(\.station.coordinate))
         }
         .task {
             // Keep the fallback timetable fresh in the background.
@@ -65,7 +87,62 @@ struct RootView: View {
         )
     }
 
-    // MARK: Floating controls
+    // MARK: Floating controls and search
+
+    private var searchActive: Bool {
+        searchFocused || search.hasQuery || search.place != nil
+    }
+
+    /// How far above the bottom of the floating area the station sheet reaches.
+    private var sheetLift: CGFloat? {
+        guard selected != nil, let sheetTop else { return nil }
+        return max(0, floatingBottom - sheetTop)
+    }
+
+    private var showsControls: Bool {
+        if selected != nil {
+            // Ride above the half-height sheet; the full-height one covers them.
+            guard detent != .large, let sheetTop else { return false }
+            return sheetTop > 300
+        }
+        return !searchActive
+    }
+
+    /// Room for Apple's logo and Legal link to sit above whatever covers the map's bottom.
+    private var mapBottomInset: CGFloat {
+        if selected != nil {
+            guard detent != .large, let sheetLift else { return 0 }
+            return sheetLift + 4
+        }
+        return panelHeight + 12
+    }
+
+    /// The four buttons, bottom right, sitting on the search bar (or on the sheet
+    /// when a station is open), with the search bar along the bottom.
+    private var floatingUI: some View {
+        VStack(alignment: .trailing, spacing: 12) {
+            Spacer(minLength: 0)
+            if showsControls {
+                controls
+                    .transition(.scale(scale: 0.85, anchor: .bottomTrailing).combined(with: .opacity))
+            }
+            if selected == nil {
+                SearchPanel(model: search, isFocused: $searchFocused) { station in
+                    openFromSearch(station)
+                }
+                .layoutPriority(1)
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { panelHeight = $0 }
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.bottom, sheetLift.map { $0 + 12 } ?? 6)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+        .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).maxY } action: { floatingBottom = $0 }
+        .animation(.smooth(duration: 0.3), value: selected == nil)
+        .animation(.smooth(duration: 0.3), value: showsControls)
+        .animation(.smooth(duration: 0.25), value: sheetLift)
+    }
 
     private var controls: some View {
         GlassEffectContainer(spacing: 10) {
@@ -110,13 +187,20 @@ struct RootView: View {
             .buttonBorderShape(.circle)
             .controlSize(.large)
         }
-        .padding(.trailing, 14)
-        .padding(.top, 8)
     }
 
     // MARK: Actions
 
+    private func openFromSearch(_ station: Station) {
+        searchFocused = false
+        // A station picked by name is done with; nearby results for a place stay
+        // so you can come back and compare the other stations.
+        if search.place == nil { search.clear() }
+        select(station, detent: .medium)
+    }
+
     private func select(_ station: Station, detent newDetent: PresentationDetent) {
+        searchFocused = false
         detent = newDetent
         selected = station
         center(on: station.coordinate, sheetOpen: true)

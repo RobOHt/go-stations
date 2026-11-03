@@ -1,0 +1,445 @@
+import MapKit
+import SwiftUI
+
+/// A place found by search, shown as a pin with its nearest stations.
+struct SearchPlace: Equatable {
+    let name: String
+    let subtitle: String
+    let coordinate: CLLocationCoordinate2D
+
+    static func == (lhs: SearchPlace, rhs: SearchPlace) -> Bool {
+        lhs.name == rhs.name
+            && lhs.coordinate.latitude == rhs.coordinate.latitude
+            && lhs.coordinate.longitude == rhs.coordinate.longitude
+    }
+}
+
+struct NearbyStation: Identifiable, Sendable {
+    let station: Station
+    /// Driving time from the place; nil when Apple Maps couldn't route it.
+    let travelTime: TimeInterval?
+    let distance: CLLocationDistance
+
+    var id: String { station.code }
+}
+
+/// Station and place search for the bottom search bar.
+@MainActor
+@Observable
+final class PlaceSearchModel {
+    var query = "" {
+        didSet { queryChanged() }
+    }
+    private(set) var stationMatches: [Station] = []
+    private(set) var places: [MKLocalSearchCompletion] = []
+    private(set) var place: SearchPlace?
+    private(set) var nearby: [NearbyStation] = []
+    private(set) var isResolving = false
+    /// True while Apple Maps is still suggesting places for the latest text.
+    private(set) var isSuggesting = false
+    private(set) var placeError: String?
+
+    @ObservationIgnored private let completer = MKLocalSearchCompleter()
+    @ObservationIgnored private let bridge = CompleterBridge()
+    @ObservationIgnored private var resolveTask: Task<Void, Never>?
+
+    private let network = RailNetwork.shared
+
+    init() {
+        completer.delegate = bridge
+        completer.region = RailNetwork.serviceArea
+        completer.resultTypes = [.address, .pointOfInterest]
+        bridge.onResults = { [weak self] results in
+            guard let self, self.place == nil else { return }
+            self.places = Array(results.prefix(5))
+            self.isSuggesting = false
+        }
+    }
+
+    var hasQuery: Bool { !query.trimmed.isEmpty }
+
+    private func queryChanged() {
+        if let place {
+            // The field shows the picked place's name; typing anything else starts over.
+            if query == place.name { return }
+            self.place = nil
+            nearby = []
+        }
+        placeError = nil
+
+        let text = query.trimmed
+        stationMatches = Self.matches(text, in: network.stations)
+        if text.count >= 2 {
+            isSuggesting = true
+            completer.queryFragment = text
+        } else {
+            completer.cancel()
+            isSuggesting = false
+            places = []
+        }
+    }
+
+    private static func matches(_ text: String, in stations: [Station]) -> [Station] {
+        guard !text.isEmpty else { return [] }
+        let wanted = text.lowercased()
+        let hits = stations.filter {
+            $0.name.lowercased().contains(wanted) || $0.code.lowercased() == wanted
+        }
+        return Array(hits.sorted { a, b in
+            let aPrefix = a.name.lowercased().hasPrefix(wanted)
+            let bPrefix = b.name.lowercased().hasPrefix(wanted)
+            if aPrefix != bPrefix { return aPrefix }
+            return a.name < b.name
+        }.prefix(5))
+    }
+
+    func clear() {
+        resolveTask?.cancel()
+        place = nil
+        nearby = []
+        query = ""
+        placeError = nil
+        isResolving = false
+    }
+
+    /// Looks up a suggestion's location and its nearest stations by driving time.
+    func choose(_ completion: MKLocalSearchCompletion) {
+        let request = MKLocalSearch.Request(completion: completion)
+        resolve(request, fallbackName: completion.title, subtitle: completion.subtitle)
+    }
+
+    /// Return key: open an exact station match, otherwise search places for the text.
+    func submit() -> Station? {
+        let text = query.trimmed
+        guard !text.isEmpty else { return nil }
+        if let exact = stationMatches.first(where: { $0.name.lowercased() == text.lowercased() })
+            ?? (stationMatches.count == 1 && places.isEmpty ? stationMatches.first : nil) {
+            return exact
+        }
+        let request = MKLocalSearch.Request()
+        request.naturalLanguageQuery = text
+        resolve(request, fallbackName: text, subtitle: "")
+        return nil
+    }
+
+    private func resolve(_ request: MKLocalSearch.Request, fallbackName: String, subtitle: String) {
+        resolveTask?.cancel()
+        request.region = RailNetwork.serviceArea
+        isResolving = true
+        placeError = nil
+        nearby = []
+
+        resolveTask = Task {
+            let response = try? await MKLocalSearch(request: request).start()
+            guard !Task.isCancelled else { return }
+            isResolving = false
+            guard let item = response?.mapItems.first else {
+                placeError = "Couldn't find that place."
+                return
+            }
+            let found = SearchPlace(
+                name: item.name ?? fallbackName,
+                subtitle: subtitle,
+                coordinate: item.location.coordinate
+            )
+            // Set the place first so the field can show its name without new suggestions.
+            place = found
+            query = found.name
+            completer.cancel()
+            isSuggesting = false
+            places = []
+            stationMatches = []
+
+            let stations = await StationFinder.nearest(to: found.coordinate)
+            guard !Task.isCancelled, place == found else { return }
+            nearby = stations
+        }
+    }
+}
+
+/// Receives MKLocalSearchCompleter results and hands them on.
+private final class CompleterBridge: NSObject, MKLocalSearchCompleterDelegate {
+    var onResults: (([MKLocalSearchCompletion]) -> Void)?
+
+    func completerDidUpdateResults(_ completer: MKLocalSearchCompleter) {
+        onResults?(completer.results)
+    }
+
+    func completer(_ completer: MKLocalSearchCompleter, didFailWithError error: Error) {
+        onResults?([])
+    }
+}
+
+enum StationFinder {
+    /// The closest stations to a point by driving time. Apple Maps routes the six
+    /// nearest in a straight line; the fastest `count` win.
+    static func nearest(to coordinate: CLLocationCoordinate2D, count: Int = 3) async -> [NearbyStation] {
+        let origin = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
+        let candidates = RailNetwork.shared.stations
+            .map { (station: $0, distance: $0.location.distance(from: origin)) }
+            .sorted { $0.distance < $1.distance }
+            .prefix(6)
+
+        let results = await withTaskGroup(of: NearbyStation.self) { group in
+            for candidate in candidates {
+                group.addTask {
+                    await drive(from: coordinate, to: candidate.station, straightLine: candidate.distance)
+                }
+            }
+            var all: [NearbyStation] = []
+            for await result in group { all.append(result) }
+            return all
+        }
+
+        return Array(results.sorted { a, b in
+            switch (a.travelTime, b.travelTime) {
+            case let (x?, y?): return x < y
+            case (.some, nil): return true
+            case (nil, .some): return false
+            case (nil, nil): return a.distance < b.distance
+            }
+        }.prefix(count))
+    }
+
+    @MainActor
+    private static func drive(from coordinate: CLLocationCoordinate2D, to station: Station,
+                              straightLine: CLLocationDistance) async -> NearbyStation {
+        let request = MKDirections.Request()
+        request.source = MKMapItem(location: CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude),
+                                   address: nil)
+        request.destination = MKMapItem(location: station.location, address: nil)
+        request.transportType = .automobile
+        let eta = try? await MKDirections(request: request).calculateETA()
+        return NearbyStation(station: station, travelTime: eta?.expectedTravelTime,
+                             distance: eta?.distance ?? straightLine)
+    }
+}
+
+// MARK: - View
+
+/// The glass search bar at the bottom of the map, with results above it.
+struct SearchPanel: View {
+    @Bindable var model: PlaceSearchModel
+    @FocusState.Binding var isFocused: Bool
+    let onStation: (Station) -> Void
+
+    @Environment(AppSettings.self) private var settings
+    @State private var contentHeight: CGFloat = 0
+    private let network = RailNetwork.shared
+
+    private struct SavedStation: Identifiable {
+        let label: String
+        let station: Station
+        var id: String { label + station.code }
+    }
+
+    private var showsResults: Bool {
+        model.place != nil || model.hasQuery || (isFocused && !savedStations.isEmpty)
+    }
+
+    private var savedStations: [SavedStation] {
+        var result: [SavedStation] = []
+        if let home = settings.homeCode.flatMap(network.station) { result.append(SavedStation(label: "Home", station: home)) }
+        if let work = settings.workCode.flatMap(network.station) { result.append(SavedStation(label: "Work", station: work)) }
+        return result
+    }
+
+    var body: some View {
+        VStack(spacing: 10) {
+            if showsResults {
+                results
+                    .layoutPriority(1)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+            searchBar
+        }
+        .animation(.snappy, value: showsResults)
+    }
+
+    // MARK: Bar
+
+    private var searchBar: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "magnifyingglass")
+                .font(.body.weight(.semibold))
+                .foregroundStyle(.secondary)
+            TextField("Search stations or places", text: $model.query)
+                .focused($isFocused)
+                .submitLabel(.search)
+                .autocorrectionDisabled()
+                .onSubmit {
+                    if let station = model.submit() { openStation(station) }
+                }
+            if model.hasQuery || model.place != nil {
+                Button {
+                    model.clear()
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.body)
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Clear search")
+            }
+        }
+        .padding(.horizontal, 18)
+        .frame(height: 52)
+        .contentShape(Capsule())
+        // The whole bar, not just the text, opens the keyboard.
+        .onTapGesture { isFocused = true }
+        .glassEffect(.regular.interactive(), in: Capsule())
+    }
+
+    // MARK: Results
+
+    private var results: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 4) {
+                if let place = model.place {
+                    nearbySection(place)
+                } else if model.hasQuery {
+                    if !model.stationMatches.isEmpty {
+                        sectionTitle("Stations")
+                        ForEach(model.stationMatches) { station in
+                            stationRow(station, detail: nil) { openStation(station) }
+                        }
+                    }
+                    if !model.places.isEmpty {
+                        sectionTitle("Places")
+                        ForEach(model.places, id: \.self) { completion in
+                            placeRow(completion)
+                        }
+                    }
+                    if model.isResolving {
+                        ProgressView().frame(maxWidth: .infinity).padding(.vertical, 12)
+                    } else if let error = model.placeError {
+                        Text(error).font(.subheadline).foregroundStyle(.secondary).padding(12)
+                    } else if model.stationMatches.isEmpty && model.places.isEmpty {
+                        if model.isSuggesting {
+                            ProgressView().frame(maxWidth: .infinity).padding(.vertical, 12)
+                        } else {
+                            Text("No matches").font(.subheadline).foregroundStyle(.secondary).padding(12)
+                        }
+                    }
+                } else {
+                    sectionTitle("Your stations")
+                    ForEach(savedStations) { saved in
+                        stationRow(saved.station, detail: saved.label) { openStation(saved.station) }
+                    }
+                }
+            }
+            .padding(8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
+        }
+        .scrollBounceBehavior(.basedOnSize)
+        .scrollDismissesKeyboard(.immediately)
+        // As tall as the results, up to 340 pt, and shorter when the keyboard leaves less room.
+        .frame(maxHeight: min(max(contentHeight, 1), 340))
+        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
+    }
+
+    @ViewBuilder
+    private func nearbySection(_ place: SearchPlace) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: "mappin.circle.fill")
+                .font(.title2)
+                .foregroundStyle(.red)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(place.name).font(.headline).lineLimit(1)
+                Text(place.subtitle.isEmpty ? "Nearest stations by car" : place.subtitle)
+                    .font(.footnote).foregroundStyle(.secondary).lineLimit(1)
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+
+        if model.nearby.isEmpty {
+            HStack(spacing: 8) {
+                ProgressView()
+                Text("Finding the closest stations by driving time…")
+                    .font(.subheadline).foregroundStyle(.secondary)
+            }
+            .padding(12)
+        } else {
+            sectionTitle("Nearest stations by car")
+            ForEach(model.nearby) { nearby in
+                stationRow(nearby.station, detail: Self.describe(nearby)) { openStation(nearby.station) }
+            }
+        }
+    }
+
+    private static func describe(_ nearby: NearbyStation) -> String {
+        let kilometres = nearby.distance / 1000
+        let distance = kilometres < 10 ? String(format: "%.1f km", kilometres) : String(format: "%.0f km", kilometres)
+        guard let time = nearby.travelTime else { return distance }
+        let minutes = max(1, Int((time / 60).rounded()))
+        return "\(minutes) min drive · \(distance)"
+    }
+
+    private func sectionTitle(_ title: String) -> some View {
+        Text(title)
+            .font(.footnote.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 12)
+            .padding(.top, 8)
+            .padding(.bottom, 2)
+    }
+
+    private func stationRow(_ station: Station, detail: String?, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                Image(systemName: "tram.fill")
+                    .font(.footnote.weight(.bold))
+                    .foregroundStyle(.white)
+                    .frame(width: 30, height: 30)
+                    .background(network.line(code: station.lineCodes.first ?? "")?.color ?? .gray, in: Circle())
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(station.name).font(.body.weight(.semibold)).foregroundStyle(.primary)
+                    if let detail {
+                        Text(detail).font(.footnote).foregroundStyle(.secondary)
+                    }
+                }
+                Spacer(minLength: 8)
+                HStack(spacing: 3) {
+                    ForEach(station.lineCodes, id: \.self) { LineBadge(code: $0) }
+                }
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func placeRow(_ completion: MKLocalSearchCompletion) -> some View {
+        Button {
+            isFocused = false
+            model.choose(completion)
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "mappin")
+                    .font(.footnote.weight(.bold))
+                    .foregroundStyle(.white)
+                    .frame(width: 30, height: 30)
+                    .background(Color.red, in: Circle())
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(completion.title).font(.body.weight(.semibold)).foregroundStyle(.primary).lineLimit(1)
+                    if !completion.subtitle.isEmpty {
+                        Text(completion.subtitle).font(.footnote).foregroundStyle(.secondary).lineLimit(1)
+                    }
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func openStation(_ station: Station) {
+        isFocused = false
+        onStation(station)
+    }
+}
