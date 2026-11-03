@@ -140,8 +140,10 @@ struct NetworkMapView: UIViewRepresentable {
         }
 
         mapView.register(StationAnnotationView.self, forAnnotationViewWithReuseIdentifier: StationAnnotationView.reuseID)
+        mapView.register(RolePinView.self, forAnnotationViewWithReuseIdentifier: RolePinView.reuseID)
         coordinator.installOverlays(on: mapView)
         mapView.addAnnotations(RailNetwork.shared.stations.map { StationAnnotation(station: $0) })
+        coordinator.syncRolePins(in: mapView)
 
         let tap = UITapGestureRecognizer(target: coordinator, action: #selector(Coordinator.handleTap(_:)))
         tap.delegate = coordinator
@@ -161,6 +163,7 @@ struct NetworkMapView: UIViewRepresentable {
         let coordinator = context.coordinator
         coordinator.controller = controller
         if coordinator.update(from: self) {
+            coordinator.syncRolePins(in: mapView)
             coordinator.refreshStations(in: mapView)
         }
     }
@@ -179,6 +182,7 @@ struct NetworkMapView: UIViewRepresentable {
         private var renderers: [ObjectIdentifier: MKPolylineRenderer] = [:]
         private var didInitialLayout = false
         private var didSetZoomRange = false
+        private var rolePins: [RoleAnnotation] = []
 
         /// Returns true when anything the station dots depend on changed.
         func update(from view: NetworkMapView) -> Bool {
@@ -240,6 +244,31 @@ struct NetworkMapView: UIViewRepresentable {
             return .plain
         }
 
+        /// Home and work get a pin above their station dot.
+        func syncRolePins(in mapView: MKMapView) {
+            let network = RailNetwork.shared
+            var wanted: [(Station, StationRole)] = []
+            if let home = homeCode.flatMap(network.station) { wanted.append((home, .home)) }
+            if let work = workCode.flatMap(network.station) { wanted.append((work, .work)) }
+
+            let current = rolePins.map { "\($0.station.code)|\($0.role)" }
+            let next = wanted.map { "\($0.0.code)|\($0.1)" }
+            guard current != next else { return }
+
+            mapView.removeAnnotations(rolePins)
+            rolePins = wanted.map { RoleAnnotation(station: $0.0, role: $0.1) }
+            mapView.addAnnotations(rolePins)
+        }
+
+        private func configure(_ view: RolePinView, for pin: RoleAnnotation) {
+            let isSelected = pin.station.code == selectedCode
+            let dotSize = isSelected ? min(22, max(12, zoom.dotSize + 7)) : zoom.dotSize
+            // Home and work at the same station: place the two pins side by side.
+            let shared = homeCode != nil && homeCode == workCode
+            let xOffset: CGFloat = shared ? (pin.role == .home ? -17 : 17) : 0
+            view.configure(role: pin.role, tipGap: dotSize / 2 + 1, xOffset: xOffset)
+        }
+
         private func configure(_ view: StationAnnotationView, for station: Station) {
             view.configure(
                 zoom: zoom,
@@ -250,9 +279,13 @@ struct NetworkMapView: UIViewRepresentable {
         }
 
         func refreshStations(in mapView: MKMapView) {
-            for case let annotation as StationAnnotation in mapView.annotations {
-                if let view = mapView.view(for: annotation) as? StationAnnotationView {
+            for annotation in mapView.annotations {
+                if let annotation = annotation as? StationAnnotation,
+                   let view = mapView.view(for: annotation) as? StationAnnotationView {
                     configure(view, for: annotation.station)
+                } else if let pin = annotation as? RoleAnnotation,
+                          let view = mapView.view(for: pin) as? RolePinView {
+                    configure(view, for: pin)
                 }
             }
         }
@@ -260,6 +293,14 @@ struct NetworkMapView: UIViewRepresentable {
         @objc func handleTap(_ recognizer: UITapGestureRecognizer) {
             guard recognizer.state == .ended, let mapView = recognizer.view as? MKMapView else { return }
             let point = recognizer.location(in: mapView)
+            for pin in rolePins {
+                guard let view = mapView.view(for: pin) else { continue }
+                let frame = view.convert(view.bounds, to: mapView).insetBy(dx: -8, dy: -8)
+                if frame.contains(point) {
+                    onSelect(pin.station)
+                    return
+                }
+            }
             var best: (station: Station, distance: CGFloat)?
             for station in RailNetwork.shared.stations {
                 let stationPoint = mapView.convert(station.coordinate, toPointTo: mapView)
@@ -282,6 +323,12 @@ struct NetworkMapView: UIViewRepresentable {
         // MARK: MKMapViewDelegate
 
         func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
+            if let pin = annotation as? RoleAnnotation {
+                let view = mapView.dequeueReusableAnnotationView(withIdentifier: RolePinView.reuseID, for: pin)
+                guard let pinView = view as? RolePinView else { return view }
+                configure(pinView, for: pin)
+                return pinView
+            }
             guard let annotation = annotation as? StationAnnotation else { return nil }
             let view = mapView.dequeueReusableAnnotationView(withIdentifier: StationAnnotationView.reuseID, for: annotation)
             guard let stationView = view as? StationAnnotationView else { return view }
@@ -363,7 +410,6 @@ final class StationAnnotationView: MKAnnotationView {
     private static let ink = UIColor(red: 0x1C / 255, green: 0x1C / 255, blue: 0x1E / 255, alpha: 1)
 
     private let dot = CAShapeLayer()
-    private let icon = UIImageView()
     private let nameTag = PaddedLabel()
 
     override init(annotation: MKAnnotation?, reuseIdentifier: String?) {
@@ -381,10 +427,6 @@ final class StationAnnotationView: MKAnnotationView {
         dot.shadowColor = UIColor.black.cgColor
         dot.shadowOffset = CGSize(width: 0, height: 0.5)
         layer.addSublayer(dot)
-
-        icon.tintColor = Self.ink
-        icon.contentMode = .center
-        addSubview(icon)
 
         nameTag.textColor = .label
         nameTag.backgroundColor = UIColor.systemBackground.withAlphaComponent(0.85)
@@ -416,17 +458,6 @@ final class StationAnnotationView: MKAnnotationView {
         dot.shadowRadius = zoom <= .city ? 1.5 : 0.8
         CATransaction.commit()
 
-        let showsRole = role != .plain && size >= 13
-        icon.isHidden = !showsRole
-        if showsRole {
-            let symbol = role == .home ? "house.fill" : "briefcase.fill"
-            icon.image = UIImage(
-                systemName: symbol,
-                withConfiguration: UIImage.SymbolConfiguration(pointSize: size * 0.42, weight: .bold)
-            )
-            icon.frame = box
-        }
-
         let showsName = isSelected || zoom <= .city
         nameTag.isHidden = !showsName
         if showsName {
@@ -437,8 +468,101 @@ final class StationAnnotationView: MKAnnotationView {
                                    width: tagSize.width, height: tagSize.height)
         }
 
-        zPriority = isSelected ? .max : (role == .plain ? .defaultUnselected : .defaultSelected)
+        zPriority = MKAnnotationViewZPriority(rawValue: isSelected ? 900 : (role == .plain ? 500 : 600))
         accessibilityLabel = name
+    }
+}
+
+final class RoleAnnotation: NSObject, MKAnnotation {
+    let station: Station
+    let role: StationRole
+    let coordinate: CLLocationCoordinate2D
+
+    init(station: Station, role: StationRole) {
+        self.station = station
+        self.role = role
+        self.coordinate = station.coordinate
+    }
+
+    var title: String? { role == .home ? "Home: \(station.name)" : "Work: \(station.name)" }
+}
+
+/// A round home/work badge with a small triangle pointing down at the station dot.
+/// Same size at every zoom level. Like the dots it never takes touches; the map's
+/// tap handler checks pins first.
+final class RolePinView: MKAnnotationView {
+    static let reuseID = "role"
+    private static let bubbleSize: CGFloat = 30
+    private static let tipSize = CGSize(width: 12, height: 7)
+
+    private let ring = UIView()
+    private let bubble = UIView()
+    private let icon = UIImageView()
+    private let tip = UIView()
+
+    override init(annotation: MKAnnotation?, reuseIdentifier: String?) {
+        super.init(annotation: annotation, reuseIdentifier: reuseIdentifier)
+        isUserInteractionEnabled = false
+        isEnabled = false
+        canShowCallout = false
+        displayPriority = .required
+        collisionMode = .none
+        backgroundColor = .clear
+
+        let side = Self.bubbleSize
+        let tipSize = Self.tipSize
+        bounds = CGRect(x: 0, y: 0, width: side, height: side + tipSize.height - 2)
+
+        // Inverted colours read clearly on both light and dark maps; the ring
+        // (background colour) separates the badge from the lines underneath.
+        ring.frame = CGRect(x: 0, y: 0, width: side, height: side)
+        ring.backgroundColor = .systemBackground
+        ring.layer.cornerRadius = side / 2
+        addSubview(ring)
+
+        bubble.frame = ring.bounds.insetBy(dx: 2, dy: 2)
+        bubble.backgroundColor = .label
+        bubble.layer.cornerRadius = bubble.bounds.width / 2
+        ring.addSubview(bubble)
+
+        icon.frame = bubble.bounds
+        icon.contentMode = .center
+        icon.tintColor = .systemBackground
+        bubble.addSubview(icon)
+
+        tip.frame = CGRect(x: (side - tipSize.width) / 2, y: side - 2, width: tipSize.width, height: tipSize.height)
+        tip.backgroundColor = .label
+        let triangle = UIBezierPath()
+        triangle.move(to: .zero)
+        triangle.addLine(to: CGPoint(x: tipSize.width, y: 0))
+        triangle.addLine(to: CGPoint(x: tipSize.width / 2, y: tipSize.height))
+        triangle.close()
+        let mask = CAShapeLayer()
+        mask.path = triangle.cgPath
+        tip.layer.mask = mask
+        insertSubview(tip, belowSubview: ring)
+
+        layer.shadowColor = UIColor.black.cgColor
+        layer.shadowOpacity = 0.3
+        layer.shadowRadius = 3
+        layer.shadowOffset = CGSize(width: 0, height: 1)
+    }
+
+    @available(*, unavailable)
+    required init?(coder aDecoder: NSCoder) {
+        fatalError("init(coder:) is not supported")
+    }
+
+    /// Puts the triangle's tip `tipGap` points above the station's centre.
+    func configure(role: StationRole, tipGap: CGFloat, xOffset: CGFloat) {
+        isUserInteractionEnabled = false
+        icon.image = UIImage(
+            systemName: role == .work ? "briefcase.fill" : "house.fill",
+            withConfiguration: UIImage.SymbolConfiguration(pointSize: 14, weight: .bold)
+        )
+        centerOffset = CGPoint(x: xOffset, y: -(bounds.height / 2 + tipGap))
+        zPriority = MKAnnotationViewZPriority(rawValue: 800)
+        accessibilityLabel = role == .work ? "Work station" : "Home station"
     }
 }
 
