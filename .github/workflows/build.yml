@@ -1,8 +1,8 @@
 name: Build
 
+# Pushes to main are compiled by the TestFlight workflow, so this only runs for
+# pull requests (or by hand) to save Mac runner time.
 on:
-  push:
-    branches: [main]
   pull_request:
   workflow_dispatch:
 
