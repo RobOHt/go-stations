@@ -1,13 +1,15 @@
 import SwiftUI
 
-/// Bottom sheet for one station: name and home/work toggles on glass, the board below.
+/// Bottom sheet for one station: its name and lines, the board below. Tapping a
+/// train opens its stop list in another sheet.
 struct StationSheet: View {
     let station: Station
-    let onClose: () -> Void
 
     @Environment(AppSettings.self) private var settings
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.dismiss) private var dismiss
     @State private var model = BoardModel()
+    @State private var selectedTrip: TripSelection?
     /// Bumped when the app comes back to the foreground, restarting the refresh loop
     /// so the board updates right away instead of waiting out the interval.
     @State private var wake = 0
@@ -25,7 +27,9 @@ struct StationSheet: View {
                         message: boardMessage,
                         isLoading: model.snapshot == nil && model.errorMessage == nil,
                         isScheduled: model.snapshot?.source == .schedule
-                    )
+                    ) { row in
+                        selectedTrip = TripSelection(row: row, station: station)
+                    }
                 }
                 statusLine
                 alerts
@@ -37,8 +41,16 @@ struct StationSheet: View {
         .scrollIndicators(.hidden)
         // No pull-to-refresh: pulling down closes the sheet. The board keeps
         // itself current instead.
-        .task(id: "\(station.code)#\(wake)") {
+        // Paused while a trip sheet covers this board; resumes (and refreshes) when it closes.
+        .task(id: "\(station.code)#\(wake)#\(selectedTrip == nil)") {
+            guard selectedTrip == nil else { return }
             await model.run(station: station)
+        }
+        .sheet(item: $selectedTrip) { trip in
+            TripSheet(selection: trip)
+                .environment(settings)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
         }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { wake += 1 }
@@ -75,34 +87,16 @@ struct StationSheet: View {
 
             Spacer(minLength: 8)
 
-            GlassEffectContainer(spacing: 8) {
-                HStack(spacing: 8) {
-                    Button {
-                        settings.setHome(settings.homeCode == station.code ? nil : station.code)
-                    } label: {
-                        Image(systemName: settings.homeCode == station.code ? "house.fill" : "house")
-                            .frame(width: 22, height: 22)
-                    }
-                    .accessibilityLabel(settings.homeCode == station.code ? "Remove as home station" : "Set as home station")
-
-                    Button {
-                        settings.setWork(settings.workCode == station.code ? nil : station.code)
-                    } label: {
-                        Image(systemName: settings.workCode == station.code ? "briefcase.fill" : "briefcase")
-                            .frame(width: 22, height: 22)
-                    }
-                    .accessibilityLabel(settings.workCode == station.code ? "Remove as work station" : "Set as work station")
-
-                    Button(action: onClose) {
-                        Image(systemName: "xmark")
-                            .frame(width: 22, height: 22)
-                    }
-                    .accessibilityLabel("Close")
-                }
-                .buttonStyle(.glass)
-                .buttonBorderShape(.circle)
-                .controlSize(.large)
+            Button {
+                dismiss()
+            } label: {
+                Image(systemName: "xmark")
+                    .frame(width: 22, height: 22)
             }
+            .buttonStyle(.glass)
+            .buttonBorderShape(.circle)
+            .controlSize(.large)
+            .accessibilityLabel("Close")
         }
     }
 

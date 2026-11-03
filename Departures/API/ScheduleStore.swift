@@ -18,6 +18,7 @@ actor ScheduleStore {
         /// Where the requested station sits in `pattern`.
         let stopIndex: Int
         let time: Date
+        let serviceDay: String
     }
 
     private struct File: Decodable {
@@ -105,9 +106,10 @@ actor ScheduleStore {
         // the end of the look-ahead window.
         for offset in -1...1 {
             guard let day = calendar.date(byAdding: .day, value: offset, to: today),
-                  let noon = calendar.date(bySettingHour: 12, minute: 0, second: 0, of: day),
-                  let indices = file.days[TorontoTime.dateWire(day)]
+                  let noon = calendar.date(bySettingHour: 12, minute: 0, second: 0, of: day)
             else { continue }
+            let dayKey = TorontoTime.dateWire(day)
+            guard let indices = file.days[dayKey] else { continue }
             if offset == 0 { coversToday = true }
             // GTFS times count from "noon minus 12 hours", which stays right across DST changes.
             let base = noon.addingTimeInterval(-12 * 3600)
@@ -123,11 +125,36 @@ actor ScheduleStore {
                 let time = base.addingTimeInterval(TimeInterval(trip.times[stop] * 60))
                 guard time >= now.addingTimeInterval(-45), time <= now.addingTimeInterval(8 * 3600) else { continue }
                 result.append(Departure(tripNumber: trip.number, lineCode: trip.line, pattern: pattern,
-                                        stopIndex: stop, time: time))
+                                        stopIndex: stop, time: time, serviceDay: dayKey))
             }
         }
         guard coversToday else { return nil }
         result.sort { $0.time < $1.time }
         return Array(result.prefix(limit))
+    }
+
+    /// One trip's stops and scheduled times on a service day.
+    func trip(number: String, serviceDay: String) -> (pattern: [String], times: [Date])? {
+        loadIfNeeded()
+        guard let file, let indices = file.days[serviceDay] else { return nil }
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TorontoTime.zone
+        let formatter = DateFormatter()
+        formatter.calendar = calendar
+        formatter.timeZone = TorontoTime.zone
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyyMMdd"
+        guard let day = formatter.date(from: serviceDay),
+              let noon = calendar.date(bySettingHour: 12, minute: 0, second: 0, of: day)
+        else { return nil }
+        let base = noon.addingTimeInterval(-12 * 3600)
+
+        for index in indices where index < file.trips.count {
+            let trip = file.trips[index]
+            guard trip.number == number, trip.pattern < file.patterns.count else { continue }
+            let times = trip.times.map { base.addingTimeInterval(TimeInterval($0 * 60)) }
+            return (file.patterns[trip.pattern], times)
+        }
+        return nil
     }
 }

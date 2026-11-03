@@ -15,6 +15,8 @@ struct BoardRow: Identifiable, Equatable, Sendable {
     var isCancelled: Bool
     var reasonEnglish: String?
     var reasonFrench: String?
+    /// GTFS service day (yyyyMMdd) when known; trips after midnight belong to the day before.
+    var serviceDay: String? = nil
 
     var id: String { "\(tripNumber)-\(Int(scheduled.timeIntervalSince1970))" }
 
@@ -23,6 +25,25 @@ struct BoardRow: Identifiable, Equatable, Sendable {
     }
 
     var isDelayed: Bool { !isCancelled && delayMinutes >= 2 }
+}
+
+/// Every stop of one trip, for the trip sheet.
+struct TripDetail: Sendable {
+    struct Stop: Identifiable, Sendable {
+        let index: Int
+        let code: String
+        /// Scheduled time at this stop.
+        let time: Date?
+        /// Live estimate, when known.
+        let expected: Date?
+        let platform: String?
+
+        var id: String { "\(index)-\(code)" }
+    }
+
+    let stops: [Stop]
+    /// Where the times came from; nil when only the stop names are known.
+    let source: BoardSnapshot.Source?
 }
 
 struct StationAlert: Identifiable, Equatable, Sendable {

@@ -107,11 +107,104 @@ actor BoardService {
                 isExpress: network.isExpress(lineCode: code, stops: Array(departure.pattern[departure.stopIndex...])),
                 isCancelled: false,
                 reasonEnglish: nil,
-                reasonFrench: nil
+                reasonFrench: nil,
+                serviceDay: departure.serviceDay
             )
         }
         let reason = (liveError as? LocalizedError)?.errorDescription ?? liveError.localizedDescription
         return BoardSnapshot(rows: rows, alerts: [], fetchedAt: now, source: .schedule, note: reason)
+    }
+
+    // MARK: One trip, stop by stop
+
+    /// Every stop of the trip behind a board row: live times when Metrolinx has them,
+    /// otherwise the timetable, otherwise just the stop names from the board.
+    func tripDetail(for row: BoardRow, from station: Station) async -> TripDetail {
+        let days = Self.serviceDays(for: row)
+        let client = MetrolinxClient()
+        for day in days {
+            let response: TripStatusResponse? = try? await client.fetch("/Schedule/Trip/\(day)/\(row.tripNumber)")
+            if let stops = response?.trips?.first?.stops,
+               let detail = Self.liveDetail(stops, row: row, station: station) {
+                return detail
+            }
+        }
+
+        for day in days {
+            guard let trip = await ScheduleStore.shared.trip(number: row.tripNumber, serviceDay: day) else { continue }
+            let stops = zip(trip.pattern, trip.times).enumerated().map { index, pair in
+                TripDetail.Stop(index: index, code: pair.0, time: pair.1, expected: nil, platform: nil)
+            }
+            return TripDetail(stops: stops, source: .schedule)
+        }
+
+        // Names only: the station itself plus the stops the board listed.
+        let network = RailNetwork.shared
+        let onward = row.stops.compactMap { name in network.stations.first { $0.name == name.withoutGOSuffix }?.code }
+        let codes = [station.code] + onward
+        let stops = codes.enumerated().map { index, code in
+            TripDetail.Stop(index: index, code: code, time: index == 0 ? row.scheduled : nil, expected: nil, platform: nil)
+        }
+        return TripDetail(stops: stops, source: nil)
+    }
+
+    private static func serviceDays(for row: BoardRow) -> [String] {
+        if let day = row.serviceDay { return [day] }
+        let day = TorontoTime.dateWire(row.scheduled)
+        // After midnight the trip may belong to yesterday's service day: try that first.
+        if TorontoTime.hour(row.scheduled) < 4 {
+            return [TorontoTime.dateWire(row.scheduled.addingTimeInterval(-86_400)), day]
+        }
+        return [day]
+    }
+
+    /// Schedule/Trip gives bare "HH:MM" times, so place every stop relative to the
+    /// board row's own departure time at `station`.
+    private static func liveDetail(_ stops: [TripStatusResponse.Stop], row: BoardRow, station: Station) -> TripDetail? {
+        func minutes(_ text: String?) -> Int? {
+            guard let parts = text?.trimmed.split(separator: ":"), parts.count >= 2,
+                  let hours = Int(parts[0]), let mins = Int(parts[1]) else { return nil }
+            return hours * 60 + mins
+        }
+
+        let network = RailNetwork.shared
+        let kept = stops.filter { $0.code.flatMap { network.station($0) } != nil }
+        guard kept.count >= 2, let anchor = kept.firstIndex(where: { $0.code == station.code }) else { return nil }
+
+        // Scheduled minutes along the trip, kept increasing across midnight.
+        var scheduled: [Int?] = []
+        var dayOffset = 0
+        var last: Int?
+        for stop in kept {
+            guard var value = minutes(stop.departureTime?.scheduled ?? stop.arrivalTime?.scheduled) else {
+                scheduled.append(nil)
+                continue
+            }
+            value += dayOffset
+            if let last, value < last - 360 {
+                dayOffset += 1440
+                value += 1440
+            }
+            last = value
+            scheduled.append(value)
+        }
+        guard let anchorMinutes = scheduled[anchor] else { return nil }
+
+        let result = kept.enumerated().map { index, stop -> TripDetail.Stop in
+            let time = scheduled[index].map { row.scheduled.addingTimeInterval(TimeInterval(($0 - anchorMinutes) * 60)) }
+            var expected: Date?
+            if let time,
+               let planned = minutes(stop.departureTime?.scheduled ?? stop.arrivalTime?.scheduled),
+               let computed = minutes(stop.departureTime?.computed ?? stop.arrivalTime?.computed) {
+                var delta = computed - planned
+                if delta < -720 { delta += 1440 }
+                if delta > 720 { delta -= 1440 }
+                expected = time.addingTimeInterval(TimeInterval(delta * 60))
+            }
+            let platform = formatPlatform(stop.track?.actual) ?? formatPlatform(stop.track?.scheduled)
+            return TripDetail.Stop(index: index, code: stop.code ?? "", time: time, expected: expected, platform: platform)
+        }
+        return TripDetail(stops: result, source: .live)
     }
 
     // MARK: Union Station

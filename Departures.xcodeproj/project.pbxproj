@@ -25,6 +25,7 @@
 		C72CEF65C6D4FA826441D360 /* LocationProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9948AB743F7973496F01FC60 /* LocationProvider.swift */; };
 		CC907A8260921EE1A4252FB4 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 420AD3DBFC5C7096B0B3CA0A /* SettingsView.swift */; };
 		F631C973BB509053AD53E5B1 /* NetworkMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C62F099FD3615F422C7C6289 /* NetworkMapView.swift */; };
+		F84F4DE9239838E432A25741 /* TripSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3939C3EBFFD629B1B5AFB65B /* TripSheet.swift */; };
 		FD837E982E973E9FDE52632F /* BoardService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E30604C09783E66179545ED6 /* BoardService.swift */; };
 /* End PBXBuildFile section */
 
@@ -34,6 +35,7 @@
 		1CC72142AD9025AD2F76DE07 /* Departures.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; path = Departures.entitlements; sourceTree = "<group>"; };
 		26FA8B31A1F2728E021C5B6A /* BoardView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BoardView.swift; sourceTree = "<group>"; };
 		290D6E9F76D46363F2480265 /* schedule.json */ = {isa = PBXFileReference; includeInIndex = 1; path = schedule.json; sourceTree = "<group>"; };
+		3939C3EBFFD629B1B5AFB65B /* TripSheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TripSheet.swift; sourceTree = "<group>"; };
 		3DC1C5302C0F878B3001639D /* BoardModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BoardModels.swift; sourceTree = "<group>"; };
 		420AD3DBFC5C7096B0B3CA0A /* SettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		52CF198FA6EEC18089A74BB2 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
@@ -139,6 +141,7 @@
 				55E96A0A4A812C9938B0E829 /* RootView.swift */,
 				420AD3DBFC5C7096B0B3CA0A /* SettingsView.swift */,
 				D8DD54A97E3BD853130248E1 /* StationSheet.swift */,
+				3939C3EBFFD629B1B5AFB65B /* TripSheet.swift */,
 			);
 			name = Views;
 			path = Views;
@@ -284,6 +287,7 @@
 				CC907A8260921EE1A4252FB4 /* SettingsView.swift in Sources */,
 				5FB905A092DA55E4EC67121C /* StationSheet.swift in Sources */,
 				BF4FAF1018F15829F06FF536 /* ScheduleStore.swift in Sources */,
+				F84F4DE9239838E432A25741 /* TripSheet.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

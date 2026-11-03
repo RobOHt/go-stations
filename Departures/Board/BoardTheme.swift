@@ -29,7 +29,7 @@ enum BoardTheme {
     }
 
     // Layout (portrait).
-    static let timeWidth: CGFloat = 58
+    static let timeWidth: CGFloat = 68
     static let boltWidth: CGFloat = 16
     static let badgeSize = CGSize(width: 25, height: 21)
     static var detailIndent: CGFloat { timeWidth + boltWidth }

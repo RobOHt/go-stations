@@ -27,7 +27,7 @@ struct RootView: View {
         .overlay(alignment: .topTrailing) { controls }
         .sheet(isPresented: stationSheetPresented) {
             if let selected {
-                StationSheet(station: selected) { self.selected = nil }
+                StationSheet(station: selected)
                     .presentationDetents([.medium, .large], selection: $detent)
                     .presentationBackgroundInteraction(.enabled(upThrough: .medium))
                     .presentationDragIndicator(.visible)

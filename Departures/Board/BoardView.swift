@@ -11,6 +11,8 @@ struct BoardView: View {
     var isLoading: Bool = false
     /// Timetable rows: no platforms or delays to show.
     var isScheduled: Bool = false
+    /// Called when a train is tapped.
+    var onSelectRow: ((BoardRow) -> Void)? = nil
 
     var body: some View {
         VStack(spacing: 0) {
@@ -23,8 +25,19 @@ struct BoardView: View {
                 DottedRule()
             } else {
                 ForEach(rows) { row in
-                    BoardRowView(row: row, isUnion: station.isUnion, accessible: station.accessible, now: now,
-                                 showsPlatform: !isScheduled)
+                    let rowView = BoardRowView(row: row, isUnion: station.isUnion, accessible: station.accessible,
+                                               now: now, showsPlatform: !isScheduled)
+                    if let onSelectRow {
+                        Button {
+                            onSelectRow(row)
+                        } label: {
+                            rowView.contentShape(Rectangle())
+                        }
+                        .buttonStyle(BoardRowButtonStyle())
+                        .accessibilityHint("Shows every stop of this train")
+                    } else {
+                        rowView
+                    }
                     DottedRule()
                 }
             }
@@ -130,6 +143,8 @@ struct BoardRowView: View {
                 Text(TorontoTime.hourMinute(row.scheduled))
                     .font(.system(size: 20, weight: .semibold).monospacedDigit())
                     .foregroundStyle(row.isCancelled ? BoardTheme.cancelled : BoardTheme.time)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
                     .frame(width: BoardTheme.timeWidth, alignment: .leading)
 
                 ZStack {
@@ -207,6 +222,14 @@ struct BoardRowView: View {
                 .foregroundStyle(BoardTheme.white)
                 .lineLimit(2)
         }
+    }
+}
+
+/// Highlights a board row while it's pressed.
+struct BoardRowButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .background(configuration.isPressed ? Color.white.opacity(0.1) : Color.clear)
     }
 }
 

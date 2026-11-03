@@ -209,11 +209,19 @@ struct TripStatusResponse: Decodable, MetrolinxEnvelope, Sendable {
         let code: String?
         let status: String?
         let track: Track?
+        let arrivalTime: TimeBlock?
+        let departureTime: TimeBlock?
     }
 
     struct Track: Decodable, Sendable {
         let scheduled: String?
         let actual: String?
+    }
+
+    /// Bare "HH:MM" wall-clock times.
+    struct TimeBlock: Decodable, Sendable {
+        let scheduled: String?
+        let computed: String?
     }
 }
 
