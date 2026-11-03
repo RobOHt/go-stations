@@ -125,3 +125,59 @@ struct StatusBarBlur: View {
         )
     }
 }
+
+// MARK: - Wrapping row
+
+/// Lays its children out in a row, wrapping onto further lines when they run out
+/// of room. Items on a line are centred vertically.
+struct FlowLayout: Layout {
+    var spacing: CGFloat = 4
+    var lineSpacing: CGFloat = 4
+
+    private struct Line {
+        var indices: [Int] = []
+        var width: CGFloat = 0
+        var height: CGFloat = 0
+    }
+
+    private func lines(for subviews: Subviews, maxWidth: CGFloat) -> [Line] {
+        var lines: [Line] = [Line()]
+        for index in subviews.indices {
+            let size = subviews[index].sizeThatFits(.unspecified)
+            let extra = lines[lines.count - 1].indices.isEmpty ? size.width : spacing + size.width
+            if !lines[lines.count - 1].indices.isEmpty, lines[lines.count - 1].width + extra > maxWidth {
+                lines.append(Line())
+            }
+            var line = lines[lines.count - 1]
+            line.width += line.indices.isEmpty ? size.width : spacing + size.width
+            line.height = max(line.height, size.height)
+            line.indices.append(index)
+            lines[lines.count - 1] = line
+        }
+        return lines.filter { !$0.indices.isEmpty }
+    }
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let lines = lines(for: subviews, maxWidth: proposal.width ?? .infinity)
+        let width = lines.map(\.width).max() ?? 0
+        let height = lines.map(\.height).reduce(0, +) + lineSpacing * CGFloat(max(lines.count - 1, 0))
+        return CGSize(width: width, height: height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var y = bounds.minY
+        for line in lines(for: subviews, maxWidth: bounds.width) {
+            var x = bounds.minX
+            for index in line.indices {
+                let size = subviews[index].sizeThatFits(.unspecified)
+                subviews[index].place(
+                    at: CGPoint(x: x, y: y + (line.height - size.height) / 2),
+                    anchor: .topLeading,
+                    proposal: ProposedViewSize(size)
+                )
+                x += size.width + spacing
+            }
+            y += line.height + lineSpacing
+        }
+    }
+}

@@ -34,6 +34,12 @@ jobs:
           sudo xcode-select -s "$XCODE/Contents/Developer"
           xcodebuild -version
 
+      - name: Bundle a fresh timetable
+        run: |
+          # Same as TestFlight builds: the committed copy may not cover today.
+          python3 tools/build_schedule.py --output Departures/Resources/schedule.json \
+            || echo "::warning title=Timetable::Couldn't build a fresh timetable; using the committed copy"
+
       - name: Build for the simulator
         run: |
           set -o pipefail

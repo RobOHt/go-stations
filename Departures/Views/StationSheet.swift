@@ -80,7 +80,8 @@ struct StationSheet: View {
                     .font(.title2.bold())
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
-                HStack(spacing: 4) {
+                // Wraps onto a second line when there are many lines (Union has seven).
+                FlowLayout(spacing: 4, lineSpacing: 4) {
                     ForEach(station.lineCodes, id: \.self) { code in
                         LineBadge(code: code)
                     }
@@ -88,6 +89,7 @@ struct StationSheet: View {
                         Text(role)
                             .font(.footnote.weight(.semibold))
                             .foregroundStyle(roleColor)
+                            .fixedSize()
                             .padding(.leading, 4)
                     }
                 }

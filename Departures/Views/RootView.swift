@@ -48,10 +48,6 @@ struct RootView: View {
                     }
                 }
         }
-        .onChange(of: searchPresented) { _, presented in
-            // The system's close button ends the search: drop the place and results too.
-            if !presented { search.clear() }
-        }
         .sheet(isPresented: stationSheetPresented) {
             if let selected {
                 StationSheet(station: selected)
@@ -308,7 +304,7 @@ struct RootView: View {
     #if DEBUG
     /// Opens the app straight into a state, for simulator screenshots.
     private func show(_ scene: DebugScene) async {
-        try? await Task.sleep(for: .seconds(1))
+        try? await Task.sleep(for: .seconds(1.5))
         guard let union = network.station("UN") else { return }
         switch scene {
         case .map:
@@ -323,10 +319,15 @@ struct RootView: View {
             searchFocused = true
             search.query = "Oak"
         case .place:
+            // As if typed and submitted with the Search key.
             center(on: union.coordinate, sheetOpen: false)
             searchPresented = true
+            searchFocused = true
+            try? await Task.sleep(for: .milliseconds(800))
             search.query = "CN Tower"
+            try? await Task.sleep(for: .milliseconds(800))
             _ = search.submit()
+            searchFocused = false
         case .station, .trip:
             select(union, detent: .medium)
         case .stationLarge:

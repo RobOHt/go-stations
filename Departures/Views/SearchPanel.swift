@@ -393,15 +393,23 @@ struct SearchResults: View {
                     .frame(width: 30, height: 30)
                     .background(iconColor(for: station, role: role), in: Circle())
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(station.name).font(.body.weight(.semibold)).foregroundStyle(.primary)
+                    Text(station.name).font(.body.weight(.semibold)).foregroundStyle(.primary).lineLimit(1)
                     if let detail {
                         Text(detail).font(.footnote).foregroundStyle(.secondary)
                     }
                 }
                 Spacer(minLength: 8)
+                // At most three badges, so long names stay on one line (Union has seven lines).
                 HStack(spacing: 3) {
-                    ForEach(station.lineCodes, id: \.self) { LineBadge(code: $0) }
+                    ForEach(station.lineCodes.prefix(3), id: \.self) { LineBadge(code: $0) }
+                    if station.lineCodes.count > 3 {
+                        Text("+\(station.lineCodes.count - 3)")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(.secondary)
+                            .padding(.leading, 2)
+                    }
                 }
+                .fixedSize()
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 8)
