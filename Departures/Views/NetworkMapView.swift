@@ -139,7 +139,8 @@ struct NetworkMapView: UIViewRepresentable {
     let workCode: String?
     /// A place picked in search, shown as a red pin.
     var place: SearchPlace? = nil
-    /// Room taken at the bottom by floating UI; Apple's logo and Legal link sit above it.
+    /// Room taken at the bottom by floating UI, from the screen's bottom edge;
+    /// Apple's logo and Legal link sit above it.
     var bottomInset: CGFloat = 0
     /// Any tap on the map, station or not (used to put the keyboard away).
     var onTapMap: () -> Void = {}
@@ -205,12 +206,13 @@ struct NetworkMapView: UIViewRepresentable {
         applyBottomInset(to: mapView)
     }
 
-    /// MapKit places its logo and Legal link inside the layout margins. Measure
-    /// from the screen edge (the window's home-indicator inset plus `bottomInset`),
-    /// whatever safe area SwiftUI hands the map view.
+    /// MapKit places its logo and Legal link inside the layout margins.
+    /// `bottomInset` is measured from the bottom edge of the screen; with nothing
+    /// covering the map they sit just above the home indicator.
     private func applyBottomInset(to mapView: MKMapView) {
         mapView.insetsLayoutMarginsFromSafeArea = false
-        let bottom = max(0, bottomInset) + (mapView.window?.safeAreaInsets.bottom ?? 0) + 4
+        let resting = (mapView.window?.safeAreaInsets.bottom ?? 0) + 4
+        let bottom = max(bottomInset, resting)
         guard abs(mapView.layoutMargins.bottom - bottom) > 0.5 else { return }
         mapView.layoutMargins.bottom = bottom
     }

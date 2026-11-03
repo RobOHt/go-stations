@@ -171,8 +171,13 @@ private final class CompleterBridge: NSObject, MKLocalSearchCompleterDelegate {
 }
 
 enum StationFinder {
+    /// How much longer than the closest station another one may take and still be
+    /// listed: 25% (a 20 min drive lists others up to 25 min; a 4 min drive, up to 5).
+    static let closeEnough = 0.25
+
     /// The closest stations to a point by driving time. Apple Maps routes the six
-    /// nearest in a straight line; the fastest `count` win.
+    /// nearest in a straight line. The fastest is always listed; others only when
+    /// they're nearly as close (see `closeEnough`), up to `count` in all.
     static func nearest(to coordinate: CLLocationCoordinate2D, count: Int = 3) async -> [NearbyStation] {
         let origin = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
         let candidates = RailNetwork.shared.stations
@@ -191,14 +196,23 @@ enum StationFinder {
             return all
         }
 
-        return Array(results.sorted { a, b in
+        let sorted = results.sorted { a, b in
             switch (a.travelTime, b.travelTime) {
             case let (x?, y?): return x < y
             case (.some, nil): return true
             case (nil, .some): return false
             case (nil, nil): return a.distance < b.distance
             }
-        }.prefix(count))
+        }
+        guard let best = sorted.first else { return [] }
+        let comparable = sorted.filter { candidate in
+            if let time = candidate.travelTime, let bestTime = best.travelTime {
+                return time <= bestTime * (1 + closeEnough)
+            }
+            // No drive time from Apple Maps: compare road (or straight-line) distance.
+            return candidate.distance <= best.distance * (1 + closeEnough)
+        }
+        return Array(comparable.prefix(count))
     }
 
     @MainActor
@@ -217,6 +231,20 @@ enum StationFinder {
 
 // MARK: - View
 
+/// Geometry of the bottom search bar, taken from iOS 26's own floating bar
+/// (the tab bar in Apple's apps): 62 pt tall and 21 pt in from the sides and
+/// from the bottom edge of the screen, so its rounded ends follow the curve of
+/// the display corners. While typing it works like system search fields: the
+/// field drops to 48 pt, rides just above the keyboard, and a separate glass
+/// close button grows out of it.
+enum BottomBarMetrics {
+    static let restingHeight: CGFloat = 62
+    static let edgeInset: CGFloat = 21
+    static let focusedHeight: CGFloat = 48
+    static let focusedSideInset: CGFloat = 16
+    static let keyboardGap: CGFloat = 12
+}
+
 /// The glass search bar at the bottom of the map, with results above it.
 struct SearchPanel: View {
     @Bindable var model: PlaceSearchModel
@@ -225,6 +253,7 @@ struct SearchPanel: View {
 
     @Environment(AppSettings.self) private var settings
     @State private var contentHeight: CGFloat = 0
+    @Namespace private var glass
     private let network = RailNetwork.shared
 
     private struct SavedStation: Identifiable {
@@ -259,6 +288,18 @@ struct SearchPanel: View {
     // MARK: Bar
 
     private var searchBar: some View {
+        GlassEffectContainer(spacing: 10) {
+            HStack(spacing: 10) {
+                field
+                if isFocused {
+                    closeButton
+                }
+            }
+        }
+        .animation(.smooth(duration: 0.35), value: isFocused)
+    }
+
+    private var field: some View {
         HStack(spacing: 10) {
             Image(systemName: "magnifyingglass")
                 .font(.body.weight(.semibold))
@@ -282,12 +323,37 @@ struct SearchPanel: View {
                 .accessibilityLabel("Clear search")
             }
         }
-        .padding(.horizontal, 18)
-        .frame(height: 52)
+        .padding(.horizontal, isFocused ? 16 : 22)
+        .frame(height: isFocused ? BottomBarMetrics.focusedHeight : BottomBarMetrics.restingHeight)
+        // A touch of extra frost on the glass while typing.
+        .background {
+            Capsule()
+                .fill(.ultraThinMaterial)
+                .opacity(isFocused ? 1 : 0)
+        }
         .contentShape(Capsule())
         // The whole bar, not just the text, opens the keyboard.
         .onTapGesture { isFocused = true }
         .glassEffect(.regular.interactive(), in: Capsule())
+        .glassEffectID("field", in: glass)
+    }
+
+    /// Ends the search, like the close button beside system search fields.
+    private var closeButton: some View {
+        Button {
+            isFocused = false
+            model.clear()
+        } label: {
+            Image(systemName: "xmark")
+                .font(.body.weight(.semibold))
+                .foregroundStyle(.primary)
+                .frame(width: BottomBarMetrics.focusedHeight, height: BottomBarMetrics.focusedHeight)
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .glassEffect(.regular.interactive(), in: Circle())
+        .glassEffectID("close", in: glass)
+        .accessibilityLabel("Close search")
     }
 
     // MARK: Results
@@ -347,7 +413,7 @@ struct SearchPanel: View {
                 .foregroundStyle(.red)
             VStack(alignment: .leading, spacing: 1) {
                 Text(place.name).font(.headline).lineLimit(1)
-                Text(place.subtitle.isEmpty ? "Nearest stations by car" : place.subtitle)
+                Text(place.subtitle.isEmpty ? "Closest by car" : place.subtitle)
                     .font(.footnote).foregroundStyle(.secondary).lineLimit(1)
             }
         }
@@ -362,7 +428,7 @@ struct SearchPanel: View {
             }
             .padding(12)
         } else {
-            sectionTitle("Nearest stations by car")
+            sectionTitle(model.nearby.count == 1 ? "Closest station by car" : "Closest stations by car")
             ForEach(model.nearby) { nearby in
                 stationRow(nearby.station, detail: Self.describe(nearby)) { openStation(nearby.station) }
             }

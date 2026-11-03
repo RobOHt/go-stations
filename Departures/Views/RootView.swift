@@ -16,7 +16,7 @@ struct RootView: View {
     @FocusState private var searchFocused: Bool
     /// Top edge of the station sheet on screen, so the buttons can sit just above it.
     @State private var sheetTop: CGFloat?
-    /// Bottom edge of the area the floating UI lives in (above the home indicator or keyboard).
+    /// Bottom edge of the area the floating UI lives in: the screen's bottom edge, or the keyboard's top.
     @State private var floatingBottom: CGFloat = 0
     @State private var panelHeight: CGFloat = 0
 
@@ -108,13 +108,24 @@ struct RootView: View {
         return !searchActive
     }
 
-    /// Room for Apple's logo and Legal link to sit above whatever covers the map's bottom.
+    /// Room, from the bottom edge of the screen, for Apple's logo and Legal link
+    /// to sit above whatever covers the bottom of the map.
     private var mapBottomInset: CGFloat {
         if selected != nil {
             guard detent != .large, let sheetLift else { return 0 }
-            return sheetLift + 4
+            return sheetLift + 6
         }
-        return panelHeight + 12
+        return panelHeight + BottomBarMetrics.edgeInset + 6
+    }
+
+    private var floatingSideInset: CGFloat {
+        searchFocused && selected == nil ? BottomBarMetrics.focusedSideInset : BottomBarMetrics.edgeInset
+    }
+
+    /// Bottom spacing, from the screen edge (or the keyboard's top while typing).
+    private var floatingBottomPadding: CGFloat {
+        if let sheetLift { return sheetLift + 12 }
+        return searchFocused ? BottomBarMetrics.keyboardGap : BottomBarMetrics.edgeInset
     }
 
     /// The four buttons, bottom right, sitting on the search bar (or on the sheet
@@ -135,10 +146,14 @@ struct RootView: View {
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
-        .padding(.horizontal, 14)
-        .padding(.bottom, sheetLift.map { $0 + 12 } ?? 6)
+        .padding(.horizontal, floatingSideInset)
+        .padding(.bottom, floatingBottomPadding)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+        // Like system bars, measure from the screen's bottom edge rather than the
+        // home-indicator safe area. The keyboard still pushes everything up.
+        .ignoresSafeArea(.container, edges: .bottom)
         .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).maxY } action: { floatingBottom = $0 }
+        .animation(.smooth(duration: 0.35), value: searchFocused)
         .animation(.smooth(duration: 0.3), value: selected == nil)
         .animation(.smooth(duration: 0.3), value: showsControls)
         .animation(.smooth(duration: 0.25), value: sheetLift)
