@@ -57,12 +57,17 @@ enum PinnedHeaderMetrics {
     /// Room below the header, so the soft scroll edge under the bar covers all
     /// of the header before it fades out.
     static let bottom: CGFloat = 20
+    /// The trip sheet's header is taller, so its soft edge needs more room.
+    static let tripBottom: CGFloat = 44
 }
 
 extension View {
     /// Pins `header` in a bar over the top of this scroll view, like a navigation
     /// bar: the content scrolls under it with the system's soft scroll edge.
-    func pinnedHeader<Header: View>(@ViewBuilder _ header: () -> Header) -> some View {
+    /// `bottomRoom` is the space under the header inside the bar; a taller bar
+    /// means a taller soft edge.
+    func pinnedHeader<Header: View>(bottomRoom: CGFloat = PinnedHeaderMetrics.bottom,
+                                    @ViewBuilder _ header: () -> Header) -> some View {
         let content = header()
         return self
             .scrollEdgeEffectStyle(.soft, for: .top)
@@ -71,7 +76,7 @@ extension View {
                     .padding(.leading, PinnedHeaderMetrics.leading)
                     .padding(.trailing, PinnedHeaderMetrics.trailing)
                     .padding(.top, PinnedHeaderMetrics.top)
-                    .padding(.bottom, PinnedHeaderMetrics.bottom)
+                    .padding(.bottom, bottomRoom)
             }
     }
 }
@@ -102,10 +107,10 @@ struct StatusBarBlur: View {
             .fill(.ultraThinMaterial)
             .mask(fade(solidUntil: 0.3))
             .frame(height: statusBarHeight + 28)
-        .frame(maxHeight: .infinity, alignment: .top)
-        .ignoresSafeArea()
-        .allowsHitTesting(false)
-        .accessibilityHidden(true)
+            .frame(maxHeight: .infinity, alignment: .top)
+            .ignoresSafeArea()
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
     }
 
     private func fade(solidUntil solid: CGFloat) -> LinearGradient {
@@ -118,59 +123,5 @@ struct StatusBarBlur: View {
             startPoint: .top,
             endPoint: .bottom
         )
-    }
-}
-
-// MARK: - Display corner radius
-
-/// Reports the radius of the screen's rounded corners, using public iOS 26 API:
-/// a view in the screen corner whose corners are container-concentric resolves
-/// to exactly the display's corner radius. Place it in the bottom-trailing
-/// corner of a full-screen view, ignoring the safe area. Reports 0 if unknown.
-struct DisplayCornerProbe: UIViewRepresentable {
-    let onChange: (CGFloat) -> Void
-
-    func makeUIView(context: Context) -> ProbeView {
-        let view = ProbeView()
-        view.onChange = onChange
-        return view
-    }
-
-    func updateUIView(_ view: ProbeView, context: Context) {
-        view.onChange = onChange
-    }
-
-    final class ProbeView: UIView {
-        var onChange: ((CGFloat) -> Void)?
-        private var reported: CGFloat = -1
-
-        override init(frame: CGRect) {
-            super.init(frame: frame)
-            isUserInteractionEnabled = false
-            backgroundColor = .clear
-            cornerConfiguration = .corners(radius: .containerConcentric(minimum: nil))
-        }
-
-        @available(*, unavailable)
-        required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
-
-        override func didMoveToWindow() {
-            super.didMoveToWindow()
-            setNeedsLayout()
-        }
-
-        override func layoutSubviews() {
-            super.layoutSubviews()
-            guard let window, bounds.width > 0 else { return }
-            let radius = effectiveRadius(corner: .bottomRight)
-            // Concentric: this corner's radius is the display's minus the gap to it.
-            let frame = convert(bounds, to: window)
-            let gap = max(window.bounds.maxX - frame.maxX, window.bounds.maxY - frame.maxY, 0)
-            let display = radius > 1 ? radius + gap : 0
-            guard abs(display - reported) > 0.5 else { return }
-            reported = display
-            let callback = onChange
-            DispatchQueue.main.async { callback?(display) }
-        }
     }
 }

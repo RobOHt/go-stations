@@ -231,30 +231,25 @@ enum StationFinder {
 
 // MARK: - View
 
-/// Geometry of the bottom search bar: a normal 48 pt search field, placed so
-/// its rounded ends are concentric with the screen's corners. For a capsule
-/// that means the gap to the sides and bottom edge equals the display corner
-/// radius minus half the bar's height (about 38 pt on current iPhones). While
-/// typing it works like system search fields: it rides just above the
-/// keyboard and a separate glass close button grows out of it.
+/// Geometry of the bottom search bar, measured from Apple's own bottom search
+/// field (Settings, iOS 26): 48 pt tall, 28 pt from the sides and from the
+/// bottom edge of the screen. That puts the centres of its rounded ends 52 pt
+/// from both edges, the same as the iOS 26 tab bar (62 pt tall at 21 pt), so it
+/// follows the curve of the screen corners. While typing it works like system
+/// search fields: it rides 12 pt above the keyboard and a separate glass close
+/// button grows out of it.
 enum BottomBarMetrics {
     static let height: CGFloat = 48
+    static let edgeInset: CGFloat = 28
     static let focusedSideInset: CGFloat = 16
+    static let keyboardGap: CGFloat = 12
     /// The map buttons sit closer to the edge than the bar, as in Apple Maps.
     static let controlsTrailingInset: CGFloat = 16
-    static let keyboardGap: CGFloat = 12
-    /// Display corner radius to assume until the real one is measured.
-    static let typicalCornerRadius: CGFloat = 55
-
-    static func edgeInset(displayCornerRadius radius: CGFloat) -> CGFloat {
-        let radius = radius > 1 ? radius : typicalCornerRadius
-        return min(max(radius - height / 2, 16), 40)
-    }
 
     /// Room the bar takes at the bottom of the screen, for framing the map.
-    static let typicalRoom = edgeInset(displayCornerRadius: typicalCornerRadius) + height + 12
-    /// The most room it can take, for keeping Apple's Legal link above it.
-    static let maximumRoom: CGFloat = 40 + height + 8
+    static let typicalRoom = edgeInset + height + 12
+    /// Room to keep Apple's Legal link above the bar.
+    static let maximumRoom = edgeInset + height + 8
 }
 
 /// The glass search bar at the bottom of the map, with results above it.

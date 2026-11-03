@@ -92,7 +92,7 @@ struct TripSheet: View {
         }
         .scrollIndicators(.hidden)
         // The train's line, terminus and close button stay pinned over the stops.
-        .pinnedHeader { header }
+        .pinnedHeader(bottomRoom: PinnedHeaderMetrics.tripBottom) { header }
         .task {
             detail = await BoardService.shared.tripDetail(for: row, from: selection.station)
         }

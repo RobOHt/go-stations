@@ -19,8 +19,6 @@ struct RootView: View {
     /// Bottom edge of the area the floating UI lives in: the screen's bottom edge, or the keyboard's top.
     @State private var floatingBottom: CGFloat = 0
     @State private var panelHeight: CGFloat = 0
-    /// The screen's corner radius (0 until measured), so the search bar can be concentric with it.
-    @State private var displayCornerRadius: CGFloat = 0
     @State private var statusBarHeight: CGFloat = 0
 
     private let network = RailNetwork.shared
@@ -36,11 +34,6 @@ struct RootView: View {
             onSelect: { station in select(station, detent: .medium) }
         )
         .ignoresSafeArea()
-        .background(alignment: .bottomTrailing) {
-            DisplayCornerProbe { displayCornerRadius = $0 }
-                .frame(width: 160, height: 160)
-                .ignoresSafeArea()
-        }
         .overlay(alignment: .top) { StatusBarBlur(statusBarHeight: statusBarHeight) }
         .overlay { floatingUI }
         .sheet(isPresented: stationSheetPresented) {
@@ -116,19 +109,14 @@ struct RootView: View {
         return !searchActive
     }
 
-    /// Gap to the sides and bottom edge that keeps the search bar concentric with the screen corners.
-    private var edgeInset: CGFloat {
-        BottomBarMetrics.edgeInset(displayCornerRadius: displayCornerRadius)
-    }
-
     private var searchSideInset: CGFloat {
-        searchFocused ? BottomBarMetrics.focusedSideInset : edgeInset
+        searchFocused ? BottomBarMetrics.focusedSideInset : BottomBarMetrics.edgeInset
     }
 
     /// Bottom spacing, from the screen edge (or the keyboard's top while typing).
     private var floatingBottomPadding: CGFloat {
         if let sheetLift { return sheetLift + 12 }
-        return searchFocused ? BottomBarMetrics.keyboardGap : edgeInset
+        return searchFocused ? BottomBarMetrics.keyboardGap : BottomBarMetrics.edgeInset
     }
 
     /// The four buttons, bottom right, sitting on the search bar (or on the sheet
