@@ -69,6 +69,19 @@ struct RootView: View {
         .task {
             // Keep the fallback timetable fresh in the background.
             Task.detached(priority: .background) { await ScheduleStore.shared.refreshIfNeeded() }
+            #if DEBUG
+            if let scene = DebugScene.current {
+                try? await Task.sleep(for: .seconds(1.5))
+                if let union = network.station("UN") {
+                    switch scene {
+                    case .station, .trip: select(union, detent: .medium)
+                    case .stationLarge: select(union, detent: .large)
+                    default: center(on: union.coordinate, sheetOpen: false)
+                    }
+                }
+                return
+            }
+            #endif
             await autoSelect()
         }
         .onChange(of: scenePhase) { _, phase in

@@ -1,0 +1,123 @@
+name: Screenshots
+
+# Runs a Debug build in the iOS Simulator, opens it in a few set-up states
+# (Departures/App/DebugScene.swift), screenshots each, and force-pushes the
+# PNGs to the ci-screenshots branch, so changes can be checked by eye before
+# they go to TestFlight. Runs on pushes to preview/** branches, or by hand.
+on:
+  push:
+    branches: ["preview/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: screenshots-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  shots:
+    name: Simulator screenshots
+    # macos-15 images also carry Xcode 26 and have far more capacity than macos-26.
+    runs-on: macos-15
+    timeout-minutes: 45
+    env:
+      BUNDLE_ID: com.robinzhong.Departures
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Select newest Xcode 26
+        run: |
+          XCODE=$(ls -d /Applications/Xcode_26*.app | grep -vi beta | sort -V | tail -1)
+          echo "Using $XCODE"
+          sudo xcode-select -s "$XCODE/Contents/Developer"
+          xcodebuild -version
+
+      - name: Bundle a fresh timetable
+        run: |
+          # Same as TestFlight builds: the committed copy may not cover today.
+          python3 tools/build_schedule.py --output Departures/Resources/schedule.json \
+            || echo "::warning title=Timetable::Couldn't build a fresh timetable; using the committed copy"
+
+      - name: Build for the simulator
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project Departures.xcodeproj \
+            -scheme Departures \
+            -configuration Debug \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            build > build.log 2>&1 || {
+              errors=$(grep -E "error:" build.log | sed "s#${GITHUB_WORKSPACE}/##" | sort -u | head -40)
+              body=$(printf '%s' "$errors" | sed 's/%/%25/g' | awk 'BEGIN{ORS="%0A"} {print}')
+              echo "::error title=Build failed::$body"
+              exit 1
+            }
+          tail -3 build.log
+
+      - name: Boot a simulator
+        id: sim
+        run: |
+          # Show the on-screen keyboard rather than assuming a hardware one.
+          defaults write com.apple.iphonesimulator ConnectHardwareKeyboard -bool false
+          read -r RUNTIME TYPE NAME < <(python3 .github/scripts/pick_simulator.py)
+          echo "Simulator: $NAME on $RUNTIME"
+          UDID=$(xcrun simctl create shots "$TYPE" "$RUNTIME")
+          xcrun simctl boot "$UDID"
+          xcrun simctl bootstatus "$UDID" -b > /dev/null
+          echo "udid=$UDID" >> "$GITHUB_OUTPUT"
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Install the app
+        env:
+          UDID: ${{ steps.sim.outputs.udid }}
+        run: |
+          xcrun simctl install "$UDID" build/Build/Products/Debug-iphonesimulator/Departures.app
+          xcrun simctl privacy "$UDID" grant location "$BUNDLE_ID" || true
+          xcrun simctl location "$UDID" set 43.6453,-79.3806
+          xcrun simctl ui "$UDID" appearance dark
+          xcrun simctl status_bar "$UDID" override --time "9:41" --batteryState charged \
+            --batteryLevel 100 --cellularBars 4 --wifiBars 3 || true
+
+      - name: Take screenshots
+        env:
+          UDID: ${{ steps.sim.outputs.udid }}
+        run: |
+          mkdir -p shots
+          shoot() {
+            name=$1; wait=$2; scene=$3
+            xcrun simctl terminate "$UDID" "$BUNDLE_ID" > /dev/null 2>&1 || true
+            sleep 1
+            xcrun simctl launch "$UDID" "$BUNDLE_ID" -debugScene "$scene" \
+              -homeStation OA -workStation UN > /dev/null
+            sleep "$wait"
+            xcrun simctl io "$UDID" screenshot --type=png "shots/$name.png" > /dev/null 2>&1
+            echo "$name"
+          }
+          # The first launch also warms up map tiles.
+          shoot 1-map 20 map
+          shoot 2-search-focused 8 searchFocused
+          shoot 3-search-typing 10 searchTyping
+          shoot 4-place 15 place
+          shoot 5-station 12 station
+          shoot 6-station-large 10 stationLarge
+          shoot 7-trip 15 trip
+
+      - name: Publish to the ci-screenshots branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEVICE: ${{ steps.sim.outputs.name }}
+        run: |
+          cd shots
+          printf '# Simulator screenshots\n\n%s, commit %s on %s (run %s).\n' \
+            "${DEVICE//_/ }" "$GITHUB_SHA" "$GITHUB_REF_NAME" "$GITHUB_RUN_ID" > README.md
+          git init -q -b ci-screenshots
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -qm "Screenshots for ${GITHUB_SHA}"
+          git push -qf "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:ci-screenshots
+          echo "::notice title=Screenshots::Pushed $(ls *.png | wc -l | tr -d ' ') screenshots to ci-screenshots"

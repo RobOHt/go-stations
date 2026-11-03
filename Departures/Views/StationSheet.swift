@@ -55,6 +55,13 @@ struct StationSheet: View {
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { wake += 1 }
         }
+        #if DEBUG
+        .onChange(of: model.snapshot?.rows.first?.id) { _, _ in
+            guard DebugScene.current == .trip, selectedTrip == nil,
+                  let row = model.snapshot?.rows.first else { return }
+            selectedTrip = TripSelection(row: row, station: station)
+        }
+        #endif
     }
 
     private var boardMessage: String? {

@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		06D19DF954C469ADD1040377 /* DebugScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6A3DE619DBFE968FE3C0DFD /* DebugScene.swift */; };
 		333FBA9314F3494575C93A0E /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = BD19958788A805717D008E2E /* Assets.xcassets */; };
 		4330800974904FA294B8E785 /* network.json in Resources */ = {isa = PBXBuildFile; fileRef = A9BE92FD3DD0AB0A0A401EED /* network.json */; };
 		488BB9FF5561346B8614F7E0 /* schedule.json in Resources */ = {isa = PBXBuildFile; fileRef = 290D6E9F76D46363F2480265 /* schedule.json */; };
@@ -49,6 +50,7 @@
 		BD19958788A805717D008E2E /* Assets.xcassets */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		C622B10E2C34C13846A534A2 /* BoardTheme.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BoardTheme.swift; sourceTree = "<group>"; };
 		C62F099FD3615F422C7C6289 /* NetworkMapView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NetworkMapView.swift; sourceTree = "<group>"; };
+		C6A3DE619DBFE968FE3C0DFD /* DebugScene.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DebugScene.swift; sourceTree = "<group>"; };
 		D8DD54A97E3BD853130248E1 /* StationSheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StationSheet.swift; sourceTree = "<group>"; };
 		DFE6B35F3135D0FF6BF810DA /* MetrolinxClient.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MetrolinxClient.swift; sourceTree = "<group>"; };
 		E16713FA8D25912C5662B0DD /* BoardModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BoardModel.swift; sourceTree = "<group>"; };
@@ -200,6 +202,7 @@
 			isa = PBXGroup;
 			children = (
 				74808329CCF6884C750FCF09 /* DeparturesApp.swift */,
+				C6A3DE619DBFE968FE3C0DFD /* DebugScene.swift */,
 			);
 			name = App;
 			path = App;
@@ -296,6 +299,7 @@
 				F84F4DE9239838E432A25741 /* TripSheet.swift in Sources */,
 				8FCB966F59164CF7F1FF5522 /* SearchPanel.swift in Sources */,
 				A29E9D60A166B42FD5174F50 /* GlassControls.swift in Sources */,
+				06D19DF954C469ADD1040377 /* DebugScene.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
