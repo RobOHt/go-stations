@@ -231,36 +231,32 @@ enum StationFinder {
 
 // MARK: - View
 
-/// Geometry of the bottom search bar, measured from Apple's own bottom search
-/// field (Settings, iOS 26): 48 pt tall, 28 pt from the sides and from the
-/// bottom edge of the screen. That puts the centres of its rounded ends 52 pt
-/// from both edges, the same as the iOS 26 tab bar (62 pt tall at 21 pt), so it
-/// follows the curve of the screen corners. While typing it works like system
-/// search fields: it rides 12 pt above the keyboard and a separate glass close
-/// button grows out of it.
+/// Room taken by the system's bottom search field (Apple's own in Settings on
+/// iOS 26 is 48 pt tall, 28 pt from the bottom edge). Only used to frame the map
+/// and keep Apple's Legal link above it: the field itself comes from
+/// `.searchable`, so iOS sizes and places it on every iPhone.
 enum BottomBarMetrics {
-    static let height: CGFloat = 48
-    static let edgeInset: CGFloat = 28
-    static let focusedSideInset: CGFloat = 16
-    static let keyboardGap: CGFloat = 12
-    /// The map buttons sit closer to the edge than the bar, as in Apple Maps.
+    /// The map buttons sit 16 pt from the right edge, as in Apple Maps.
     static let controlsTrailingInset: CGFloat = 16
-
-    /// Room the bar takes at the bottom of the screen, for framing the map.
-    static let typicalRoom = edgeInset + height + 12
-    /// Room to keep Apple's Legal link above the bar.
-    static let maximumRoom = edgeInset + height + 8
+    /// Gap between the search field (or the sheet) and the results or buttons above it.
+    static let gapAbove: CGFloat = 10
+    static let typicalRoom: CGFloat = 28 + 48 + 12
+    static let maximumRoom: CGFloat = 28 + 48 + 8
 }
 
-/// The glass search bar at the bottom of the map, with results above it.
-struct SearchPanel: View {
+/// Results in a glass card above the system search field: station matches and
+/// Apple Maps suggestions while typing, the closest stations by car for a picked
+/// place, and home/work while the field is active but empty.
+struct SearchResults: View {
     @Bindable var model: PlaceSearchModel
-    @FocusState.Binding var isFocused: Bool
+    /// The search field is active (focused, or showing a picked place).
+    let isSearching: Bool
     let onStation: (Station) -> Void
+    /// A place was picked: put the keyboard away (its results stay up).
+    let onPickPlace: () -> Void
 
     @Environment(AppSettings.self) private var settings
     @State private var contentHeight: CGFloat = 0
-    @Namespace private var glass
     private let network = RailNetwork.shared
 
     private struct SavedStation: Identifiable {
@@ -270,8 +266,8 @@ struct SearchPanel: View {
         var id: String { label + station.code }
     }
 
-    private var showsResults: Bool {
-        model.place != nil || model.hasQuery || (isFocused && !savedStations.isEmpty)
+    private var hasContent: Bool {
+        model.place != nil || model.hasQuery || (isSearching && !savedStations.isEmpty)
     }
 
     private var savedStations: [SavedStation] {
@@ -282,80 +278,13 @@ struct SearchPanel: View {
     }
 
     var body: some View {
-        VStack(spacing: 10) {
-            if showsResults {
+        VStack(spacing: 0) {
+            if hasContent {
                 results
-                    .layoutPriority(1)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
-            searchBar
         }
-        .animation(.snappy, value: showsResults)
-    }
-
-    // MARK: Bar
-
-    private var searchBar: some View {
-        GlassEffectContainer(spacing: 10) {
-            HStack(spacing: 10) {
-                field
-                if isFocused {
-                    closeButton
-                }
-            }
-        }
-        .animation(.smooth(duration: 0.35), value: isFocused)
-    }
-
-    private var field: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "magnifyingglass")
-                .font(.body.weight(.semibold))
-                .foregroundStyle(.secondary)
-            TextField("Search stations or places", text: $model.query)
-                .focused($isFocused)
-                .submitLabel(.search)
-                .autocorrectionDisabled()
-                .onSubmit {
-                    if let station = model.submit() { openStation(station) }
-                }
-            if model.hasQuery || model.place != nil {
-                Button {
-                    model.clear()
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.body)
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Clear search")
-            }
-        }
-        .padding(.horizontal, 16)
-        .frame(height: BottomBarMetrics.height)
-        .contentShape(Capsule())
-        // The whole bar, not just the text, opens the keyboard.
-        .onTapGesture { isFocused = true }
-        .glassEffect(.regular.interactive(), in: Capsule())
-        .glassEffectID("field", in: glass)
-    }
-
-    /// Ends the search, like the close button beside system search fields.
-    private var closeButton: some View {
-        Button {
-            isFocused = false
-            model.clear()
-        } label: {
-            Image(systemName: "xmark")
-                .font(.body.weight(.semibold))
-                .foregroundStyle(.primary)
-                .frame(width: BottomBarMetrics.height, height: BottomBarMetrics.height)
-                .contentShape(Circle())
-        }
-        .buttonStyle(.plain)
-        .glassEffect(.regular.interactive(), in: Circle())
-        .glassEffectID("close", in: glass)
-        .accessibilityLabel("Close search")
+        .animation(.snappy, value: hasContent)
     }
 
     // MARK: Results
@@ -369,7 +298,7 @@ struct SearchPanel: View {
                     if !model.stationMatches.isEmpty {
                         sectionTitle("Stations")
                         ForEach(model.stationMatches) { station in
-                            stationRow(station, detail: nil) { openStation(station) }
+                            stationRow(station, detail: nil) { onStation(station) }
                         }
                     }
                     if !model.places.isEmpty {
@@ -392,7 +321,7 @@ struct SearchPanel: View {
                 } else {
                     sectionTitle("Your stations")
                     ForEach(savedStations) { saved in
-                        stationRow(saved.station, detail: saved.label, role: saved.role) { openStation(saved.station) }
+                        stationRow(saved.station, detail: saved.label, role: saved.role) { onStation(saved.station) }
                     }
                 }
             }
@@ -432,7 +361,7 @@ struct SearchPanel: View {
         } else {
             sectionTitle(model.nearby.count == 1 ? "Closest station by car" : "Closest stations by car")
             ForEach(model.nearby) { nearby in
-                stationRow(nearby.station, detail: Self.describe(nearby)) { openStation(nearby.station) }
+                stationRow(nearby.station, detail: Self.describe(nearby)) { onStation(nearby.station) }
             }
         }
     }
@@ -491,7 +420,7 @@ struct SearchPanel: View {
 
     private func placeRow(_ completion: MKLocalSearchCompletion) -> some View {
         Button {
-            isFocused = false
+            onPickPlace()
             model.choose(completion)
         } label: {
             HStack(spacing: 12) {
@@ -515,8 +444,4 @@ struct SearchPanel: View {
         .buttonStyle(.plain)
     }
 
-    private func openStation(_ station: Station) {
-        isFocused = false
-        onStation(station)
-    }
 }

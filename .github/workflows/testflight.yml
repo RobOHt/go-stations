@@ -23,6 +23,8 @@ on:
       - ".github/workflows/asc-status.yml"
       - ".github/scripts/asc_status.py"
       - ".github/workflows/worker.yml"
+      - ".github/workflows/screenshots.yml"
+      - ".github/scripts/pick_simulator.py"
       - "worker/**"
   workflow_dispatch:
 

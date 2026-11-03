@@ -13,29 +13,45 @@ struct RootView: View {
     @State private var backgroundedAt: Date?
 
     @State private var search = PlaceSearchModel()
+    /// The system search field is active (expanded, with its close button).
+    @State private var searchPresented = false
     @FocusState private var searchFocused: Bool
     /// Top edge of the station sheet on screen, so the buttons can sit just above it.
     @State private var sheetTop: CGFloat?
-    /// Bottom edge of the area the floating UI lives in: the screen's bottom edge, or the keyboard's top.
+    /// Bottom edge of the area the floating UI lives in: just above the search
+    /// field (which itself rides above the keyboard while typing).
     @State private var floatingBottom: CGFloat = 0
-    @State private var panelHeight: CGFloat = 0
     @State private var statusBarHeight: CGFloat = 0
 
     private let network = RailNetwork.shared
 
     var body: some View {
-        NetworkMapView(
-            controller: mapController,
-            selectedCode: selected?.code,
-            homeCode: settings.homeCode,
-            workCode: settings.workCode,
-            place: search.place,
-            onTapMap: { searchFocused = false },
-            onSelect: { station in select(station, detent: .medium) }
-        )
-        .ignoresSafeArea()
-        .overlay(alignment: .top) { StatusBarBlur(statusBarHeight: statusBarHeight) }
-        .overlay { floatingUI }
+        // The search field is the system's own (`.searchable` in the bottom toolbar),
+        // so iOS sizes and places it like Settings' on every iPhone, and handles the
+        // keyboard, the close button and larger text. The navigation bar is hidden:
+        // the map runs edge to edge.
+        NavigationStack {
+            mapScreen
+                .toolbar {
+                    DefaultToolbarItem(kind: .search, placement: .bottomBar)
+                }
+                .toolbarVisibility(.hidden, for: .navigationBar)
+                .searchable(text: $search.query, isPresented: $searchPresented, prompt: "Search stations or places")
+                .searchFocused($searchFocused)
+                .autocorrectionDisabled()
+                .onSubmit(of: .search) {
+                    if let station = search.submit() {
+                        openFromSearch(station)
+                    } else {
+                        // Searching places: put the keyboard away for the results.
+                        searchFocused = false
+                    }
+                }
+        }
+        .onChange(of: searchPresented) { _, presented in
+            // The system's close button ends the search: drop the place and results too.
+            if !presented { search.clear() }
+        }
         .sheet(isPresented: stationSheetPresented) {
             if let selected {
                 StationSheet(station: selected)
@@ -69,6 +85,12 @@ struct RootView: View {
         .task {
             // Keep the fallback timetable fresh in the background.
             Task.detached(priority: .background) { await ScheduleStore.shared.refreshIfNeeded() }
+            #if DEBUG
+            if let scene = DebugScene.current {
+                await show(scene)
+                return
+            }
+            #endif
             await autoSelect()
         }
         .onChange(of: scenePhase) { _, phase in
@@ -88,6 +110,21 @@ struct RootView: View {
         }
     }
 
+    private var mapScreen: some View {
+        NetworkMapView(
+            controller: mapController,
+            selectedCode: selected?.code,
+            homeCode: settings.homeCode,
+            workCode: settings.workCode,
+            place: search.place,
+            onTapMap: { searchFocused = false },
+            onSelect: { station in select(station, detent: .medium) }
+        )
+        .ignoresSafeArea()
+        .overlay(alignment: .top) { StatusBarBlur(statusBarHeight: statusBarHeight) }
+        .overlay { floatingUI }
+    }
+
     private var stationSheetPresented: Binding<Bool> {
         Binding(
             get: { selected != nil },
@@ -98,7 +135,7 @@ struct RootView: View {
     // MARK: Floating controls and search
 
     private var searchActive: Bool {
-        searchFocused || search.hasQuery || search.place != nil
+        searchPresented || searchFocused || search.hasQuery || search.place != nil
     }
 
     /// How far above the bottom of the floating area the station sheet reaches.
@@ -116,18 +153,9 @@ struct RootView: View {
         return !searchActive
     }
 
-    private var searchSideInset: CGFloat {
-        searchFocused ? BottomBarMetrics.focusedSideInset : BottomBarMetrics.edgeInset
-    }
-
-    /// Bottom spacing, from the screen edge (or the keyboard's top while typing).
-    private var floatingBottomPadding: CGFloat {
-        if let sheetLift { return sheetLift + 12 }
-        return searchFocused ? BottomBarMetrics.keyboardGap : BottomBarMetrics.edgeInset
-    }
-
-    /// The four buttons, bottom right, sitting on the search bar (or on the sheet
-    /// when a station is open), with the search bar along the bottom.
+    /// The map buttons, bottom right just above the search field (or above the
+    /// sheet when a station is open), and search results above the field. The
+    /// area respects the safe area, which includes the system search field.
     private var floatingUI: some View {
         VStack(alignment: .trailing, spacing: 12) {
             Spacer(minLength: 0)
@@ -136,25 +164,22 @@ struct RootView: View {
                     .padding(.trailing, BottomBarMetrics.controlsTrailingInset)
                     .transition(.scale(scale: 0.85, anchor: .bottomTrailing).combined(with: .opacity))
             }
-            if selected == nil {
-                SearchPanel(model: search, isFocused: $searchFocused) { station in
-                    openFromSearch(station)
-                }
-                .padding(.horizontal, searchSideInset)
+            if selected == nil, searchActive {
+                SearchResults(
+                    model: search,
+                    isSearching: searchPresented || searchFocused,
+                    onStation: { station in openFromSearch(station) },
+                    onPickPlace: { searchFocused = false }
+                )
+                .padding(.horizontal, 16)
                 .layoutPriority(1)
-                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { panelHeight = $0 }
-                .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
-        .padding(.bottom, floatingBottomPadding)
+        .padding(.bottom, sheetLift.map { $0 + 12 } ?? BottomBarMetrics.gapAbove)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
-        // Like system bars, measure from the screen's bottom edge rather than the
-        // home-indicator safe area. The keyboard still pushes everything up.
-        .ignoresSafeArea(.container, edges: .bottom)
         .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).maxY } action: { floatingBottom = $0 }
-        // The floating area still respects the top safe area, so its top is the status bar's bottom.
+        // The floating area respects the top safe area, so its top is the status bar's bottom.
         .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minY } action: { statusBarHeight = $0 }
-        .animation(.smooth(duration: 0.35), value: searchFocused)
         .animation(.smooth(duration: 0.3), value: selected == nil)
         .animation(.smooth(duration: 0.3), value: showsControls)
         .animation(.smooth(duration: 0.25), value: sheetLift)
@@ -211,9 +236,12 @@ struct RootView: View {
 
     private func openFromSearch(_ station: Station) {
         searchFocused = false
-        // A station picked by name is done with; nearby results for a place stay
+        // A station picked by name ends the search; nearby results for a place stay
         // so you can come back and compare the other stations.
-        if search.place == nil { search.clear() }
+        if search.place == nil {
+            searchPresented = false
+            search.clear()
+        }
         select(station, detent: .medium)
     }
 
@@ -276,6 +304,36 @@ struct RootView: View {
             select(board, detent: .medium)
         }
     }
+
+    #if DEBUG
+    /// Opens the app straight into a state, for simulator screenshots.
+    private func show(_ scene: DebugScene) async {
+        try? await Task.sleep(for: .seconds(1))
+        guard let union = network.station("UN") else { return }
+        switch scene {
+        case .map:
+            center(on: union.coordinate, sheetOpen: false)
+        case .searchFocused:
+            center(on: union.coordinate, sheetOpen: false)
+            searchPresented = true
+            searchFocused = true
+        case .searchTyping:
+            center(on: union.coordinate, sheetOpen: false)
+            searchPresented = true
+            searchFocused = true
+            search.query = "Oak"
+        case .place:
+            center(on: union.coordinate, sheetOpen: false)
+            searchPresented = true
+            search.query = "CN Tower"
+            _ = search.submit()
+        case .station, .trip:
+            select(union, detent: .medium)
+        case .stationLarge:
+            select(union, detent: .large)
+        }
+    }
+    #endif
 
     private func bestStation(near here: CLLocation) -> Station? {
         if let nearest = network.nearestStation(to: here), nearest.distance < 400 {
