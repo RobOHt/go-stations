@@ -88,23 +88,28 @@ jobs:
         run: |
           mkdir -p shots
           shoot() {
-            name=$1; wait=$2; scene=$3
+            name=$1; wait=$2; scene=$3; shift 3
             xcrun simctl terminate "$UDID" "$BUNDLE_ID" > /dev/null 2>&1 || true
             sleep 1
             xcrun simctl launch "$UDID" "$BUNDLE_ID" -debugScene "$scene" \
-              -homeStation OA -workStation UN > /dev/null
+              -homeStation OA -workStation UN "$@" > /dev/null
             sleep "$wait"
             xcrun simctl io "$UDID" screenshot --type=png "shots/$name.png" > /dev/null 2>&1
             echo "$name"
           }
           # The first launch also warms up map tiles.
           shoot 1-map 20 map
+          # Status bar edge effect: without the scrolled-under fix, and with a taller element.
+          shoot 1b-map-edge-none 12 map -mapEdgeVariant none
+          shoot 1c-map-edge-tall 12 map -mapEdgeVariant tall
           shoot 2-search-focused 8 searchFocused
           shoot 3-search-typing 10 searchTyping
           shoot 4-place 15 place
           shoot 5-station 12 station
           shoot 6-station-large 10 stationLarge
           shoot 7-trip 15 trip
+          # Control: a board scrolled under its pinned header (does the simulator draw edge effects?).
+          shoot 8-station-scrolled 16 stationScrolled
 
       - name: Publish to the ci-screenshots branch
         env:

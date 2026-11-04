@@ -549,13 +549,33 @@ final class MapHostView: UIView {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
+    #if DEBUG
+    /// Screenshot comparisons: "none" leaves the content resting at the top,
+    /// "tall" makes the status bar element 44 pt taller.
+    private static let variant = UserDefaults.standard.string(forKey: "mapEdgeVariant") ?? ""
+    #else
+    private static let variant = ""
+    #endif
+
     override func layoutSubviews() {
         super.layoutSubviews()
+        let statusBar = max(window?.safeAreaInsets.top ?? 0, safeAreaInsets.top)
         scrollView.frame = bounds
         scrollView.contentSize = bounds.size
         mapView.frame = CGRect(origin: .zero, size: bounds.size)
-        let statusBar = max(window?.safeAreaInsets.top ?? 0, safeAreaInsets.top)
-        statusBarElement.frame = CGRect(x: 0, y: 0, width: bounds.width, height: statusBar)
+
+        // iOS only draws the edge effect over content that has scrolled under the
+        // edge; content resting at the top gets none. So inset the content by the
+        // status bar's height but keep it at offset zero: the map stays where it is,
+        // and its top counts as scrolled under the status bar.
+        if Self.variant != "none" {
+            let inset = UIEdgeInsets(top: statusBar, left: 0, bottom: 0, right: 0)
+            if scrollView.contentInset != inset { scrollView.contentInset = inset }
+        }
+        if scrollView.contentOffset != .zero { scrollView.contentOffset = .zero }
+
+        let extra: CGFloat = Self.variant == "tall" ? 44 : 0
+        statusBarElement.frame = CGRect(x: 0, y: 0, width: bounds.width, height: statusBar + extra)
     }
 
     override func safeAreaInsetsDidChange() {
