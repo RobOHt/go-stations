@@ -9,6 +9,8 @@ enum DebugScene: String {
     case map
     /// The search field active and empty: home and work listed above it.
     case searchFocused
+    /// The empty search opened, then the map tapped: the search should close.
+    case searchTapAway
     /// Typing: station matches and place suggestions.
     case searchTyping
     /// A place picked: its pin and the closest stations by car.

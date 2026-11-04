@@ -37,6 +37,14 @@ struct RootView: View {
                 .toolbarVisibility(.hidden, for: .navigationBar)
                 .searchable(text: $search.query, isPresented: $searchPresented, prompt: "Search stations or places")
                 .searchFocused($searchFocused)
+                .onChange(of: searchFocused) { _, focused in
+                    // Like Apple's apps: tapping away from an empty search closes it, rather
+                    // than leaving it open with no keyboard. Typed text or a picked place
+                    // keeps it open with its results.
+                    if !focused, !search.hasQuery, search.place == nil {
+                        searchPresented = false
+                    }
+                }
                 .autocorrectionDisabled()
                 .onSubmit(of: .search) {
                     if let station = search.submit() {
@@ -309,6 +317,13 @@ struct RootView: View {
             center(on: union.coordinate, sheetOpen: false)
             searchPresented = true
             searchFocused = true
+        case .searchTapAway:
+            // Open the empty search, then tap the map: it should close again.
+            center(on: union.coordinate, sheetOpen: false)
+            searchPresented = true
+            searchFocused = true
+            try? await Task.sleep(for: .seconds(2))
+            searchFocused = false
         case .searchTyping:
             center(on: union.coordinate, sheetOpen: false)
             searchPresented = true
