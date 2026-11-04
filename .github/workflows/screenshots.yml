@@ -67,7 +67,8 @@ jobs:
         run: |
           # Show the on-screen keyboard rather than assuming a hardware one.
           defaults write com.apple.iphonesimulator ConnectHardwareKeyboard -bool false
-          read -r RUNTIME TYPE NAME < <(python3 .github/scripts/pick_simulator.py)
+          python3 .github/scripts/pick_simulator.py > sim.txt
+          read -r RUNTIME TYPE NAME < sim.txt
           echo "Simulator: $NAME on $RUNTIME"
           UDID=$(xcrun simctl create shots "$TYPE" "$RUNTIME")
           xcrun simctl boot "$UDID"
@@ -104,7 +105,7 @@ jobs:
           # The first launch also warms up map tiles.
           shoot 1-map 20 map
           # Status bar edge effect experiments (MapHostView variants).
-          for v in probe overlayScroll none hard autoStyle auto; do
+          for v in overlay overlaySoft plain overlayScroll probe none; do
             shoot "1-map-edge-$v" 12 map -mapEdgeVariant "$v"
           done
           xcrun simctl list runtimes | grep -i ios || true

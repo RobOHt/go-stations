@@ -517,6 +517,7 @@ final class MapHostView: UIView {
     let mapView: LayoutAwareMapView
     private let scrollView = UIScrollView()
     private let statusBarElement = UIView()
+    private let inertScroll = UIScrollView()
     #if DEBUG
     private let probe = UIView()
     #endif
@@ -531,7 +532,9 @@ final class MapHostView: UIView {
     /// Let UIKit inset the content by the safe area itself (rather than a manual inset).
     private var usesAutomaticInset: Bool { Self.variant.hasPrefix("auto") }
     /// Register the status bar strip with UIScrollEdgeElementContainerInteraction.
-    private var usesElement: Bool { Self.variant != "auto" }
+    private var usesElement: Bool {
+        Self.variant != "auto" && Self.variant != "plain" && !Self.variant.hasPrefix("overlay")
+    }
 
     init(mapView: LayoutAwareMapView) {
         self.mapView = mapView
@@ -553,8 +556,25 @@ final class MapHostView: UIView {
         scrollView.bottomEdgeEffect.isHidden = true
         scrollView.leftEdgeEffect.isHidden = true
         scrollView.rightEdgeEffect.isHidden = true
-        addSubview(scrollView)
-        scrollView.addSubview(mapView)
+        if Self.variant == "plain" {
+            addSubview(mapView)
+        } else {
+            addSubview(scrollView)
+            scrollView.addSubview(mapView)
+        }
+        if Self.variant.hasPrefix("overlay") {
+            // arnaudmaillet/core-platform-ios #337: an empty scroll view laid over the
+            // screen, never scrolling or taking touches; its top edge effect is a
+            // backdrop blur of what's behind it.
+            inertScroll.isUserInteractionEnabled = false
+            inertScroll.scrollsToTop = false
+            inertScroll.isAccessibilityElement = false
+            inertScroll.accessibilityElementsHidden = true
+            inertScroll.showsVerticalScrollIndicator = false
+            inertScroll.bottomEdgeEffect.isHidden = true
+            if Self.variant == "overlaySoft" { inertScroll.topEdgeEffect.style = .soft }
+            addSubview(inertScroll)
+        }
         #if DEBUG
         if Self.variant == "probe" {
             // Striped test content over the top of the map, inside the scroll view:
@@ -596,12 +616,14 @@ final class MapHostView: UIView {
         scrollView.frame = bounds
         scrollView.contentSize = bounds.size
         mapView.frame = CGRect(origin: .zero, size: bounds.size)
+        inertScroll.frame = bounds
+        inertScroll.contentSize = bounds.size
 
         // iOS only draws the edge effect over content that has scrolled under the
         // edge; content resting at the top gets none. So inset the content by the
         // status bar's height but keep it at offset zero: the map stays where it is,
         // and its top counts as scrolled under the status bar.
-        if Self.variant != "none", !usesAutomaticInset {
+        if Self.variant != "none", Self.variant != "plain", !Self.variant.hasPrefix("overlay"), !usesAutomaticInset {
             let inset = UIEdgeInsets(top: statusBar, left: 0, bottom: 0, right: 0)
             if scrollView.contentInset != inset { scrollView.contentInset = inset }
         }

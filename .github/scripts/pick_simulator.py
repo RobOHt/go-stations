@@ -5,7 +5,9 @@ import json
 import subprocess
 import sys
 
-PREFERRED = ["iPhone Air", "iPhone 17 Pro", "iPhone 17", "iPhone 16 Pro"]
+PREFERRED = ["iPhone Air", "iPhone 18 Pro", "iPhone 18", "iPhone 17 Pro", "iPhone 17", "iPhone 16 Pro"]
+# Foldable or two-screen models: screenshots need a display picked, so skip them.
+SKIP = ("Duo", "Fold", "Flip")
 
 
 def simctl(kind):
@@ -22,7 +24,10 @@ supported = {d["name"]: d["identifier"] for d in runtime.get("supportedDeviceTyp
 if not supported:
     supported = {d["name"]: d["identifier"] for d in simctl("devicetypes")["devicetypes"]}
 
-for name in PREFERRED + sorted(n for n in supported if n.startswith("iPhone")):
+print("Supported:", ", ".join(sorted(supported)), file=sys.stderr)
+fallback = sorted((n for n in supported if n.startswith("iPhone") and not any(k in n for k in SKIP)),
+                  key=lambda n: ("Pro" not in n, n))
+for name in PREFERRED + fallback:
     if name in supported:
         print(runtime["identifier"], supported[name], name.replace(" ", "_"))
         break
