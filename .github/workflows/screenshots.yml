@@ -99,9 +99,11 @@ jobs:
           }
           # The first launch also warms up map tiles.
           shoot 1-map 20 map
-          # Status bar edge effect: without the scrolled-under fix, and with a taller element.
-          shoot 1b-map-edge-none 12 map -mapEdgeVariant none
-          shoot 1c-map-edge-tall 12 map -mapEdgeVariant tall
+          # Status bar edge effect experiments (MapHostView variants).
+          for v in none fill hard auto autoElement; do
+            shoot "1-map-edge-$v" 12 map -mapEdgeVariant "$v"
+          done
+          xcrun simctl list runtimes | grep -i ios || true
           shoot 2-search-focused 8 searchFocused
           shoot 3-search-typing 10 searchTyping
           shoot 4-place 15 place

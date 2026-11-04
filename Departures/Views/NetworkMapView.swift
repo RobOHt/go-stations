@@ -518,6 +518,18 @@ final class MapHostView: UIView {
     private let scrollView = UIScrollView()
     private let statusBarElement = UIView()
 
+    #if DEBUG
+    /// Screenshot experiments with the status bar edge effect (see the Screenshots workflow).
+    private static let variant = UserDefaults.standard.string(forKey: "mapEdgeVariant") ?? ""
+    #else
+    private static let variant = ""
+    #endif
+
+    /// Let UIKit inset the content by the safe area itself (rather than a manual inset).
+    private var usesAutomaticInset: Bool { Self.variant.hasPrefix("auto") }
+    /// Register the status bar strip with UIScrollEdgeElementContainerInteraction.
+    private var usesElement: Bool { Self.variant != "auto" }
+
     init(mapView: LayoutAwareMapView) {
         self.mapView = mapView
         super.init(frame: .zero)
@@ -527,10 +539,10 @@ final class MapHostView: UIView {
         scrollView.delaysContentTouches = false
         scrollView.canCancelContentTouches = false
         scrollView.scrollsToTop = false
-        scrollView.contentInsetAdjustmentBehavior = .never
+        scrollView.contentInsetAdjustmentBehavior = usesAutomaticInset ? .always : .never
         scrollView.showsVerticalScrollIndicator = false
         scrollView.showsHorizontalScrollIndicator = false
-        scrollView.topEdgeEffect.style = .soft
+        scrollView.topEdgeEffect.style = Self.variant == "hard" ? .hard : .soft
         scrollView.bottomEdgeEffect.isHidden = true
         scrollView.leftEdgeEffect.isHidden = true
         scrollView.rightEdgeEffect.isHidden = true
@@ -539,23 +551,24 @@ final class MapHostView: UIView {
 
         statusBarElement.isUserInteractionEnabled = false
         statusBarElement.backgroundColor = .clear
-        let edge = UIScrollEdgeElementContainerInteraction()
-        edge.scrollView = scrollView
-        edge.edge = .top
-        statusBarElement.addInteraction(edge)
+        if Self.variant == "fill" {
+            // Give the element something inside it, filling it.
+            let filler = UIView()
+            filler.backgroundColor = UIColor.black.withAlphaComponent(0.01)
+            filler.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+            statusBarElement.addSubview(filler)
+        }
+        if usesElement {
+            let edge = UIScrollEdgeElementContainerInteraction()
+            edge.scrollView = scrollView
+            edge.edge = .top
+            statusBarElement.addInteraction(edge)
+        }
         addSubview(statusBarElement)
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
-
-    #if DEBUG
-    /// Screenshot comparisons: "none" leaves the content resting at the top,
-    /// "tall" makes the status bar element 44 pt taller.
-    private static let variant = UserDefaults.standard.string(forKey: "mapEdgeVariant") ?? ""
-    #else
-    private static let variant = ""
-    #endif
 
     override func layoutSubviews() {
         super.layoutSubviews()
@@ -568,14 +581,14 @@ final class MapHostView: UIView {
         // edge; content resting at the top gets none. So inset the content by the
         // status bar's height but keep it at offset zero: the map stays where it is,
         // and its top counts as scrolled under the status bar.
-        if Self.variant != "none" {
+        if Self.variant != "none", !usesAutomaticInset {
             let inset = UIEdgeInsets(top: statusBar, left: 0, bottom: 0, right: 0)
             if scrollView.contentInset != inset { scrollView.contentInset = inset }
         }
         if scrollView.contentOffset != .zero { scrollView.contentOffset = .zero }
 
-        let extra: CGFloat = Self.variant == "tall" ? 44 : 0
-        statusBarElement.frame = CGRect(x: 0, y: 0, width: bounds.width, height: statusBar + extra)
+        statusBarElement.frame = CGRect(x: 0, y: 0, width: bounds.width, height: statusBar)
+        statusBarElement.subviews.first?.frame = statusBarElement.bounds
     }
 
     override func safeAreaInsetsDidChange() {
