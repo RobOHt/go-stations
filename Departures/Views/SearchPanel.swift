@@ -59,12 +59,8 @@ final class PlaceSearchModel {
     var hasQuery: Bool { !query.trimmed.isEmpty }
 
     private func queryChanged() {
-        if let place {
-            // The field shows the picked place's name; typing anything else starts over.
-            if query == place.name { return }
-            self.place = nil
-            nearby = []
-        }
+        // A picked place lives on its own card while the search is closed, so the
+        // text never touches it; starting a new search clears it (clearPlace).
         placeError = nil
 
         let text = query.trimmed
@@ -93,13 +89,23 @@ final class PlaceSearchModel {
         }.prefix(5))
     }
 
-    func clear() {
+    /// Clears the typed text and its suggestions, keeping a picked place.
+    func clearQuery() {
+        if !query.isEmpty { query = "" }
+        placeError = nil
+    }
+
+    /// Drops the picked place, its pin and its closest stations.
+    func clearPlace() {
         resolveTask?.cancel()
         place = nil
         nearby = []
-        query = ""
-        placeError = nil
         isResolving = false
+    }
+
+    func clear() {
+        clearPlace()
+        clearQuery()
     }
 
     /// Looks up a suggestion's location and its nearest stations by driving time.
@@ -142,9 +148,7 @@ final class PlaceSearchModel {
                 subtitle: subtitle,
                 coordinate: item.location.coordinate
             )
-            // Set the place first so the field can show its name without new suggestions.
             place = found
-            query = found.name
             completer.cancel()
             isSuggesting = false
             places = []
@@ -330,7 +334,8 @@ struct SearchResults: View {
             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
         }
         .scrollBounceBehavior(.basedOnSize)
-        .scrollDismissesKeyboard(.immediately)
+        // Scrolling keeps the keyboard: putting it away closes the search.
+        .scrollDismissesKeyboard(.never)
         // As tall as the results, up to 340 pt, and shorter when the keyboard leaves less room.
         .frame(maxHeight: min(max(contentHeight, 1), 340))
         .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
@@ -347,6 +352,17 @@ struct SearchResults: View {
                 Text(place.subtitle.isEmpty ? "Closest by car" : place.subtitle)
                     .font(.footnote).foregroundStyle(.secondary).lineLimit(1)
             }
+            Spacer(minLength: 8)
+            Button {
+                model.clear()
+            } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.title2)
+                    .symbolRenderingMode(.hierarchical)
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Close")
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 8)

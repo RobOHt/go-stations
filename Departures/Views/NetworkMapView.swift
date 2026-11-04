@@ -71,6 +71,13 @@ final class MapController {
     private var pending: ((MKMapView) -> Void)?
     /// Where the last camera move meant to put a point, checked once the move ends.
     private var goal: (point: MKMapPoint, target: CGPoint, issued: Date)?
+    /// A finger is on the map, or just left it: automatic camera moves wait.
+    private var isTouching = false
+    private var lastTouch: Date = .distantPast
+
+    private var userIsIdle: Bool {
+        !isTouching && Date().timeIntervalSince(lastTouch) > 1.5
+    }
 
     fileprivate func attach(_ mapView: MKMapView) {
         self.mapView = mapView
@@ -111,7 +118,8 @@ final class MapController {
     /// (search results or a sheet), at least `minWidth` metres across.
     func frame(_ coordinates: [CLLocationCoordinate2D], minWidth: CLLocationDistance = 3_000,
                coveredFraction: CGFloat = 0.45) {
-        guard let first = coordinates.first else { return }
+        // Search results arriving never yank the map out from under a pinch or drag.
+        guard let first = coordinates.first, userIsIdle else { return }
         perform { mapView in
             let points = coordinates.map { MKMapPoint($0) }
             let minX = points.map(\.x).min() ?? 0, maxX = points.map(\.x).max() ?? 0
@@ -183,8 +191,17 @@ final class MapController {
     }
 
     /// You moved the map yourself, so leave it where you put it.
-    fileprivate func cancelPlacementCheck() {
-        goal = nil
+    fileprivate func userGesture(_ state: UIGestureRecognizer.State) {
+        switch state {
+        case .began:
+            goal = nil
+            isTouching = true
+        case .ended, .cancelled, .failed:
+            isTouching = false
+            lastTouch = Date()
+        default:
+            break
+        }
     }
 }
 
@@ -485,7 +502,7 @@ struct NetworkMapView: UIViewRepresentable {
         }
 
         @objc func userMovedMap(_ recognizer: UIGestureRecognizer) {
-            if recognizer.state == .began { controller?.cancelPlacementCheck() }
+            controller?.userGesture(recognizer.state)
         }
 
         func mapView(_ mapView: MKMapView, regionDidChangeAnimated animated: Bool) {

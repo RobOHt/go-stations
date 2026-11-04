@@ -38,12 +38,16 @@ struct RootView: View {
                 .searchable(text: $search.query, isPresented: $searchPresented, prompt: "Search stations or places")
                 .searchFocused($searchFocused)
                 .onChange(of: searchFocused) { _, focused in
-                    // Like Apple's apps: tapping away from an empty search closes it, rather
-                    // than leaving it open with no keyboard. Typed text or a picked place
-                    // keeps it open with its results.
-                    if !focused, !search.hasQuery, search.place == nil {
-                        searchPresented = false
+                    // Putting the keyboard away (tapping the map, say) closes the search, so
+                    // it's never left open behind the map, where it gets in the way of
+                    // pinches and drags. A place being looked up keeps it until its card shows.
+                    if !focused, !search.isResolving, search.place == nil {
+                        endSearch()
                     }
+                }
+                .onChange(of: searchPresented) { _, presented in
+                    // A new search replaces the place card.
+                    if presented, search.place != nil { search.clearPlace() }
                 }
                 .autocorrectionDisabled()
                 .onSubmit(of: .search) {
@@ -79,6 +83,9 @@ struct RootView: View {
         }
         .onChange(of: search.place) { _, place in
             guard let place else { return }
+            // Like Apple Maps: a picked place closes the search and shows as a card
+            // (with its own close button) above the resting search bar.
+            endSearch()
             mapController.frame([place.coordinate], minWidth: 4_000)
         }
         .onChange(of: search.nearby.map(\.id)) { _, ids in
@@ -235,14 +242,17 @@ struct RootView: View {
     // MARK: Actions
 
     private func openFromSearch(_ station: Station) {
-        searchFocused = false
-        // A station picked by name ends the search; nearby results for a place stay
-        // so you can come back and compare the other stations.
-        if search.place == nil {
-            searchPresented = false
-            search.clear()
-        }
+        // A station picked by name ends the search; a place card stays so you can come
+        // back and compare its other stations.
+        if search.place == nil { endSearch() }
         select(station, detent: .medium)
+    }
+
+    /// Closes the system search field and its suggestions (a place card stays).
+    private func endSearch() {
+        searchFocused = false
+        searchPresented = false
+        search.clearQuery()
     }
 
     private func select(_ station: Station, detent newDetent: PresentationDetent) {
