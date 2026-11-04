@@ -1,0 +1,59 @@
+name: Commute check
+
+# The start-up station logic (Departures/Planner/CommutePlanner.swift) against its
+# Python reference (tools/commute_reference.py) on the current real timetable:
+# thousands of random situations (a different set each run) must give the same
+# station for the same reason, plus the calendar and DST clock arithmetic.
+on:
+  push:
+    paths:
+      - "Departures/Planner/**"
+      - "Departures/Resources/network.json"
+      - "tools/commute_reference.py"
+      - "tools/commute_check/**"
+      - ".github/workflows/commute.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: commute-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Swift planner matches the reference
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Current timetable
+        run: |
+          git fetch --depth 1 origin schedule-data
+          git show FETCH_HEAD:schedule.json > schedule.json
+          python3 -c "import json; d = json.load(open('schedule.json')); print(d['generated'], len(d['trips']), 'trips over', len(d['days']), 'days')"
+
+      - name: Find Swift
+        id: swift
+        run: |
+          if command -v swiftc > /dev/null; then
+            swiftc --version
+          else
+            echo "missing=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install Swift
+        if: steps.swift.outputs.missing == 'true'
+        uses: swift-actions/setup-swift@v2
+        with:
+          swift-version: "6.1"
+
+      - name: Reference answers
+        run: |
+          python3 tools/commute_reference.py Departures/Resources/network.json schedule.json expected.json \
+            --count 6000 --seed ${{ github.run_number }}
+
+      - name: Build the check
+        run: swiftc -O Departures/Planner/CommutePlanner.swift tools/commute_check/main.swift -o commute-check
+
+      - name: Compare
+        run: ./commute-check Departures/Resources/network.json schedule.json expected.json
