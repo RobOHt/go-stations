@@ -93,8 +93,15 @@ struct RootView: View {
             mapController.frame([place.coordinate] + search.nearby.map(\.station.coordinate))
         }
         .task {
-            // Keep the fallback timetable fresh in the background.
+            // Keep the fallback timetable fresh in the background (not while a debug
+            // check has fixed the time, so it runs on the bundled timetable).
+            #if DEBUG
+            if DebugScene.fixedNow == nil {
+                Task.detached(priority: .background) { await ScheduleStore.shared.refreshIfNeeded() }
+            }
+            #else
             Task.detached(priority: .background) { await ScheduleStore.shared.refreshIfNeeded() }
+            #endif
             #if DEBUG
             if let scene = DebugScene.current {
                 await show(scene)
@@ -293,16 +300,30 @@ struct RootView: View {
         }
     }
 
-    /// Centres the map on you, and opens the board you most likely want: the
-    /// station you're standing at, otherwise whichever of home/work is closer.
+    /// Centres the map on you, and opens the board you most likely want (see
+    /// CommutePlanner): your home or work station when you're near it, the next
+    /// change station when you're on a train of your commute, otherwise the
+    /// station you'd get home (or, weekday mornings, to work) soonest from.
     private func autoSelect() async {
         let here = await LocationProvider.shared.currentLocation()
 
         // SwiftUI can't show the station sheet on top of Settings.
         var board: Station?
         if !showSettings {
-            board = here.flatMap(bestStation(near:)) ?? settings.homeCode.flatMap(network.station)
+            if let here, RailNetwork.isInServiceArea(here.coordinate) {
+                let choice = await StartupStation.choose(at: here, home: settings.homeCode,
+                                                         work: settings.workCode, now: AppClock.now)
+                #if DEBUG
+                DebugScene.record(choice)
+                #endif
+                board = choice?.station.flatMap(network.station)
+            }
+            if board == nil {
+                board = here.flatMap(bestStation(near:)) ?? settings.homeCode.flatMap(network.station)
+            }
         }
+        // Settings may have opened while that was worked out.
+        if showSettings { board = nil }
 
         if let here, RailNetwork.isInServiceArea(here.coordinate) {
             if let board {

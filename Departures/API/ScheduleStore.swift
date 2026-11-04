@@ -48,6 +48,7 @@ actor ScheduleStore {
     private var file: File?
     private var didLoad = false
     private var lastRefresh: Date?
+    private var commuteCache: CommutePlanner.Timetable?
 
     private var cacheURL: URL {
         let directory = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -131,6 +132,21 @@ actor ScheduleStore {
         guard coversToday else { return nil }
         result.sort { $0.time < $1.time }
         return Array(result.prefix(limit))
+    }
+
+    /// The whole timetable, for the start-up planner. Nil when there's none.
+    func commuteTimetable() -> CommutePlanner.Timetable? {
+        loadIfNeeded()
+        guard let file else { return nil }
+        if let commuteCache, commuteCache.generated == file.generated { return commuteCache }
+        let timetable = CommutePlanner.Timetable(
+            generated: file.generated,
+            patterns: file.patterns,
+            trips: file.trips.map { .init(number: $0.number, line: $0.line, pattern: $0.pattern, times: $0.times) },
+            days: file.days
+        )
+        commuteCache = timetable
+        return timetable
     }
 
     /// One trip's stops and scheduled times on a service day.

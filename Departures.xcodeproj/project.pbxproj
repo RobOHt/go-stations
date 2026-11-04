@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		30EE1E5E4015E0AC2D3074E9 /* StartupStation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98D526AB488EC8090B57DFA5 /* StartupStation.swift */; };
 		333FBA9314F3494575C93A0E /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = BD19958788A805717D008E2E /* Assets.xcassets */; };
 		4330800974904FA294B8E785 /* network.json in Resources */ = {isa = PBXBuildFile; fileRef = A9BE92FD3DD0AB0A0A401EED /* network.json */; };
 		488BB9FF5561346B8614F7E0 /* schedule.json in Resources */ = {isa = PBXBuildFile; fileRef = 290D6E9F76D46363F2480265 /* schedule.json */; };
@@ -18,6 +19,7 @@
 		6D6BE623D20C16B5AB0E3887 /* MetrolinxClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFE6B35F3135D0FF6BF810DA /* MetrolinxClient.swift */; };
 		81DDC4ED82A4427124258725 /* RailNetwork.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12948FD6FD773B6E0FBBE382 /* RailNetwork.swift */; };
 		8A41B2C4EBBA0B79F9C9D2B4 /* BoardModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E16713FA8D25912C5662B0DD /* BoardModel.swift */; };
+		8DCAB47B9A0B106A3A3BF611 /* CommutePlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71B799139357A2772A60C03 /* CommutePlanner.swift */; };
 		8F7D2B46FED169B5C6580C7A /* BoardTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = C622B10E2C34C13846A534A2 /* BoardTheme.swift */; };
 		8FCB966F59164CF7F1FF5522 /* SearchPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E4A5E2C07E880206D354461 /* SearchPanel.swift */; };
 		9622C81409924DE23AB13537 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55E96A0A4A812C9938B0E829 /* RootView.swift */; };
@@ -46,11 +48,13 @@
 		55E96A0A4A812C9938B0E829 /* RootView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		58F912FB19F268A83449830E /* DebugScene.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DebugScene.swift; sourceTree = "<group>"; };
 		74808329CCF6884C750FCF09 /* DeparturesApp.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DeparturesApp.swift; sourceTree = "<group>"; };
+		98D526AB488EC8090B57DFA5 /* StartupStation.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StartupStation.swift; sourceTree = "<group>"; };
 		9948AB743F7973496F01FC60 /* LocationProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LocationProvider.swift; sourceTree = "<group>"; };
 		A9BE92FD3DD0AB0A0A401EED /* network.json */ = {isa = PBXFileReference; includeInIndex = 1; path = network.json; sourceTree = "<group>"; };
 		BD19958788A805717D008E2E /* Assets.xcassets */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		C622B10E2C34C13846A534A2 /* BoardTheme.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BoardTheme.swift; sourceTree = "<group>"; };
 		C62F099FD3615F422C7C6289 /* NetworkMapView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NetworkMapView.swift; sourceTree = "<group>"; };
+		C71B799139357A2772A60C03 /* CommutePlanner.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CommutePlanner.swift; sourceTree = "<group>"; };
 		D8DD54A97E3BD853130248E1 /* StationSheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StationSheet.swift; sourceTree = "<group>"; };
 		DFE6B35F3135D0FF6BF810DA /* MetrolinxClient.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MetrolinxClient.swift; sourceTree = "<group>"; };
 		E16713FA8D25912C5662B0DD /* BoardModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BoardModel.swift; sourceTree = "<group>"; };
@@ -140,6 +144,16 @@
 			path = Model;
 			sourceTree = "<group>";
 		};
+		82C44355C33EF3F78B342841 /* Planner */ = {
+			isa = PBXGroup;
+			children = (
+				C71B799139357A2772A60C03 /* CommutePlanner.swift */,
+				98D526AB488EC8090B57DFA5 /* StartupStation.swift */,
+			);
+			name = Planner;
+			path = Planner;
+			sourceTree = "<group>";
+		};
 		87EAA2D4939C63C03F04503C /* Views */ = {
 			isa = PBXGroup;
 			children = (
@@ -167,6 +181,7 @@
 				87EAA2D4939C63C03F04503C /* Views */,
 				37F694F9707DBE82AF35D65F /* Resources */,
 				1CC72142AD9025AD2F76DE07 /* Departures.entitlements */,
+				82C44355C33EF3F78B342841 /* Planner */,
 			);
 			name = Departures;
 			path = Departures;
@@ -300,6 +315,8 @@
 				8FCB966F59164CF7F1FF5522 /* SearchPanel.swift in Sources */,
 				A29E9D60A166B42FD5174F50 /* GlassControls.swift in Sources */,
 				DDBA1C3FB2F84B5999C6E4F4 /* DebugScene.swift in Sources */,
+				8DCAB47B9A0B106A3A3BF611 /* CommutePlanner.swift in Sources */,
+				30EE1E5E4015E0AC2D3074E9 /* StartupStation.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

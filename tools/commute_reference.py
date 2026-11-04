@@ -27,6 +27,9 @@ The rules, in order:
 Usage:
   commute_reference.py NETWORK SCHEDULE OUT [--count N] [--seed S]
 writes OUT (JSON): the situations and the station this model picks for each.
+  commute_reference.py --e2e NETWORK SCHEDULE OUT
+writes OUT (tab-separated): a few everyday situations for the simulator check
+(Screenshots workflow), with the station the app should open in each.
 """
 import datetime
 import json
@@ -627,8 +630,62 @@ def random_situations(net, tt, planner, count, seed):
     return out
 
 
+def e2e_cases(net, tt, planner):
+    """Everyday situations for a made-up commuter: home Guelph, work Mimico (the
+    Kitchener line into Union, then Lakeshore West back out)."""
+    home, work = "GL", "MI"
+    weekday_day = tt.typical_weekday()
+    saturday = min((d for d in tt.days if weekday(d) == 5), default=None)
+    routes = planner.routes(home, work)
+    cases = [
+        ("mississauga-morning", home, work, 43.652, -79.638, weekday_day, 7 * 60 + 30),
+        ("mississauga-evening", home, work, 43.652, -79.638, weekday_day, 17 * 60 + 30),
+        ("near-home", home, work, 43.5500, -80.2550, weekday_day, 8 * 60),
+        ("union-evening", home, work, 43.6453, -79.3806, weekday_day, 17 * 60 + 40),
+        ("no-home-or-work", None, None, 43.6453, -79.3806, weekday_day, 9 * 60),
+    ]
+    if saturday:
+        cases.append(("mississauga-saturday", home, work, 43.652, -79.638, saturday, 10 * 60))
+    # Riding a Kitchener-line train towards Union in the morning rush, past Georgetown.
+    view = tt.view(weekday_day)
+    for now in range(7 * 60, 9 * 60, 5):
+        found = None
+        for number, line, stops, times in view[0]:
+            if line != "KI" or "UN" not in stops or "GE" not in stops:
+                continue
+            for k in range(stops.index("GE"), stops.index("UN") - 2):
+                if times[k] < now < times[k + 1]:
+                    geo = net.track(line, stops[k], stops[k + 1])
+                    if geo:
+                        index, sa, sb = geo
+                        f = (now - times[k]) / (times[k + 1] - times[k])
+                        found = latlon(net.paths[line][index].point_at(sa + (sb - sa) * f))
+                    break
+            if found:
+                break
+        if found:
+            cases.append(("on-train-to-work", home, work, found[0], found[1], weekday_day, now))
+            break
+    rows = []
+    for name, h, w, lat, lon, day, minute in cases:
+        station, reason = planner.decide(xy(lat, lon), 10.0, day, minute, clock_time(day, minute), h, w,
+                                         routes if (h, w) == (home, work) else None)
+        when = datetime.datetime.fromtimestamp(day_start(day) + minute * 60, TORONTO).isoformat()
+        rows.append("\t".join([name, h or "-", w or "-", f"{lat:.6f}", f"{lon:.6f}", when,
+                               station or "none", reason]))
+    return rows
+
+
 def main():
     args = sys.argv[1:]
+    if args and args[0] == "--e2e":
+        network_path, schedule_path, out_path = args[1:]
+        net = Network(json.load(open(network_path)))
+        tt = Timetable(json.load(open(schedule_path)))
+        rows = e2e_cases(net, tt, Planner(net, tt))
+        open(out_path, "w").write("\n".join(rows) + "\n")
+        print("\n".join(rows))
+        return
     count, seed = 3000, 1
     if "--count" in args:
         i = args.index("--count")

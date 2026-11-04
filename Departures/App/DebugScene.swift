@@ -1,4 +1,5 @@
 #if DEBUG
+import CoreLocation
 import Foundation
 
 /// Debug builds only: launch straight into a state for simulator screenshots,
@@ -27,6 +28,28 @@ enum DebugScene: String {
 
     static var current: DebugScene? {
         UserDefaults.standard.string(forKey: "debugScene").flatMap(DebugScene.init(rawValue:))
+    }
+
+    /// `-debugNow 2026-11-10T07:30:00-05:00`: the time the app goes by.
+    static let fixedNow: Date? = UserDefaults.standard.string(forKey: "debugNow")
+        .flatMap { ISO8601DateFormatter().date(from: $0) }
+
+    /// `-debugLocation 43.6453,-79.3806[,accuracy]`: where the app thinks you are.
+    static var fixedLocation: CLLocation? {
+        guard let text = UserDefaults.standard.string(forKey: "debugLocation") else { return nil }
+        let parts = text.split(separator: ",").compactMap { Double($0.trimmingCharacters(in: .whitespaces)) }
+        guard parts.count >= 2 else { return nil }
+        return CLLocation(coordinate: CLLocationCoordinate2D(latitude: parts[0], longitude: parts[1]),
+                          altitude: 0, horizontalAccuracy: parts.count > 2 ? parts[2] : 10,
+                          verticalAccuracy: -1, timestamp: Date())
+    }
+
+    /// Where the start-up choice is written, for the simulator check to read
+    /// (Documents/startup-choice.txt in the app's container).
+    static func record(_ choice: CommutePlanner.Choice?) {
+        let line = "\(choice?.station ?? "none") \(choice?.reason.rawValue ?? "none")\n"
+        guard let directory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
+        try? line.write(to: directory.appendingPathComponent("startup-choice.txt"), atomically: true, encoding: .utf8)
     }
 }
 

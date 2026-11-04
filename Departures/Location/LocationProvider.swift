@@ -28,6 +28,9 @@ final class LocationProvider: NSObject, CLLocationManagerDelegate {
     }
 
     func currentLocation(maxAge: TimeInterval = 120, timeout: TimeInterval = 8) async -> CLLocation? {
+        #if DEBUG
+        if let fixed = DebugScene.fixedLocation { return fixed }
+        #endif
         if let cached = manager.location, -cached.timestamp.timeIntervalSinceNow < maxAge {
             return cached
         }
