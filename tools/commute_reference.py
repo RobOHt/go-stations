@@ -19,8 +19,8 @@ The rules, in order:
    station. Otherwise the closest station for where you're going: the one you'd reach
    home (or work) soonest from, counting 5 minutes per change, getting there on
    foot when a station is within about a 10-minute walk, otherwise by car
-   (estimated from distance, so it's instant; not downtown, unless you're
-   there already). Weekday mornings (until 12:00)
+   (estimated from distance, so it's instant, and counted 1.5x so it never
+   chases a train down its line; not downtown, unless you're there already). Weekday mornings (until 12:00)
    you're going to work; afternoons, evenings, weekends and holidays, home.
 4. Otherwise what the app did before: the station you're at, else the nearer of
    home and work, else a station within 3 km.
@@ -48,6 +48,8 @@ CHANGE_PENALTY = 5        # minutes added per change when comparing journeys
 MAX_LEGS = 3              # trains per journey (two changes)
 WALK_RADIUS = 800.0       # metres: a station this close means you're on foot
 WALK_OPTIONS = 1200.0     # metres: stations considered on foot
+CAR_FACTOR = 1.5          # car time counts 1.5x the distance estimate (traffic, parking), so
+                          # driving never seems to catch up with a train further down its line
 DRIVE_RADIUS = 25000.0    # metres: stations considered by car...
 DRIVE_MAX = 40            # ...at most this many, nearest first
 DRIVE_FALLBACK = 3        # with none that close, the nearest few
@@ -116,7 +118,7 @@ def walk_minutes(metres):
 def drive_minutes(metres):
     road = metres * 1.35 / 1000
     local = min(road, 4.0)
-    return 3 + local / 30 * 60 + max(road - 4, 0.0) / 75 * 60
+    return CAR_FACTOR * (3 + local / 30 * 60 + max(road - 4, 0.0) / 75 * 60)
 
 
 def ceil_int(x):

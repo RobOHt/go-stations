@@ -22,8 +22,9 @@ import Foundation
 ///    that station. Otherwise the closest station for where you're going: the
 ///    one you'd reach home (or work) soonest from, counting 5 minutes per
 ///    change, getting there on foot when a station is within about a 10-minute
-///    walk, otherwise by car (estimated from distance, so it's instant; not
-///    downtown, unless you're there already).
+///    walk, otherwise by car (estimated from distance, so it's instant, and
+///    counted 1.5× so it never chases a train down its line; not downtown,
+///    unless you're there already).
 ///    Weekday mornings (until 12:00) you're going to work; afternoons,
 ///    evenings, weekends and holidays, home.
 /// 4. Otherwise what the app did before: the station you're at, else the
@@ -36,6 +37,8 @@ struct CommutePlanner: Sendable {
     static let maxLegs = 3              // trains per journey (two changes)
     static let walkRadius = 800.0       // metres: a station this close means you're on foot
     static let walkOptions = 1200.0     // metres: stations considered on foot
+    static let carFactor = 1.5          // car time counts 1.5x the distance estimate (traffic, parking), so
+                                        // driving never seems to catch up with a train further down its line
     static let driveRadius = 25000.0    // metres: stations considered by car...
     static let driveMax = 40            // ...at most this many, nearest first
     static let driveFallback = 3        // with none that close, the nearest few
@@ -745,7 +748,7 @@ struct CommutePlanner: Sendable {
     static func driveMinutes(_ metres: Double) -> Double {
         let road = metres * 1.35 / 1000
         let local = min(road, 4.0)
-        return 3 + local / 30 * 60 + max(road - 4, 0.0) / 75 * 60
+        return carFactor * (3 + local / 30 * 60 + max(road - 4, 0.0) / 75 * 60)
     }
 
     /// A track shape, with the distance along it at each point.
