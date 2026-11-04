@@ -19,7 +19,8 @@ The rules, in order:
    station. Otherwise the closest station for where you're going: the one you'd reach
    home (or work) soonest from, counting 5 minutes per change, getting there on
    foot when a station is within about a 10-minute walk, otherwise by car
-   (estimated from distance, so it's instant). Weekday mornings (until 12:00)
+   (estimated from distance, so it's instant; not downtown, unless you're
+   there already). Weekday mornings (until 12:00)
    you're going to work; afternoons, evenings, weekends and holidays, home.
 4. Otherwise what the app did before: the station you're at, else the nearer of
    home and work, else a station within 3 km.
@@ -46,8 +47,10 @@ MAX_LEGS = 3              # trains per journey (two changes)
 WALK_RADIUS = 800.0       # metres: a station this close means you're on foot
 WALK_OPTIONS = 1200.0     # metres: stations considered on foot
 DRIVE_RADIUS = 25000.0    # metres: stations considered by car...
-DRIVE_MAX = 16            # ...at most this many, nearest first
+DRIVE_MAX = 40            # ...at most this many, nearest first
 DRIVE_FALLBACK = 3        # with none that close, the nearest few
+DOWNTOWN = "UN"           # nobody drives downtown to catch a train: stations within...
+DOWNTOWN_RADIUS = 6000.0  # ...this of Union aren't driven to unless you start there too
 NEAR_MIN = 1200.0         # metres: always "near" home/work within this...
 NEAR_FACTOR = 1.5         # ...or within 1.5x the distance to the nearest station
 NEAR_FIRST_MAX = 5000.0   # metres: beyond this, a train ride outranks being "near"
@@ -209,6 +212,9 @@ class Network:
             self.paths[line["code"]] = [Path(p) for p in line.get("paths", []) if len(p) >= 2]
         self._track = {}
         self._segment = {}
+        centre = self.pos.get(DOWNTOWN)
+        self.downtown = set() if centre is None else {
+            c for c, p in self.pos.items() if dist(p, centre) <= DOWNTOWN_RADIUS}
 
     def track(self, line, a, b):
         """The path both stations sit on, and their positions along it."""
@@ -491,21 +497,28 @@ class Planner:
         if ranked[0][0] <= WALK_RADIUS:
             options = [(c, walk_minutes(d)) for d, c in ranked if d <= WALK_OPTIONS]
         else:
-            others = [(d, c) for d, c in ranked if c != dest]
+            centre = self.net.pos.get(DOWNTOWN)
+            starts_downtown = centre is None or dist(user, centre) <= DOWNTOWN_RADIUS
+            others = [(d, c) for d, c in ranked
+                      if c != dest and (starts_downtown or c not in self.net.downtown)]
             within = [(d, c) for d, c in others if d <= DRIVE_RADIUS][:DRIVE_MAX]
             if not within:
                 within = others[:DRIVE_FALLBACK]
             options = [(c, drive_minutes(d)) for d, c in within]
-        scored = []
+        # Nearest first: once just getting to a station takes until the best score so
+        # far, it and every station after it can't win.
+        best = None
         for code, minutes in options:
-            result = journey(code, now + ceil_int(minutes), dest, view)
+            ready = now + ceil_int(minutes)
+            if best is not None and ready >= best[0]:
+                break
+            result = journey(code, ready, dest, view)
             if result is None:
                 continue
-            scored.append((result[0], minutes, code))
-        if not scored:
-            return None
-        scored.sort()
-        return scored[0][2]
+            candidate = (result[0], minutes, code)
+            if best is None or candidate < best:
+                best = candidate
+        return None if best is None else best[2]
 
     @staticmethod
     def fallback(ranked, home, work, net, user):

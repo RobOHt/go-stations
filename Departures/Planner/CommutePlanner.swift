@@ -22,7 +22,8 @@ import Foundation
 ///    that station. Otherwise the closest station for where you're going: the
 ///    one you'd reach home (or work) soonest from, counting 5 minutes per
 ///    change, getting there on foot when a station is within about a 10-minute
-///    walk, otherwise by car (estimated from distance, so it's instant).
+///    walk, otherwise by car (estimated from distance, so it's instant; not
+///    downtown, unless you're there already).
 ///    Weekday mornings (until 12:00) you're going to work; afternoons,
 ///    evenings, weekends and holidays, home.
 /// 4. Otherwise what the app did before: the station you're at, else the
@@ -36,8 +37,10 @@ struct CommutePlanner: Sendable {
     static let walkRadius = 800.0       // metres: a station this close means you're on foot
     static let walkOptions = 1200.0     // metres: stations considered on foot
     static let driveRadius = 25000.0    // metres: stations considered by car...
-    static let driveMax = 16            // ...at most this many, nearest first
+    static let driveMax = 40            // ...at most this many, nearest first
     static let driveFallback = 3        // with none that close, the nearest few
+    static let downtownStation = "UN"   // nobody drives downtown to catch a train: stations within...
+    static let downtownRadius = 6000.0  // ...this of Union aren't driven to unless you start there too
     static let nearMin = 1200.0         // metres: always "near" home/work within this...
     static let nearFactor = 1.5         // ...or within 1.5x the distance to the nearest station
     static let nearFirstMax = 5000.0    // metres: beyond this, a train ride outranks being "near"
@@ -214,6 +217,8 @@ struct CommutePlanner: Sendable {
     private let paths: [String: [Path]]
     private let tripCounts: [String: Int]
     private let usualCount: Int
+    /// Stations you don't drive to unless you're downtown already.
+    private let downtown: Set<String>
 
     init(network: Network, timetable: Timetable) {
         var position: [String: Point] = [:]
@@ -222,6 +227,11 @@ struct CommutePlanner: Sendable {
         }
         self.position = position
         codes = position.keys.sorted()
+        if let centre = position[Self.downtownStation] {
+            downtown = Set(position.filter { Self.distance($0.value, centre) <= Self.downtownRadius }.keys)
+        } else {
+            downtown = []
+        }
 
         var patterns: [String: [[String]]] = [:]
         var paths: [String: [Path]] = [:]
@@ -360,14 +370,18 @@ struct CommutePlanner: Sendable {
         if ranked[0].distance <= Self.walkRadius {
             options = ranked.filter { $0.distance <= Self.walkOptions }.map { ($0.code, Self.walkMinutes($0.distance)) }
         } else {
-            let others = ranked.filter { $0.code != dest }
+            let startsDowntown = position[Self.downtownStation].map { Self.distance(user, $0) <= Self.downtownRadius } ?? true
+            let others = ranked.filter { $0.code != dest && (startsDowntown || !downtown.contains($0.code)) }
             var within = Array(others.filter { $0.distance <= Self.driveRadius }.prefix(Self.driveMax))
             if within.isEmpty { within = Array(others.prefix(Self.driveFallback)) }
             options = within.map { ($0.code, Self.driveMinutes($0.distance)) }
         }
+        // Nearest first: once just getting to a station takes until the best score so
+        // far, it and every station after it can't win.
         var best: (score: Int, minutes: Double, code: String)?
         for option in options {
             let ready = now + Int(option.minutes.rounded(.up))
+            if let best, ready >= best.score { break }
             guard let journey = journey(from: option.code, at: ready, to: dest, in: view) else { continue }
             let candidate = (score: journey.score, minutes: option.minutes, code: option.code)
             if best == nil || candidate < best! { best = candidate }
