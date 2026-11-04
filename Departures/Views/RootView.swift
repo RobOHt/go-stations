@@ -93,15 +93,7 @@ struct RootView: View {
             mapController.frame([place.coordinate] + search.nearby.map(\.station.coordinate))
         }
         .task {
-            // Keep the fallback timetable fresh in the background (not while a debug
-            // check has fixed the time, so it runs on the bundled timetable).
-            #if DEBUG
-            if DebugScene.fixedNow == nil {
-                Task.detached(priority: .background) { await ScheduleStore.shared.refreshIfNeeded() }
-            }
-            #else
-            Task.detached(priority: .background) { await ScheduleStore.shared.refreshIfNeeded() }
-            #endif
+            refreshTimetable()
             #if DEBUG
             if let scene = DebugScene.current {
                 await show(scene)
@@ -116,7 +108,7 @@ struct RootView: View {
                 backgroundedAt = .now
             case .active:
                 settings.reloadFromCloud()
-                Task.detached(priority: .background) { await ScheduleStore.shared.refreshIfNeeded() }
+                refreshTimetable()
                 if let backgroundedAt, Date.now.timeIntervalSince(backgroundedAt) > 180 {
                     Task { await autoSelect() }
                 }
@@ -247,6 +239,15 @@ struct RootView: View {
     }
 
     // MARK: Actions
+
+    /// Keeps the fallback timetable fresh in the background (not while a debug
+    /// check has fixed the time, so that runs on the bundled timetable).
+    private func refreshTimetable() {
+        #if DEBUG
+        if DebugScene.fixedNow != nil { return }
+        #endif
+        Task.detached(priority: .background) { await ScheduleStore.shared.refreshIfNeeded() }
+    }
 
     private func openFromSearch(_ station: Station) {
         // A station picked by name ends the search; a place card stays so you can come
