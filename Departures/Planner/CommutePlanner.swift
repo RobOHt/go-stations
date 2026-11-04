@@ -588,7 +588,9 @@ struct CommutePlanner: Sendable {
             let stops = view.trips[connection.trip].stops
             let a = stops[connection.k]
             var boards = boarded[connection.trip]
-            if boards == nil || boards![maxLegs] == nil {
+            // A train may become boardable with fewer trains further along its run,
+            // so keep checking until it's boardable for every count.
+            if boards == nil || boards!.dropFirst().contains(where: { $0 == nil }) {
                 let transfer = a == origin ? 0 : Self.minTransfer
                 var changed = false
                 for j in 1...maxLegs {

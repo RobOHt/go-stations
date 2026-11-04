@@ -47,6 +47,9 @@ jobs:
         with:
           swift-version: "6.1"
 
+      - name: Journey search against enumerating trains
+        run: python3 tools/commute_reference.py --brute-force schedule.json 1500 ${{ github.run_number }}
+
       - name: Reference answers
         run: |
           python3 tools/commute_reference.py Departures/Resources/network.json schedule.json expected.json \

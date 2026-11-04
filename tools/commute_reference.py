@@ -31,6 +31,8 @@ writes OUT (JSON): the situations and the station this model picks for each.
   commute_reference.py --e2e NETWORK SCHEDULE OUT
 writes OUT (tab-separated): a few everyday situations for the simulator check
 (Screenshots workflow), with the station the app should open in each.
+  commute_reference.py --brute-force SCHEDULE [COUNT] [SEED]
+checks the journey search against enumerating trains (exit status 1 if worse).
 """
 import datetime
 import json
@@ -320,7 +322,9 @@ def journey(origin, ready, dest, view):
         stops = trips[t][2]
         a = stops[k]
         boards = board.get(t)
-        if boards is None or boards[MAX_LEGS] is None:
+        # A train may become boardable with fewer trains further along its run, so
+        # keep checking until it's boardable for every count.
+        if boards is None or any(boards[j] is None for j in range(1, MAX_LEGS + 1)):
             transfer = 0 if a == origin else MIN_TRANSFER
             for j in range(1, MAX_LEGS + 1):
                 if boards is not None and boards[j] is not None:
@@ -689,8 +693,57 @@ def e2e_cases(net, tt, planner):
     return rows
 
 
+def brute_force_check(tt, count, seed):
+    """Checks the journey search against plain enumeration: its score must never be
+    worse than the best direct train, or the best pair of trains with a change.
+    (Shared mistakes in the search can't show up when comparing it with the Swift
+    planner, which uses the same algorithm.)"""
+    rng = random.Random(seed)
+    days = sorted(tt.days)
+    failures = 0
+    for _ in range(count):
+        day = rng.choice(days)
+        trips, conns, deps = tt.view(day)
+        stations = sorted({c for t in trips for c in t[2]})
+        origin, dest = rng.sample(stations, 2)
+        ready = rng.randrange(240, 1380)
+        # Every train leaving each station from `ready` on: (departure, trip, stop index).
+        leaving = {}
+        for t, (_, _, stops, times) in enumerate(trips):
+            for k in range(len(stops) - 1):
+                if times[k] >= ready:
+                    leaving.setdefault(stops[k], []).append((times[k], t, k))
+        best = None
+        for dep, t, k in leaving.get(origin, []):
+            stops, times = trips[t][2], trips[t][3]
+            for k2 in range(k + 1, len(stops)):
+                if stops[k2] == dest:
+                    best = times[k2] if best is None else min(best, times[k2])
+                    break
+                # Change here to a second train.
+                for dep2, t2, j in leaving.get(stops[k2], []):
+                    if t2 == t or dep2 < times[k2] + MIN_TRANSFER:
+                        continue
+                    stops2, times2 = trips[t2][2], trips[t2][3]
+                    if dest in stops2[j + 1:]:
+                        arrival = times2[stops2.index(dest, j + 1)] + CHANGE_PENALTY
+                        best = arrival if best is None else min(best, arrival)
+        result = journey(origin, ready, dest, (trips, conns, deps))
+        if best is not None and (result is None or result[0] > best):
+            failures += 1
+            if failures <= 10:
+                print(f"journey {origin}->{dest} on {day} from {ready}: search "
+                      f"{None if result is None else result[0]}, enumeration {best}")
+    print(f"{count} journeys checked against enumeration: {failures} worse")
+    return failures == 0
+
+
 def main():
     args = sys.argv[1:]
+    if args and args[0] == "--brute-force":
+        tt = Timetable(json.load(open(args[1])))
+        ok = brute_force_check(tt, int(args[2]) if len(args) > 2 else 400, int(args[3]) if len(args) > 3 else 1)
+        sys.exit(0 if ok else 1)
     if args and args[0] == "--e2e":
         network_path, schedule_path, out_path = args[1:]
         net = Network(json.load(open(network_path)))

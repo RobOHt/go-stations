@@ -30,7 +30,8 @@ enum StartupStation {
                        now: Date) async -> CommutePlanner.Choice? {
         let timetable = await ScheduleStore.shared.commuteTimetable() ?? .empty
         let network = Self.network
-        let key = [home ?? "", work ?? "", timetable.generated].joined(separator: "|")
+        // Planned again when home, work, the timetable or the planner's rules change.
+        let key = [Self.rulesVersion, home ?? "", work ?? "", timetable.generated].joined(separator: "|")
         let saved = savedRoutes(for: key)
         let point = CommutePlanner.Point(latitude: location.coordinate.latitude,
                                          longitude: location.coordinate.longitude)
@@ -56,6 +57,8 @@ enum StartupStation {
     // MARK: Saved home↔work journeys
 
     private static let routesKey = "commuteRoutes"
+    /// Bump when the planner's rules change, so saved journeys are planned again.
+    private static let rulesVersion = "2"
 
     private struct Saved: Codable {
         /// Home, work and the timetable they were planned on.
