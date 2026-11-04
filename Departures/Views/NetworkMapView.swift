@@ -542,7 +542,11 @@ final class MapHostView: UIView {
         scrollView.contentInsetAdjustmentBehavior = usesAutomaticInset ? .always : .never
         scrollView.showsVerticalScrollIndicator = false
         scrollView.showsHorizontalScrollIndicator = false
-        scrollView.topEdgeEffect.style = Self.variant == "hard" ? .hard : .soft
+        switch Self.variant {
+        case "hard": scrollView.topEdgeEffect.style = .hard
+        case "autoStyle": scrollView.topEdgeEffect.style = .automatic
+        default: scrollView.topEdgeEffect.style = .soft
+        }
         scrollView.bottomEdgeEffect.isHidden = true
         scrollView.leftEdgeEffect.isHidden = true
         scrollView.rightEdgeEffect.isHidden = true
