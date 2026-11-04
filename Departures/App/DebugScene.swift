@@ -19,9 +19,13 @@ enum DebugScene: String {
     case stationLarge
     /// Union's board, then its first train's stops.
     case trip
+    /// Union's board at full height, scrolled so trains pass under the pinned
+    /// header: shows whether the simulator draws scroll edge effects at all.
+    case stationScrolled
 
     static var current: DebugScene? {
         UserDefaults.standard.string(forKey: "debugScene").flatMap(DebugScene.init(rawValue:))
     }
 }
+
 #endif

@@ -13,15 +13,19 @@ concurrency:
 jobs:
   simulator:
     name: Compile (iOS Simulator)
-    # macos-15 images also carry Xcode 26 and have far more capacity than macos-26.
-    runs-on: macos-15
+    # GitHub's Xcode 27 image (macOS 27, Apple silicon) with the iOS 27 SDK and simulators.
+    runs-on: xcode-27
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
 
-      - name: Select newest Xcode 26
+      - name: Select Xcode 27
         run: |
-          XCODE=$(ls -d /Applications/Xcode_26*.app | grep -vi beta | sort -V | tail -1)
+          # Build with the iOS 27 SDK so the app gets iOS 27's own look (scroll edge
+          # effects changed in iOS 27). 27.1 is the newest release App Store Connect
+          # takes; fall back to the newest other 27.x release.
+          XCODE=$(ls -d /Applications/Xcode_27.1*.app 2>/dev/null | grep -vi beta | sort -V | tail -1)
+          [ -n "$XCODE" ] || XCODE=$(ls -d /Applications/Xcode_27*.app | grep -vi beta | sort -V | tail -1)
           echo "Using $XCODE"
           sudo xcode-select -s "$XCODE/Contents/Developer"
           xcodebuild -version

@@ -2,7 +2,7 @@ name: Screenshots
 
 # Runs a Debug build in the iOS Simulator, opens it in a few set-up states
 # (Departures/App/DebugScene.swift), screenshots each, and force-pushes the
-# PNGs to the ci-screenshots branch, so changes can be checked by eye before
+# PNGs to a screenshots-<branch> branch, so changes can be checked by eye before
 # they go to TestFlight. Runs on pushes to preview/** branches, or by hand.
 on:
   push:
@@ -19,17 +19,21 @@ concurrency:
 jobs:
   shots:
     name: Simulator screenshots
-    # macos-15 images also carry Xcode 26 and have far more capacity than macos-26.
-    runs-on: macos-15
+    # GitHub's Xcode 27 image (macOS 27, Apple silicon) with the iOS 27 SDK and simulators.
+    runs-on: xcode-27
     timeout-minutes: 45
     env:
       BUNDLE_ID: com.robinzhong.Departures
     steps:
       - uses: actions/checkout@v5
 
-      - name: Select newest Xcode 26
+      - name: Select Xcode 27
         run: |
-          XCODE=$(ls -d /Applications/Xcode_26*.app | grep -vi beta | sort -V | tail -1)
+          # Build with the iOS 27 SDK so the app gets iOS 27's own look (scroll edge
+          # effects changed in iOS 27). 27.1 is the newest release App Store Connect
+          # takes; fall back to the newest other 27.x release.
+          XCODE=$(ls -d /Applications/Xcode_27.1*.app 2>/dev/null | grep -vi beta | sort -V | tail -1)
+          [ -n "$XCODE" ] || XCODE=$(ls -d /Applications/Xcode_27*.app | grep -vi beta | sort -V | tail -1)
           echo "Using $XCODE"
           sudo xcode-select -s "$XCODE/Contents/Developer"
           xcodebuild -version
@@ -63,7 +67,8 @@ jobs:
         run: |
           # Show the on-screen keyboard rather than assuming a hardware one.
           defaults write com.apple.iphonesimulator ConnectHardwareKeyboard -bool false
-          read -r RUNTIME TYPE NAME < <(python3 .github/scripts/pick_simulator.py)
+          python3 .github/scripts/pick_simulator.py > sim.txt
+          read -r RUNTIME TYPE NAME < sim.txt
           echo "Simulator: $NAME on $RUNTIME"
           UDID=$(xcrun simctl create shots "$TYPE" "$RUNTIME")
           xcrun simctl boot "$UDID"
@@ -88,11 +93,11 @@ jobs:
         run: |
           mkdir -p shots
           shoot() {
-            name=$1; wait=$2; scene=$3
+            name=$1; wait=$2; scene=$3; shift 3
             xcrun simctl terminate "$UDID" "$BUNDLE_ID" > /dev/null 2>&1 || true
             sleep 1
             xcrun simctl launch "$UDID" "$BUNDLE_ID" -debugScene "$scene" \
-              -homeStation OA -workStation UN > /dev/null
+              -homeStation OA -workStation UN "$@" > /dev/null
             sleep "$wait"
             xcrun simctl io "$UDID" screenshot --type=png "shots/$name.png" > /dev/null 2>&1
             echo "$name"
@@ -105,8 +110,10 @@ jobs:
           shoot 5-station 12 station
           shoot 6-station-large 10 stationLarge
           shoot 7-trip 15 trip
+          # Control: a board scrolled under its pinned header (does the simulator draw edge effects?).
+          shoot 8-station-scrolled 16 stationScrolled
 
-      - name: Publish to the ci-screenshots branch
+      - name: Publish to a screenshots branch
         env:
           GH_TOKEN: ${{ github.token }}
           DEVICE: ${{ steps.sim.outputs.name }}
@@ -119,5 +126,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
           git commit -qm "Screenshots for ${GITHUB_SHA}"
-          git push -qf "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:ci-screenshots
-          echo "::notice title=Screenshots::Pushed $(ls *.png | wc -l | tr -d ' ') screenshots to ci-screenshots"
+          # One screenshots branch per source branch, so parallel runs don't overwrite each other.
+          TARGET="screenshots-${GITHUB_REF_NAME//\//-}"
+          git push -qf "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:$TARGET"
+          echo "::notice title=Screenshots::Pushed $(ls *.png | wc -l | tr -d ' ') screenshots to $TARGET"

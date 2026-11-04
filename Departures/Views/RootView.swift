@@ -326,7 +326,7 @@ struct RootView: View {
             searchFocused = false
         case .station, .trip:
             select(union, detent: .medium)
-        case .stationLarge:
+        case .stationLarge, .stationScrolled:
             select(union, detent: .large)
         }
     }

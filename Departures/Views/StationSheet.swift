@@ -14,6 +14,9 @@ struct StationSheet: View {
     /// Bumped when the app comes back to the foreground, restarting the refresh loop
     /// so the board updates right away instead of waiting out the interval.
     @State private var wake = 0
+    #if DEBUG
+    @State private var debugScroll = ScrollPosition(edge: .top)
+    #endif
 
     var body: some View {
         ScrollView {
@@ -36,6 +39,9 @@ struct StationSheet: View {
             .padding(.horizontal, 14)
             .padding(.bottom, 32)
         }
+        #if DEBUG
+        .scrollPosition($debugScroll)
+        #endif
         .scrollIndicators(.hidden)
         // The name, lines and buttons stay pinned in a bar over the board.
         .pinnedHeader { header }
@@ -58,6 +64,12 @@ struct StationSheet: View {
         #if DEBUG
         // Screenshot scene: open the first train once the board has loaded.
         .onChange(of: model.snapshot?.rows.first?.id) { _, _ in
+            if DebugScene.current == .stationScrolled, model.snapshot != nil {
+                Task {
+                    try? await Task.sleep(for: .seconds(1))
+                    withAnimation { debugScroll.scrollTo(y: 320) }
+                }
+            }
             guard DebugScene.current == .trip, selectedTrip == nil,
                   let row = model.snapshot?.rows.first else { return }
             selectedTrip = TripSelection(row: row, station: station)
