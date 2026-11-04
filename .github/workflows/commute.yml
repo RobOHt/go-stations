@@ -3,15 +3,21 @@ name: Commute check
 # The start-up station logic (Departures/Planner/CommutePlanner.swift) against its
 # Python reference (tools/commute_reference.py) on the current real timetable:
 # thousands of random situations (a different set each run) must give the same
-# station for the same reason, plus the calendar and DST clock arithmetic.
+# station for the same reason, plus the calendar and DST clock arithmetic, and
+# the journey search must never lose to enumerating trains. Required on every pull
+# request; also runs daily on the freshly published timetable.
 on:
+  pull_request:
   push:
+    branches: [main]
     paths:
       - "Departures/Planner/**"
       - "Departures/Resources/network.json"
       - "tools/commute_reference.py"
       - "tools/commute_check/**"
       - ".github/workflows/commute.yml"
+  schedule:
+    - cron: "17 10 * * *"  # daily, two hours after the timetable refresh (schedule.yml)
   workflow_dispatch:
 
 concurrency:
