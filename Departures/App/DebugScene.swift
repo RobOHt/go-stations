@@ -26,5 +26,31 @@ enum DebugScene: String {
     static var current: DebugScene? {
         UserDefaults.standard.string(forKey: "debugScene").flatMap(DebugScene.init(rawValue:))
     }
+
+    /// Status bar edge effect experiment (`-mapEdgeVariant <name>`).
+    static var mapEdgeVariant: String {
+        UserDefaults.standard.string(forKey: "mapEdgeVariant") ?? ""
+    }
+}
+
+import SwiftUI
+
+/// Experiment: a clear, non-interactive scroll view over the map, scrolled so
+/// its (empty) content sits under a top bar, with the system's soft edge. Shows
+/// whether the edge effect blurs what's behind the scroll view, not just its content.
+struct EdgeProbeOverlay: View {
+    @State private var position = ScrollPosition(edge: .top)
+
+    var body: some View {
+        ScrollView {
+            Color.clear.frame(height: 3000)
+        }
+        .scrollPosition($position)
+        .scrollEdgeEffectStyle(.soft, for: .top)
+        .safeAreaBar(edge: .top) { Color.clear.frame(height: 1) }
+        .scrollDisabled(true)
+        .allowsHitTesting(false)
+        .onAppear { position.scrollTo(y: 300) }
+    }
 }
 #endif

@@ -517,6 +517,9 @@ final class MapHostView: UIView {
     let mapView: LayoutAwareMapView
     private let scrollView = UIScrollView()
     private let statusBarElement = UIView()
+    #if DEBUG
+    private let probe = UIView()
+    #endif
 
     #if DEBUG
     /// Screenshot experiments with the status bar edge effect (see the Screenshots workflow).
@@ -552,6 +555,19 @@ final class MapHostView: UIView {
         scrollView.rightEdgeEffect.isHidden = true
         addSubview(scrollView)
         scrollView.addSubview(mapView)
+        #if DEBUG
+        if Self.variant == "probe" {
+            // Striped test content over the top of the map, inside the scroll view:
+            // shows whether the edge effect draws over this host's content at all.
+            let size = CGSize(width: 8, height: 8)
+            let stripes = UIGraphicsImageRenderer(size: size).image { context in
+                UIColor.white.setFill(); context.fill(CGRect(x: 0, y: 0, width: 4, height: 8))
+                UIColor.systemRed.setFill(); context.fill(CGRect(x: 4, y: 0, width: 4, height: 8))
+            }
+            probe.backgroundColor = UIColor(patternImage: stripes)
+            scrollView.addSubview(probe)
+        }
+        #endif
 
         statusBarElement.isUserInteractionEnabled = false
         statusBarElement.backgroundColor = .clear
@@ -593,6 +609,9 @@ final class MapHostView: UIView {
 
         statusBarElement.frame = CGRect(x: 0, y: 0, width: bounds.width, height: statusBar)
         statusBarElement.subviews.first?.frame = statusBarElement.bounds
+        #if DEBUG
+        probe.frame = CGRect(x: 0, y: 0, width: bounds.width, height: 140)
+        #endif
     }
 
     override func safeAreaInsetsDidChange() {
