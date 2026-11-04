@@ -116,11 +116,6 @@ struct RootView: View {
             onSelect: { station in select(station, detent: .medium) }
         )
         .ignoresSafeArea()
-        #if DEBUG
-        .overlay {
-            if DebugScene.mapEdgeVariant == "overlayScroll" { EdgeProbeOverlay() }
-        }
-        #endif
         .overlay { floatingUI }
     }
 
