@@ -4,7 +4,10 @@ A tiny native iOS app that puts the GO Transit station departure board in your p
 
 - **Map first.** Apple Maps with every GO rail line drawn thick in its official colour, a dot for every station, and your location.
 - **Tap a station, get the board.** A native bottom sheet opens with the departure screen as it looks in the station: same bilingual headers, colours, line badges, ⚡ express marker, platform numbers with ♿, red cancellations, and Union's "Info in X min" countdowns. Adapted for portrait so nothing scrolls sideways.
-- **Opens to the right board.** Set a home and a work station. On launch the app opens the board for the station you're standing at, otherwise whichever of home/work is closer.
+- **Opens to the right board.** Set a home and a work station. On launch the app opens the board you most likely want, worked out on the phone from the timetable, so it's instant:
+  - near home or work, that station;
+  - on a train of your commute (judged from where the timetable puts the trains), the next station where you change;
+  - anywhere else, the station you'd get home from soonest (on weekday mornings, to work), on foot if one is within a 10-minute walk, otherwise by car.
 - **No accounts, no ads.** Home/work sync through iCloud key-value storage. Live data comes from Metrolinx through a tiny Cloudflare Worker that holds the API key, so nothing secret ships in the app.
 
 Trains only for now.
@@ -59,9 +62,11 @@ Departures/
   Model/        bundled rail network, board row types, time helpers
   Settings/     iCloud KV + Keychain settings
   Location/     one-shot location
+  Planner/      which board to open on launch
   Views/        map, station sheet, settings
   Resources/    network.json, asset catalog
 tools/build_network.py
+tools/commute_reference.py   the launch logic again in Python; CI checks the app against it
 ```
 
 ## Licence
