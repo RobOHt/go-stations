@@ -57,6 +57,7 @@ struct TrackedTripButton: View {
         let minutes = Int((time.timeIntervalSince(now) / 60).rounded(.up))
         if minutes <= 0 { return "now" }
         if minutes < 60 { return "in \(minutes) min" }
+        if minutes % 60 == 0 { return "in \(minutes / 60) h" }
         return "in \(minutes / 60) h \(minutes % 60) min"
     }
 }

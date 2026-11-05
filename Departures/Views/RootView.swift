@@ -429,22 +429,29 @@ struct RootView: View {
             select(union, detent: .large)
 
         case .trackedTrip:
-            // Track a train that's on its way, as if picked on Union's board.
-            center(on: union.coordinate, sheetOpen: false)
-            guard let board = try? await BoardService.shared.board(for: union) else { return }
-            var picked: (BoardRow, TripDetail)?
-            for row in board.rows.prefix(8) where !row.isCancelled {
-                let detail = await BoardService.shared.tripDetail(for: row, from: union)
-                if picked == nil { picked = (row, detail) }
-                if TrainState(stops: detail.stops, now: Date()).isMoving {
-                    picked = (row, detail)
-                    break
-                }
+            await trackDebugTrain()
+        }
+    }
+
+    /// Tracks a train as if picked on your home station's board (Union's without
+    /// one): one already on its way there when there is one, so it moves on the
+    /// map. (Trains on Union's board mostly start there and just sit.)
+    private func trackDebugTrain() async {
+        guard let station = settings.homeCode.flatMap(network.station) ?? network.station("UN") else { return }
+        center(on: station.coordinate, sheetOpen: false)
+        guard let board = try? await BoardService.shared.board(for: station) else { return }
+        var picked: (BoardRow, TripDetail)?
+        for row in board.rows.prefix(8) where !row.isCancelled {
+            let detail = await BoardService.shared.tripDetail(for: row, from: station)
+            if picked == nil { picked = (row, detail) }
+            if TrainState(stops: detail.stops, now: Date()).isMoving {
+                picked = (row, detail)
+                break
             }
-            if let picked {
-                TripTracker.shared.track(TripSelection(row: picked.0, station: union), detail: picked.1,
-                                         home: settings.homeCode, work: settings.workCode)
-            }
+        }
+        if let picked {
+            TripTracker.shared.track(TripSelection(row: picked.0, station: station), detail: picked.1,
+                                     home: settings.homeCode, work: settings.workCode)
         }
     }
     #endif

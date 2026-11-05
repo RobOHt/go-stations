@@ -68,6 +68,11 @@ final class TripTracker {
     static let linger: TimeInterval = 10 * 60
 
     private init() {
+        #if DEBUG
+        if DebugScene.startsUntracked {
+            UserDefaults.standard.removeObject(forKey: Self.storageKey)
+        }
+        #endif
         if let data = UserDefaults.standard.data(forKey: Self.storageKey) {
             trip = try? JSONDecoder().decode(TrackedTrip.self, from: data)
         }
