@@ -87,32 +87,41 @@ actor BoardService {
         guard let departures = await ScheduleStore.shared.departures(from: station.code, after: now, limit: 16) else {
             return nil
         }
-        let network = RailNetwork.shared
-        let rows = departures.map { departure -> BoardRow in
-            let line = network.line(code: departure.lineCode)
-            let code = line?.code ?? departure.lineCode
-            let name = line?.name ?? code
-            let onward = Array(departure.pattern[(departure.stopIndex + 1)...])
-            // Union's board shows the line in the "To" column; other stations show the terminus.
-            let destination = station.isUnion ? name : (onward.last.flatMap { network.station($0)?.name } ?? name)
-            return BoardRow(
-                tripNumber: departure.tripNumber,
-                lineCode: code,
-                lineName: name,
-                destination: destination,
-                stops: onward.compactMap { network.station($0)?.name },
-                scheduled: departure.time,
-                expected: departure.time,
-                platform: nil,
-                isExpress: network.isExpress(lineCode: code, stops: Array(departure.pattern[departure.stopIndex...])),
-                isCancelled: false,
-                reasonEnglish: nil,
-                reasonFrench: nil,
-                serviceDay: departure.serviceDay
-            )
-        }
+        let rows = departures.map { Self.row(for: $0, at: station) }
         let reason = (liveError as? LocalizedError)?.errorDescription ?? liveError.localizedDescription
         return BoardSnapshot(rows: rows, alerts: [], fetchedAt: now, source: .schedule, note: reason)
+    }
+
+    /// The trains that most recently left a station, oldest first, from the timetable.
+    func earlierRows(for station: Station) async -> [BoardRow] {
+        let departures = await ScheduleStore.shared.earlierDepartures(from: station.code, before: Date(), limit: 6) ?? []
+        return departures.map { Self.row(for: $0, at: station) }
+    }
+
+    /// A board row for a timetable departure.
+    private static func row(for departure: ScheduleStore.Departure, at station: Station) -> BoardRow {
+        let network = RailNetwork.shared
+        let line = network.line(code: departure.lineCode)
+        let code = line?.code ?? departure.lineCode
+        let name = line?.name ?? code
+        let onward = Array(departure.pattern[(departure.stopIndex + 1)...])
+        // Union's board shows the line in the "To" column; other stations show the terminus.
+        let destination = station.isUnion ? name : (onward.last.flatMap { network.station($0)?.name } ?? name)
+        return BoardRow(
+            tripNumber: departure.tripNumber,
+            lineCode: code,
+            lineName: name,
+            destination: destination,
+            stops: onward.compactMap { network.station($0)?.name },
+            scheduled: departure.time,
+            expected: departure.time,
+            platform: nil,
+            isExpress: network.isExpress(lineCode: code, stops: Array(departure.pattern[departure.stopIndex...])),
+            isCancelled: false,
+            reasonEnglish: nil,
+            reasonFrench: nil,
+            serviceDay: departure.serviceDay
+        )
     }
 
     // MARK: One trip, stop by stop

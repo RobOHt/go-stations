@@ -31,6 +31,8 @@ enum DebugScene: String {
     /// Union's board, then its work button tapped. With Union as work
     /// (`-workStation UN`), it asks to remove it.
     case workDialog
+    /// Union's board with the trains that already left shown above.
+    case stationEarlier
 
     static var current: DebugScene? {
         UserDefaults.standard.string(forKey: "debugScene").flatMap(DebugScene.init(rawValue:))

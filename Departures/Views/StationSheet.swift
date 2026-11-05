@@ -11,6 +11,8 @@ struct StationSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var model = BoardModel()
     @State private var selectedTrip: TripSelection?
+    /// Trains that already left, when asked for (nil while hidden).
+    @State private var earlierRows: [BoardRow]?
     /// What the home or work button is about to do, asked first. Worked out when the
     /// button is tapped, so the words don't change while the dialog closes.
     @State private var roleDialog = RoleDialog()
@@ -33,10 +35,13 @@ struct StationSheet: View {
                         now: context.date,
                         message: boardMessage,
                         isLoading: model.snapshot == nil && model.errorMessage == nil,
-                        isScheduled: model.snapshot?.source == .schedule
-                    ) { row in
-                        selectedTrip = TripSelection(row: row, station: station)
-                    }
+                        isScheduled: model.snapshot?.source == .schedule,
+                        onSelectRow: { row in
+                            selectedTrip = TripSelection(row: row, station: station)
+                        },
+                        earlierRows: earlierRows,
+                        onToggleEarlier: { toggleEarlier() }
+                    )
                 }
                 statusLine
                 alerts
@@ -66,9 +71,19 @@ struct StationSheet: View {
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { wake += 1 }
         }
+        // Trains that just left move into the earlier list while it's open.
+        .onChange(of: model.snapshot?.fetchedAt) { _, _ in
+            guard earlierRows != nil else { return }
+            Task { await loadEarlier() }
+        }
         #if DEBUG
         // Screenshot scenes: tap home or work once the sheet is up.
         .task {
+            if DebugScene.current == .stationEarlier {
+                try? await Task.sleep(for: .seconds(2))
+                toggleEarlier()
+                return
+            }
             guard let scene = DebugScene.current, scene == .homeDialog || scene == .workDialog else { return }
             try? await Task.sleep(for: .seconds(2))
             let role: Role = scene == .homeDialog ? .home : .work
@@ -90,6 +105,19 @@ struct StationSheet: View {
             selectedTrip = TripSelection(row: row, station: station)
         }
         #endif
+    }
+
+    private func toggleEarlier() {
+        if earlierRows != nil {
+            withAnimation(.snappy) { earlierRows = nil }
+        } else {
+            Task { await loadEarlier() }
+        }
+    }
+
+    private func loadEarlier() async {
+        let rows = await BoardService.shared.earlierRows(for: station)
+        withAnimation(.snappy) { earlierRows = rows }
     }
 
     private var boardMessage: String? {

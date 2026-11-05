@@ -116,6 +116,7 @@ jobs:
           # The home and work buttons ask first: replace home (set to Oakville), remove work (Union).
           shoot 9-home-dialog 14 homeDialog
           shoot 10-work-dialog 14 workDialog
+          shoot 11-station-earlier 14 stationEarlier
 
       - name: Check the start-up station
         id: startup

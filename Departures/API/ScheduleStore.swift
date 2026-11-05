@@ -94,6 +94,21 @@ actor ScheduleStore {
     /// Trips that end at the station are left out. Returns nil when the timetable
     /// doesn't cover today.
     func departures(from stationCode: String, after now: Date, limit: Int) -> [Departure]? {
+        departures(from: stationCode, around: now,
+                   start: now.addingTimeInterval(-45), end: now.addingTimeInterval(8 * 3600))
+            .map { Array($0.prefix(limit)) }
+    }
+
+    /// The trains that most recently left a station (up to three hours back), oldest
+    /// first. Nil when the timetable doesn't cover today.
+    func earlierDepartures(from stationCode: String, before now: Date, limit: Int) -> [Departure]? {
+        departures(from: stationCode, around: now,
+                   start: now.addingTimeInterval(-3 * 3600), end: now.addingTimeInterval(-45))
+            .map { Array($0.filter { $0.time < now.addingTimeInterval(-45) }.suffix(limit)) }
+    }
+
+    /// Scheduled departures from a station between two times, soonest first.
+    private func departures(from stationCode: String, around now: Date, start: Date, end: Date) -> [Departure]? {
         loadIfNeeded()
         guard let file else { return nil }
 
@@ -124,14 +139,14 @@ actor ScheduleStore {
                       stop < trip.times.count
                 else { continue }
                 let time = base.addingTimeInterval(TimeInterval(trip.times[stop] * 60))
-                guard time >= now.addingTimeInterval(-45), time <= now.addingTimeInterval(8 * 3600) else { continue }
+                guard time >= start, time <= end else { continue }
                 result.append(Departure(tripNumber: trip.number, lineCode: trip.line, pattern: pattern,
                                         stopIndex: stop, time: time, serviceDay: dayKey))
             }
         }
         guard coversToday else { return nil }
         result.sort { $0.time < $1.time }
-        return Array(result.prefix(limit))
+        return result
     }
 
     /// The whole timetable, for the start-up planner. Nil when there's none.
