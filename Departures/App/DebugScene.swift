@@ -25,6 +25,12 @@ enum DebugScene: String {
     /// Union's board at full height, scrolled so trains pass under the pinned
     /// header: shows whether the simulator draws scroll edge effects at all.
     case stationScrolled
+    /// Union's board, then its home button tapped. With home set elsewhere
+    /// (`-homeStation OA`), it asks to replace it.
+    case homeDialog
+    /// Union's board, then its work button tapped. With Union as work
+    /// (`-workStation UN`), it asks to remove it.
+    case workDialog
 
     static var current: DebugScene? {
         UserDefaults.standard.string(forKey: "debugScene").flatMap(DebugScene.init(rawValue:))

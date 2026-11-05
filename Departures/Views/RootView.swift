@@ -371,7 +371,7 @@ struct RootView: View {
             try? await Task.sleep(for: .milliseconds(800))
             _ = search.submit()
             searchFocused = false
-        case .station, .trip:
+        case .station, .trip, .homeDialog, .workDialog:
             select(union, detent: .medium)
         case .stationLarge, .stationScrolled:
             select(union, detent: .large)

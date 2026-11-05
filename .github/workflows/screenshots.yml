@@ -113,6 +113,9 @@ jobs:
           shoot 7-trip 15 trip
           # Control: a board scrolled under its pinned header (does the simulator draw edge effects?).
           shoot 8-station-scrolled 16 stationScrolled
+          # The home and work buttons ask first: replace home (set to Oakville), remove work (Union).
+          shoot 9-home-dialog 14 homeDialog
+          shoot 10-work-dialog 14 workDialog
 
       - name: Check the start-up station
         id: startup
