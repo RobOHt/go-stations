@@ -8,6 +8,9 @@ import Foundation
 enum DebugScene: String {
     /// The map with the search field, no sheet.
     case map
+    /// A train from Union's board tracked: moving on the map, its line standing
+    /// out, the button bottom left.
+    case trackedTrip
     /// The search field active and empty: home and work listed above it.
     case searchFocused
     /// The empty search opened, then the map tapped: the search should close.

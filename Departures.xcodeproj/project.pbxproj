@@ -17,14 +17,18 @@
 		626109CEE6F372E16D16B0D5 /* BoardModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DC1C5302C0F878B3001639D /* BoardModels.swift */; };
 		6BD809B94BFDAF2264E3E20C /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 52CF198FA6EEC18089A74BB2 /* Foundation.framework */; };
 		6D6BE623D20C16B5AB0E3887 /* MetrolinxClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFE6B35F3135D0FF6BF810DA /* MetrolinxClient.swift */; };
+		71BB9A4ECAF76F184F195DAD /* TrackGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED83762207B3DD4083C6E973 /* TrackGeometry.swift */; };
 		81DDC4ED82A4427124258725 /* RailNetwork.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12948FD6FD773B6E0FBBE382 /* RailNetwork.swift */; };
+		8863CED99CC0AF8D28AD66CD /* TrackedTripButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E57EFAEAFE85C933766BB3A /* TrackedTripButton.swift */; };
 		8A41B2C4EBBA0B79F9C9D2B4 /* BoardModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E16713FA8D25912C5662B0DD /* BoardModel.swift */; };
+		8BD20D26B90F1F086D2F5655 /* TripTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FD5031FC1E48B028D172FC8 /* TripTracker.swift */; };
 		8DCAB47B9A0B106A3A3BF611 /* CommutePlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71B799139357A2772A60C03 /* CommutePlanner.swift */; };
 		8F7D2B46FED169B5C6580C7A /* BoardTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = C622B10E2C34C13846A534A2 /* BoardTheme.swift */; };
 		8FCB966F59164CF7F1FF5522 /* SearchPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E4A5E2C07E880206D354461 /* SearchPanel.swift */; };
 		9622C81409924DE23AB13537 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55E96A0A4A812C9938B0E829 /* RootView.swift */; };
 		989E9B8E29A47B603985F044 /* BoardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26FA8B31A1F2728E021C5B6A /* BoardView.swift */; };
 		A29E9D60A166B42FD5174F50 /* GlassControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = F59BE7F9EC5EA81504DA78A5 /* GlassControls.swift */; };
+		B450E7F44E55F87E5F4E0E73 /* TrainOnMap.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A487C12E27216F9FEC37C51 /* TrainOnMap.swift */; };
 		BF4FAF1018F15829F06FF536 /* ScheduleStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEECCC300CF5D0431410FAAE /* ScheduleStore.swift */; };
 		C72CEF65C6D4FA826441D360 /* LocationProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9948AB743F7973496F01FC60 /* LocationProvider.swift */; };
 		CC907A8260921EE1A4252FB4 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 420AD3DBFC5C7096B0B3CA0A /* SettingsView.swift */; };
@@ -47,7 +51,10 @@
 		52CF198FA6EEC18089A74BB2 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
 		55E96A0A4A812C9938B0E829 /* RootView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		58F912FB19F268A83449830E /* DebugScene.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DebugScene.swift; sourceTree = "<group>"; };
+		5A487C12E27216F9FEC37C51 /* TrainOnMap.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TrainOnMap.swift; sourceTree = "<group>"; };
 		74808329CCF6884C750FCF09 /* DeparturesApp.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DeparturesApp.swift; sourceTree = "<group>"; };
+		7FD5031FC1E48B028D172FC8 /* TripTracker.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TripTracker.swift; sourceTree = "<group>"; };
+		8E57EFAEAFE85C933766BB3A /* TrackedTripButton.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TrackedTripButton.swift; sourceTree = "<group>"; };
 		98D526AB488EC8090B57DFA5 /* StartupStation.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StartupStation.swift; sourceTree = "<group>"; };
 		9948AB743F7973496F01FC60 /* LocationProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LocationProvider.swift; sourceTree = "<group>"; };
 		A9BE92FD3DD0AB0A0A401EED /* network.json */ = {isa = PBXFileReference; includeInIndex = 1; path = network.json; sourceTree = "<group>"; };
@@ -59,6 +66,7 @@
 		DFE6B35F3135D0FF6BF810DA /* MetrolinxClient.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MetrolinxClient.swift; sourceTree = "<group>"; };
 		E16713FA8D25912C5662B0DD /* BoardModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BoardModel.swift; sourceTree = "<group>"; };
 		E30604C09783E66179545ED6 /* BoardService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BoardService.swift; sourceTree = "<group>"; };
+		ED83762207B3DD4083C6E973 /* TrackGeometry.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TrackGeometry.swift; sourceTree = "<group>"; };
 		F46A25BFC1C2C367380E4C69 /* Departures.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Departures.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		F59BE7F9EC5EA81504DA78A5 /* GlassControls.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GlassControls.swift; sourceTree = "<group>"; };
 		FEECCC300CF5D0431410FAAE /* ScheduleStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ScheduleStore.swift; sourceTree = "<group>"; };
@@ -149,6 +157,7 @@
 			children = (
 				C71B799139357A2772A60C03 /* CommutePlanner.swift */,
 				98D526AB488EC8090B57DFA5 /* StartupStation.swift */,
+				ED83762207B3DD4083C6E973 /* TrackGeometry.swift */,
 			);
 			name = Planner;
 			path = Planner;
@@ -164,6 +173,7 @@
 				3939C3EBFFD629B1B5AFB65B /* TripSheet.swift */,
 				4E4A5E2C07E880206D354461 /* SearchPanel.swift */,
 				F59BE7F9EC5EA81504DA78A5 /* GlassControls.swift */,
+				5A487C12E27216F9FEC37C51 /* TrainOnMap.swift */,
 			);
 			name = Views;
 			path = Views;
@@ -182,6 +192,7 @@
 				37F694F9707DBE82AF35D65F /* Resources */,
 				1CC72142AD9025AD2F76DE07 /* Departures.entitlements */,
 				82C44355C33EF3F78B342841 /* Planner */,
+				E483AD05ADC3D2D37A09ED3D /* Tracking */,
 			);
 			name = Departures;
 			path = Departures;
@@ -211,6 +222,16 @@
 				B785380940D2AA5EA0F20C26 /* Frameworks */,
 				87FA03BBFE102039EAA83855 /* Departures */,
 			);
+			sourceTree = "<group>";
+		};
+		E483AD05ADC3D2D37A09ED3D /* Tracking */ = {
+			isa = PBXGroup;
+			children = (
+				7FD5031FC1E48B028D172FC8 /* TripTracker.swift */,
+				8E57EFAEAFE85C933766BB3A /* TrackedTripButton.swift */,
+			);
+			name = Tracking;
+			path = Tracking;
 			sourceTree = "<group>";
 		};
 		EB4161B2E0F9AFD63DB497B7 /* App */ = {
@@ -317,6 +338,10 @@
 				DDBA1C3FB2F84B5999C6E4F4 /* DebugScene.swift in Sources */,
 				8DCAB47B9A0B106A3A3BF611 /* CommutePlanner.swift in Sources */,
 				30EE1E5E4015E0AC2D3074E9 /* StartupStation.swift in Sources */,
+				71BB9A4ECAF76F184F195DAD /* TrackGeometry.swift in Sources */,
+				8BD20D26B90F1F086D2F5655 /* TripTracker.swift in Sources */,
+				8863CED99CC0AF8D28AD66CD /* TrackedTripButton.swift in Sources */,
+				B450E7F44E55F87E5F4E0E73 /* TrainOnMap.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

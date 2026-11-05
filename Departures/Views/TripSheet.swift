@@ -157,8 +157,49 @@ struct TripSheet: View {
 
             Spacer(minLength: 8)
 
-            GlassCloseButton { dismiss() }
+            GlassEffectContainer(spacing: 10) {
+                HStack(spacing: 10) {
+                    trackButton
+                    GlassCloseButton { dismiss() }
+                }
+            }
         }
+    }
+
+    // MARK: Tracking
+
+    private var tracker: TripTracker { .shared }
+
+    /// Follows this train: on the map, with the button bottom left.
+    private var trackButton: some View {
+        let tracking = tracker.isTracking(row)
+        let enabled = tracking || canTrack
+        return Button {
+            if tracking {
+                tracker.stop()
+            } else if let detail {
+                tracker.track(selection, detail: detail, home: settings.homeCode, work: settings.workCode)
+            }
+        } label: {
+            Label(tracking ? "Tracking" : "Track", systemImage: tracking ? "checkmark" : "train.side.front.car")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(tracking ? Color.primary : Color.white)
+                .padding(.horizontal, 16)
+                .frame(height: 48)
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .glassEffect(tracking ? .regular.interactive() : .regular.tint(lineColor).interactive(), in: Capsule())
+        .disabled(!enabled)
+        .opacity(enabled ? 1 : 0.5)
+        .accessibilityHint(tracking ? "Stops following this train" : "Follows this train on the map")
+    }
+
+    /// Only a train with times that hasn't finished its run.
+    private var canTrack: Bool {
+        guard let detail, detail.source != nil else { return false }
+        if case .arrived = TrainState(stops: detail.stops, now: Date()) { return false }
+        return true
     }
 
     // MARK: Stops
