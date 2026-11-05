@@ -27,7 +27,7 @@ To build locally instead, open `Departures.xcodeproj` in Xcode 26 or later, pick
 
 ## Making changes
 
-Work is tracked in [issues](../../issues), and every change goes through a pull request; `main` only takes merges whose checks pass. Each pull request gets:
+Work is tracked in [issues](../../issues). Changes go through a pull request, and `main` only takes merges whose checks pass. The exception is small changes from the owner, which can go straight to `main` (and so to TestFlight) without the checks. Each pull request gets:
 
 - **Compile (iOS Simulator)**: the app builds with the iOS 27 SDK.
 - **Swift planner matches the reference**: the start-up board logic agrees with `tools/commute_reference.py` on thousands of random situations on the current timetable, and its journey search never loses to enumerating trains. This also runs daily on the new timetable.
