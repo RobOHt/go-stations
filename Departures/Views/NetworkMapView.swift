@@ -253,6 +253,7 @@ struct NetworkMapView: UIViewRepresentable {
         mapView.register(StationAnnotationView.self, forAnnotationViewWithReuseIdentifier: StationAnnotationView.reuseID)
         mapView.register(RolePinView.self, forAnnotationViewWithReuseIdentifier: RolePinView.reuseID)
         mapView.register(PlacePinView.self, forAnnotationViewWithReuseIdentifier: PlacePinView.reuseID)
+        mapView.register(MKUserLocationView.self, forAnnotationViewWithReuseIdentifier: Coordinator.userLocationID)
         coordinator.installOverlays(on: mapView)
         mapView.addAnnotations(RailNetwork.shared.stations.map { StationAnnotation(station: $0) })
         coordinator.syncRolePins(in: mapView)
@@ -473,7 +474,17 @@ struct NetworkMapView: UIViewRepresentable {
 
         // MARK: MKMapViewDelegate
 
+        static let userLocationID = "user-location"
+
         func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
+            if let user = annotation as? MKUserLocation {
+                // MapKit's own blue dot, as in Apple Maps, but always on top: by default
+                // it sits below the station markers, which hid it at a station.
+                let view = mapView.dequeueReusableAnnotationView(withIdentifier: Self.userLocationID, for: user)
+                view.zPriority = .max
+                view.displayPriority = .required
+                return view
+            }
             if let place = annotation as? PlaceAnnotation {
                 return mapView.dequeueReusableAnnotationView(withIdentifier: PlacePinView.reuseID, for: place)
             }
@@ -591,7 +602,8 @@ final class PlacePinView: MKMarkerAnnotationView {
         titleVisibility = .hidden
         subtitleVisibility = .hidden
         displayPriority = .required
-        zPriority = .max
+        // Above everything but your location.
+        zPriority = MKAnnotationViewZPriority(rawValue: 950)
         animatesWhenAdded = true
     }
 
