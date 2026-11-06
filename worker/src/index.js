@@ -44,6 +44,10 @@ export default {
 
     if (url.pathname === "/health") {
       const body = { ok: true, configured: Boolean(env.METROLINX_API_KEY), push: pushConfigured(env) };
+      if (url.searchParams.get("check") === "push" && body.push) {
+        const ip = request.headers.get("CF-Connecting-IP") ?? "unknown";
+        if (!env.LIMITER || (await env.LIMITER.limit({ key: ip })).success) body.apple = await checkApple(env);
+      }
       return new Response(JSON.stringify(body), {
         headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
       });
@@ -244,6 +248,29 @@ async function sendPush(env, job, { event, state, stale, dismissal }) {
   console.log(`APNs ${response.status} ${reason} (${event})`);
   if (reason === "ExpiredProviderToken" || reason === "InvalidProviderToken") provider = null;
   return { gone: response.status === 410 || reason === "BadDeviceToken" };
+}
+
+// Asks Apple's push service to update a made-up Live Activity: "400 BadDeviceToken"
+// means the push key, Key ID and Team ID were all accepted (only the token is wrong).
+async function checkApple(env) {
+  try {
+    const response = await fetch(`https://api.push.apple.com/3/device/${"0".repeat(64)}`, {
+      method: "POST",
+      headers: {
+        authorization: `bearer ${await providerToken(env)}`,
+        "apns-topic": `${BUNDLE_ID}.push-type.liveactivity`,
+        "apns-push-type": "liveactivity",
+        "apns-priority": "10",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ aps: { timestamp: Math.floor(Date.now() / 1000), event: "update", "content-state": {} } }),
+      signal: AbortSignal.timeout(10_000),
+    });
+    const reason = (await response.json().catch(() => ({}))).reason ?? "";
+    return `${response.status} ${reason}`.trim();
+  } catch (e) {
+    return `failed: ${e?.name ?? "Error"}: ${e?.message ?? e}`;
+  }
 }
 
 // Apple's provider token: a JWT signed with the push key, reused for 45 minutes

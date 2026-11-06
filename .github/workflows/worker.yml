@@ -70,6 +70,34 @@ jobs:
         working-directory: worker
         run: printf '%s' "$METROLINX_API_KEY" | npx --yes wrangler@4 secret put METROLINX_API_KEY
 
+      - name: Check Apple push key
+        if: env.APNS_KEY_P8 != '' || env.APNS_KEY_ID != ''
+        run: |
+          # Says whether the secrets look right, never what they are.
+          ok=true
+          if printf '%s' "$APNS_KEY_ID" | tr -d ' \r\n\t' | grep -qE '^[A-Z0-9]{10}$'; then
+            echo "::notice title=APNS_KEY_ID::Looks right: 10 letters and digits."
+          else
+            echo "::error title=APNS_KEY_ID::Should be the key's 10-character Key ID (capital letters and digits)."
+            ok=false
+          fi
+          der="$RUNNER_TEMP/apns.der"
+          printf '%s' "$APNS_KEY_P8" | tr -d ' \r\n\t' \
+            | sed -e 's/-----BEGINPRIVATEKEY-----//' -e 's/-----ENDPRIVATEKEY-----//' \
+            | base64 -d > "$der" 2> /dev/null || true
+          if openssl pkey -inform DER -in "$der" -text_pub -noout 2> /dev/null | grep -qE 'prime256v1|P-256'; then
+            if printf '%s' "$APNS_KEY_P8" | grep -q 'BEGIN PRIVATE KEY'; then
+              echo "::notice title=APNS_KEY_P8::Looks right: a P-256 private key, as Apple's .p8 files are."
+            else
+              echo "::notice title=APNS_KEY_P8::The key reads fine, though its BEGIN/END lines are missing (that's OK)."
+            fi
+          else
+            echo "::error title=APNS_KEY_P8::Not a readable .p8 key. Paste the whole file, from -----BEGIN PRIVATE KEY----- to -----END PRIVATE KEY-----."
+            ok=false
+          fi
+          rm -f "$der"
+          $ok
+
       - name: Store Apple push key
         if: steps.config.outputs.ready == 'true' && env.APNS_KEY_P8 != '' && env.APNS_KEY_ID != '' && env.APPLE_TEAM_ID != ''
         working-directory: worker
@@ -83,7 +111,7 @@ jobs:
         run: |
           # A brand-new workers.dev hostname can take a minute to start answering.
           for i in $(seq 1 12); do
-            if body=$(curl -fsS "$WORKER_URL/health" 2>/dev/null); then
+            if body=$(curl -fsS "$WORKER_URL/health?check=push" 2>/dev/null); then
               echo "::notice title=Worker health::$body"
               exit 0
             fi
