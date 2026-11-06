@@ -68,6 +68,25 @@ struct TrackedTrip: Codable, Equatable, Sendable {
             return nil
         }
     }
+
+    /// Which way the train is heading now, in degrees clockwise from north (the way
+    /// it will leave while it waits, the way it came in once it's there).
+    func heading(at now: Date, on geometry: TrackGeometry) -> Double? {
+        let codes = stopCodes
+        guard codes.count >= 2 else { return nil }
+        switch state(at: now) {
+        case .waiting:
+            return geometry.heading(line: lineCode, from: codes[0], to: codes[1], fraction: 0)
+        case .moving(let from, let fraction):
+            guard from + 1 < codes.count else { return nil }
+            return geometry.heading(line: lineCode, from: codes[from], to: codes[from + 1], fraction: fraction)
+        case .arrived:
+            return geometry.heading(line: lineCode, from: codes[codes.count - 2], to: codes[codes.count - 1],
+                                    fraction: 1)
+        case .unknown:
+            return nil
+        }
+    }
 }
 
 /// The one trip being tracked, if any. Kept across launches until a while after

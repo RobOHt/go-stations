@@ -88,6 +88,15 @@ struct TrackGeometry: Sendable {
         return Point(x: pa.x + (pb.x - pa.x) * f, y: pa.y + (pb.y - pa.y) * f)
     }
 
+    /// The direction of travel `fraction` of the way between stops a and b, in
+    /// degrees clockwise from north.
+    func heading(line: String, from a: String, to b: String, fraction: Double) -> Double? {
+        let points = track(line, from: a, to: b)
+        guard points.count >= 2 else { return nil }
+        let f = min(max(fraction, 0), 1)
+        return Self.bearing(on: points, at: Self.length(of: points) * f)
+    }
+
     // MARK: Along a trip
 
     /// The track a trip covers from `fraction` of the way between stops `from` and
