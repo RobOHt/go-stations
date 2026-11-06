@@ -1,0 +1,7 @@
+ok    mississauga-morning (2026-11-05T07:30:00-05:00): LO closest-work
+ok    mississauga-evening (2026-11-05T17:30:00-05:00): BE closest-home
+ok    near-home (2026-11-05T08:00:00-05:00): GL near
+ok    union-evening (2026-11-05T17:40:00-05:00): UN train-home
+ok    no-home-or-work (2026-11-05T09:00:00-05:00): UN fallback
+ok    mississauga-saturday (2026-11-07T10:00:00-05:00): MA closest-home
+ok    on-train-to-work (2026-11-05T07:00:00-05:00): UN train-work
