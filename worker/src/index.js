@@ -263,7 +263,8 @@ async function sendPush(env, job, { event, state, stale, dismissal }) {
   if (response.ok) return { gone: false, result: "200" };
   const reason = (await response.json().catch(() => ({}))).reason ?? "";
   console.log(`APNs ${response.status} ${reason} (${event})`);
-  if (reason === "ExpiredProviderToken" || reason === "InvalidProviderToken") provider = null;
+  // A refused key (expired, or swapped for a new one): sign a fresh token next time.
+  if (response.status === 403) provider = null;
   return { gone: response.status === 410 || reason === "BadDeviceToken", result: `${response.status} ${reason}` };
 }
 
