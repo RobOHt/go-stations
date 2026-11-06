@@ -52,6 +52,22 @@ struct TrackedTrip: Codable, Equatable, Sendable {
         other.tripNumber == row.tripNumber
             && abs(other.scheduled.timeIntervalSince(row.scheduled)) < 6 * 3600
     }
+
+    /// Where the train should be now, along the track, from its stop times.
+    func position(at now: Date, on geometry: TrackGeometry) -> TrackGeometry.Point? {
+        let codes = stopCodes
+        switch state(at: now) {
+        case .waiting:
+            return codes.first.flatMap { geometry.station($0) }
+        case .moving(let from, let fraction):
+            guard from + 1 < codes.count else { return nil }
+            return geometry.point(line: lineCode, from: codes[from], to: codes[from + 1], fraction: fraction)
+        case .arrived:
+            return codes.last.flatMap { geometry.station($0) }
+        case .unknown:
+            return nil
+        }
+    }
 }
 
 /// The one trip being tracked, if any. Kept across launches until a while after

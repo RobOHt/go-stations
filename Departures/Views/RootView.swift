@@ -85,9 +85,14 @@ struct RootView: View {
                 .presentationDragIndicator(.visible)
         }
         .onChange(of: TripTracker.shared.trip?.startedAt) { _, started in
-            // A newly tracked trip: show where it goes (behind the sheets until they close).
+            // A newly tracked trip: show where the train is and where it goes (behind
+            // the sheets until they close).
             guard started != nil, let trip = TripTracker.shared.trip else { return }
-            let coordinates = [trip.boardingCode, trip.destinationCode].compactMap { network.station($0)?.coordinate }
+            var coordinates = [trip.boardingCode, trip.destinationCode].compactMap { network.station($0)?.coordinate }
+            if let train = trip.position(at: Date(), on: StartupStation.geometry) {
+                let place = TrackGeometry.coordinate(train)
+                coordinates.append(CLLocationCoordinate2D(latitude: place.latitude, longitude: place.longitude))
+            }
             mapController.frame(coordinates, minWidth: 6_000)
         }
         .task {
