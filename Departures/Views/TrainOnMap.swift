@@ -13,15 +13,22 @@ final class TrainAnnotation: NSObject, MKAnnotation {
 }
 
 /// The train marker, as in the trip sheet: a train in the line's colour on a white
-/// ring (grey while it waits or once it's done). When you're on board it also
-/// carries your location's blue halo. Ignores touches like the other markers; the
-/// map's tap handler opens the trip.
+/// ring (grey while it waits or once it's done), with a small white pointer on the
+/// ring showing which way it's going. When you're on board it also carries your
+/// location's blue halo. Ignores touches like the other markers; the map's tap
+/// handler opens the trip.
 final class TrainAnnotationView: MKAnnotationView {
     static let reuseID = "train"
 
     private let halo = UIView()
+    private let pointer = UIView()
     private let disc = UIView()
     private let glyph = UIImageView()
+
+    /// The train's direction of travel, in degrees clockwise from north.
+    private var heading: Double?
+    /// The map's rotation, in degrees clockwise from north.
+    private var mapHeading: Double = 0
 
     override init(annotation: MKAnnotation?, reuseIdentifier: String?) {
         super.init(annotation: annotation, reuseIdentifier: reuseIdentifier)
@@ -41,6 +48,29 @@ final class TrainAnnotationView: MKAnnotationView {
         halo.layer.borderWidth = 1
         halo.isHidden = true
         addSubview(halo)
+
+        // A small triangle above the disc, its base tucked under the ring; the view
+        // turns to point the way the train goes.
+        pointer.frame = bounds
+        pointer.isHidden = true
+        let triangle = CAShapeLayer()
+        let center = CGPoint(x: bounds.midX, y: bounds.midY)
+        let shape = UIBezierPath()
+        shape.move(to: CGPoint(x: center.x, y: center.y - 23))
+        shape.addLine(to: CGPoint(x: center.x + 5.5, y: center.y - 13))
+        shape.addLine(to: CGPoint(x: center.x - 5.5, y: center.y - 13))
+        shape.close()
+        triangle.path = shape.cgPath
+        triangle.fillColor = UIColor.white.cgColor
+        triangle.strokeColor = UIColor.white.cgColor
+        triangle.lineWidth = 1.5
+        triangle.lineJoin = .round
+        triangle.shadowColor = UIColor.black.cgColor
+        triangle.shadowOpacity = 0.35
+        triangle.shadowRadius = 2
+        triangle.shadowOffset = CGSize(width: 0, height: 1)
+        pointer.layer.addSublayer(triangle)
+        addSubview(pointer)
 
         disc.frame = CGRect(x: 0, y: 0, width: 32, height: 32)
         disc.center = CGPoint(x: bounds.midX, y: bounds.midY)
@@ -82,85 +112,63 @@ final class TrainAnnotationView: MKAnnotationView {
         }
         accessibilityLabel = isOnBoard ? "Your train" : "Tracked train"
     }
+
+    /// Points the marker the way the train is going (hidden when that isn't known).
+    func setHeading(_ degrees: Double?, animated: Bool) {
+        heading = degrees
+        updatePointer(animated: animated)
+    }
+
+    /// Keeps the pointer true as the map turns.
+    func setMapHeading(_ degrees: Double) {
+        guard degrees != mapHeading else { return }
+        mapHeading = degrees
+        updatePointer(animated: false)
+    }
+
+    /// The pointer's turn, in radians, kept unwrapped so it always turns the short way.
+    private var angle: CGFloat = 0
+
+    private func updatePointer(animated: Bool) {
+        guard let heading else {
+            pointer.isHidden = true
+            return
+        }
+        let target = CGFloat((heading - mapHeading) * .pi / 180)
+        var delta = (target - angle).truncatingRemainder(dividingBy: 2 * .pi)
+        if delta > .pi { delta -= 2 * .pi }
+        if delta < -.pi { delta += 2 * .pi }
+        let turned = angle + delta
+        let layer = pointer.layer
+        if animated, !pointer.isHidden {
+            // Over the second until the next update, like the marker's own movement.
+            let animation = CABasicAnimation(keyPath: "transform.rotation.z")
+            animation.fromValue = angle
+            animation.toValue = turned
+            animation.duration = 1
+            animation.timingFunction = CAMediaTimingFunction(name: .linear)
+            layer.add(animation, forKey: "turn")
+        } else {
+            layer.removeAnimation(forKey: "turn")
+        }
+        layer.setValue(turned, forKeyPath: "transform.rotation.z")
+        angle = turned
+        pointer.isHidden = false
+    }
 }
 
 // MARK: - The stretch still to travel
 
-/// The track from the train to your stop.
+/// The track from the train to your stop, drawn a little bolder than the line,
+/// with the same white edge (a white casing under the line's colour).
 final class TrainRouteOverlay: MKPolyline {
     private(set) var color: UIColor = .gray
+    private(set) var isCasing = false
 
-    static func make(_ coordinates: [CLLocationCoordinate2D], color: UIColor) -> TrainRouteOverlay {
+    static func make(_ coordinates: [CLLocationCoordinate2D], color: UIColor, casing: Bool) -> TrainRouteOverlay {
         let overlay = TrainRouteOverlay(coordinates: coordinates, count: coordinates.count)
         overlay.color = color
+        overlay.isCasing = casing
         return overlay
-    }
-}
-
-/// Draws the stretch still to travel a little wider than the line, with white
-/// chevrons flowing toward your stop, like the trip sheet's line.
-final class FlowingRouteRenderer: MKPolylineRenderer {
-    /// How far the chevrons have flowed, in screen points (read while drawing,
-    /// which MapKit does off the main thread).
-    var phase: CGFloat {
-        get { lock.lock(); defer { lock.unlock() }; return storedPhase }
-        set { lock.lock(); storedPhase = newValue; lock.unlock() }
-    }
-
-    /// Screen points between chevrons.
-    static let spacing: CGFloat = 18
-
-    private let lock = NSLock()
-    private var storedPhase: CGFloat = 0
-
-    override func draw(_ mapRect: MKMapRect, zoomScale: MKZoomScale, in context: CGContext) {
-        super.draw(mapRect, zoomScale: zoomScale, in: context)
-
-        let width = lineWidth
-        guard width >= 6, polyline.pointCount >= 2 else { return }
-        let unit = 1 / zoomScale  // renderer units per screen point
-        let mapPoints = polyline.points()
-        var points: [CGPoint] = []
-        points.reserveCapacity(polyline.pointCount)
-        for index in 0..<polyline.pointCount {
-            points.append(point(for: mapPoints[index]))
-        }
-
-        let spacing = Self.spacing * unit
-        let halfWidth = width * 0.3 * unit
-        let depth = width * 0.22 * unit
-        let clip = rect(for: mapRect).insetBy(dx: -width * unit, dy: -width * unit)
-        var next = spacing - (phase.truncatingRemainder(dividingBy: Self.spacing) * unit)
-        var travelled: CGFloat = 0
-        let chevrons = CGMutablePath()
-
-        for index in 0..<(points.count - 1) {
-            let a = points[index], b = points[index + 1]
-            let dx = b.x - a.x, dy = b.y - a.y
-            let length = (dx * dx + dy * dy).squareRoot()
-            guard length > 0 else { continue }
-            let ux = dx / length, uy = dy / length
-            while next <= travelled + length {
-                let along = next - travelled
-                let center = CGPoint(x: a.x + ux * along, y: a.y + uy * along)
-                if clip.contains(center) {
-                    // A V pointing the way the train goes.
-                    let tip = CGPoint(x: center.x + ux * depth, y: center.y + uy * depth)
-                    let back = CGPoint(x: center.x - ux * depth, y: center.y - uy * depth)
-                    chevrons.move(to: CGPoint(x: back.x - uy * halfWidth, y: back.y + ux * halfWidth))
-                    chevrons.addLine(to: tip)
-                    chevrons.addLine(to: CGPoint(x: back.x + uy * halfWidth, y: back.y - ux * halfWidth))
-                }
-                next += spacing
-            }
-            travelled += length
-        }
-
-        context.addPath(chevrons)
-        context.setStrokeColor(UIColor.white.withAlphaComponent(0.92).cgColor)
-        context.setLineWidth(max(1.4, width * 0.2) * unit)
-        context.setLineCap(.round)
-        context.setLineJoin(.round)
-        context.strokePath()
     }
 }

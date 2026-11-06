@@ -157,12 +157,7 @@ struct TripSheet: View {
 
             Spacer(minLength: 8)
 
-            GlassEffectContainer(spacing: 10) {
-                HStack(spacing: 10) {
-                    trackButton
-                    GlassCloseButton { dismiss() }
-                }
-            }
+            GlassCloseButton { dismiss() }
         }
     }
 
@@ -170,10 +165,11 @@ struct TripSheet: View {
 
     private var tracker: TripTracker { .shared }
 
-    /// Follows this train: on the map, with the button bottom left.
+    /// Follows this train: on the map, bottom left, and in a Live Activity. A wide
+    /// button above the stops, in the line's colour until it's on; tapping it again
+    /// stops tracking.
     private var trackButton: some View {
         let tracking = tracker.isTracking(row)
-        let enabled = tracking || canTrack
         return Button {
             if tracking {
                 tracker.stop()
@@ -181,24 +177,25 @@ struct TripSheet: View {
                 tracker.track(selection, detail: detail, home: settings.homeCode, work: settings.workCode)
             }
         } label: {
-            Label(tracking ? "Tracking" : "Track", systemImage: tracking ? "checkmark" : "train.side.front.car")
-                .font(.subheadline.weight(.semibold))
+            Label(tracking ? "Tracking" : "Track this train",
+                  systemImage: tracking ? "checkmark" : "train.side.front.car")
+                .font(.body.weight(.semibold))
                 .foregroundStyle(tracking ? Color.primary : Color.white)
-                .padding(.horizontal, 16)
-                .frame(height: 48)
+                .frame(maxWidth: .infinity)
+                .frame(height: 50)
                 .contentShape(Capsule())
         }
         .buttonStyle(.plain)
         .glassEffect(tracking ? .regular.interactive() : .regular.tint(lineColor).interactive(), in: Capsule())
-        .disabled(!enabled)
-        .opacity(enabled ? 1 : 0.5)
-        .accessibilityHint(tracking ? "Stops following this train" : "Follows this train on the map")
+        .animation(.smooth(duration: 0.25), value: tracking)
+        .accessibilityHint(tracking ? "Stops following this train"
+                                    : "Follows this train on the map and in a Live Activity")
     }
 
     /// Only a train with times that hasn't finished its run.
-    private var canTrack: Bool {
-        guard let detail, detail.source != nil else { return false }
-        if case .arrived = TrainState(stops: detail.stops, now: Date()) { return false }
+    private func canTrack(_ detail: TripDetail, at now: Date) -> Bool {
+        guard detail.source != nil else { return false }
+        if case .arrived = TrainState(stops: detail.stops, now: now) { return false }
         return true
     }
 
@@ -209,6 +206,9 @@ struct TripSheet: View {
         return TimelineView(.periodic(from: .now, by: 10)) { context in
             let state = TrainState(stops: detail.stops, now: context.date)
             VStack(alignment: .leading, spacing: 12) {
+                if tracker.isTracking(row) || canTrack(detail, at: context.date) {
+                    trackButton
+                }
                 TrainStatusBanner(
                     state: state,
                     stops: detail.stops,

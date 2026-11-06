@@ -8,7 +8,7 @@ A tiny native iOS app that puts the GO Transit station departure board in your p
   - near home or work, that station;
   - on a train of your commute (judged from where the timetable puts the trains), the next station where you change;
   - anywhere else, the station you'd get home from soonest (on weekday mornings, to work), on foot if one is within a 10-minute walk, otherwise by car.
-- **Track a train.** Tap *Track* on a train's stops. It moves along its line on the map (one pin with your location when you're on it), a button bottom left opens it again, and a Live Activity counts down on the Lock Screen and in the Dynamic Island: to when it leaves your station, then to when it reaches your stop.
+- **Track a train.** Tap *Track this train* on a train's stops. It moves along its line on the map with a pointer showing which way it's going (one pin with your location when you're on it), a button bottom left opens it again, and a Live Activity counts down on the Lock Screen and in the Dynamic Island: to when it leaves your station, then to when it reaches your stop.
 - **No accounts, no ads.** Home/work sync through iCloud key-value storage. Live data comes from Metrolinx through a tiny Cloudflare Worker that holds the API key, so nothing secret ships in the app.
 
 Trains only for now.

@@ -26,7 +26,6 @@ on:
       - ".github/workflows/screenshots.yml"
       - ".github/workflows/commute.yml"
       - ".github/scripts/pick_simulator.py"
-      - ".github/scripts/video_frames.swift"
       - "worker/**"
   workflow_dispatch:
 
