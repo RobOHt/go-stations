@@ -691,19 +691,7 @@ struct NetworkMapView: UIViewRepresentable {
 
         /// Where the timetable puts the train now, along the track.
         private func estimatedPoint(at now: Date) -> TrackGeometry.Point? {
-            guard let trip else { return nil }
-            let codes = trip.stopCodes
-            switch trip.state(at: now) {
-            case .waiting:
-                return codes.first.flatMap { geometry.station($0) }
-            case .moving(let from, let fraction):
-                guard from + 1 < codes.count else { return nil }
-                return geometry.point(line: trip.lineCode, from: codes[from], to: codes[from + 1], fraction: fraction)
-            case .arrived:
-                return codes.last.flatMap { geometry.station($0) }
-            case .unknown:
-                return nil
-            }
+            trip?.position(at: now, on: geometry)
         }
 
         /// Where to draw the train: with you when you're on it, otherwise where the
