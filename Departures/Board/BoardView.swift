@@ -13,6 +13,10 @@ struct BoardView: View {
     var isScheduled: Bool = false
     /// Called when a train is tapped.
     var onSelectRow: ((BoardRow) -> Void)? = nil
+    /// Trains that already left, shown above the upcoming ones; nil while hidden.
+    var earlierRows: [BoardRow]? = nil
+    /// Shows or hides the earlier trains; no button without it.
+    var onToggleEarlier: (() -> Void)? = nil
 
     var body: some View {
         VStack(spacing: 0) {
@@ -20,24 +24,32 @@ struct BoardView: View {
             DottedRule()
             BoardColumnHeader()
 
+            if let onToggleEarlier {
+                EarlierToggle(isShowing: earlierRows != nil, action: onToggleEarlier)
+                DottedRule()
+            }
+            if let earlierRows {
+                Group {
+                    if earlierRows.isEmpty {
+                        BoardMessage(text: "No earlier trains | Aucun train précédent")
+                        DottedRule()
+                    }
+                    ForEach(earlierRows) { row in
+                        rowButton(BoardRowView(row: row, isUnion: station.isUnion, accessible: station.accessible,
+                                               now: now, showsPlatform: false, isDeparted: true), row: row)
+                        DottedRule()
+                    }
+                }
+                .transition(.opacity.combined(with: .move(edge: .bottom)))
+            }
+
             if rows.isEmpty {
                 BoardMessage(text: message ?? "No upcoming trains | Aucun train à venir", isLoading: isLoading)
                 DottedRule()
             } else {
                 ForEach(rows) { row in
-                    let rowView = BoardRowView(row: row, isUnion: station.isUnion, accessible: station.accessible,
-                                               now: now, showsPlatform: !isScheduled)
-                    if let onSelectRow {
-                        Button {
-                            onSelectRow(row)
-                        } label: {
-                            rowView.contentShape(Rectangle())
-                        }
-                        .buttonStyle(BoardRowButtonStyle())
-                        .accessibilityHint("Shows every stop of this train")
-                    } else {
-                        rowView
-                    }
+                    rowButton(BoardRowView(row: row, isUnion: station.isUnion, accessible: station.accessible,
+                                           now: now, showsPlatform: !isScheduled), row: row)
                     DottedRule()
                 }
             }
@@ -51,6 +63,46 @@ struct BoardView: View {
         .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
         .environment(\.colorScheme, .dark)
         .accessibilityElement(children: .contain)
+    }
+
+    @ViewBuilder
+    private func rowButton(_ rowView: BoardRowView, row: BoardRow) -> some View {
+        if let onSelectRow {
+            Button {
+                onSelectRow(row)
+            } label: {
+                rowView.contentShape(Rectangle())
+            }
+            .buttonStyle(BoardRowButtonStyle())
+            .accessibilityHint("Shows every stop of this train")
+        } else {
+            rowView
+        }
+    }
+}
+
+/// The small button above the trains that shows or hides the ones that already left.
+private struct EarlierToggle: View {
+    let isShowing: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Image(systemName: isShowing ? "chevron.down" : "chevron.up")
+                    .font(.system(size: 11, weight: .heavy))
+                Text(isShowing ? "Hide earlier trains | Masquer" : "Earlier trains | Trains précédents")
+                    .font(.system(size: 12.5, weight: .bold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+            .foregroundStyle(BoardTheme.frenchGrey)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 7)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(BoardRowButtonStyle())
+        .accessibilityLabel(isShowing ? "Hide earlier trains" : "Show earlier trains")
     }
 }
 
@@ -136,6 +188,8 @@ struct BoardRowView: View {
     let accessible: Bool
     let now: Date
     var showsPlatform: Bool = true
+    /// Already left: dimmed, marked as departed.
+    var isDeparted: Bool = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
@@ -177,12 +231,20 @@ struct BoardRowView: View {
         }
         .padding(.horizontal, BoardTheme.horizontalPadding)
         .padding(.vertical, 9)
+        .opacity(isDeparted ? 0.55 : 1)
         .accessibilityElement(children: .combine)
     }
 
     @ViewBuilder
     private var detail: some View {
-        if row.isCancelled {
+        if isDeparted {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Departed | Parti")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundStyle(BoardTheme.frenchGrey)
+                stopsText
+            }
+        } else if row.isCancelled {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 5) {
                     Image(systemName: "xmark.circle.fill")
