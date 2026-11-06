@@ -111,6 +111,15 @@ struct TripSheet: View {
         return row.destination
     }
 
+    /// "20:48 train from Kitchener": the train by when and where it starts its run,
+    /// as GO calls its trains. A placeholder until its stops have loaded.
+    private var origin: (text: String, isKnown: Bool) {
+        if let first = detail?.stops.first, let time = first.time, let station = network.station(first.code) {
+            return ("\(TorontoTime.hourMinute(time)) train from \(station.name)", true)
+        }
+        return ("\(TorontoTime.hourMinute(row.scheduled)) train from \(selection.station.name)", detail != nil)
+    }
+
     private var direction: TravelDirection? {
         guard let stops = detail?.stops, let first = stops.first.flatMap({ network.station($0.code) }),
               let last = stops.last.flatMap({ network.station($0.code) }) else { return nil }
@@ -144,9 +153,10 @@ struct TripSheet: View {
                         .background(lineColor, in: Capsule())
                         .accessibilityLabel(direction.label)
                 }
-                Text("Train \(row.tripNumber) · \(TorontoTime.hourMinute(row.scheduled)) from \(selection.station.name)")
+                Text(origin.text)
                     .font(.footnote)
                     .foregroundStyle(.secondary)
+                    .redacted(reason: origin.isKnown ? [] : .placeholder)
                 if row.isCancelled {
                     Label("Cancelled | Annulé", systemImage: "xmark.circle.fill")
                         .font(.footnote.weight(.bold))
@@ -209,14 +219,6 @@ struct TripSheet: View {
                 if tracker.isTracking(row) || canTrack(detail, at: context.date) {
                     trackButton
                 }
-                TrainStatusBanner(
-                    state: state,
-                    stops: detail.stops,
-                    originIndex: originIndex,
-                    source: detail.source,
-                    now: context.date,
-                    color: lineColor
-                )
 
                 ZStack(alignment: .topLeading) {
                     TripLine(stopCount: detail.stops.count, state: state, color: lineColor)
@@ -332,91 +334,6 @@ enum TrainState {
     var isMoving: Bool {
         if case .moving = self { return true }
         return false
-    }
-}
-
-/// One line explaining the train marker: waiting, between which stops, or arrived,
-/// plus when it reaches the station you came from.
-private struct TrainStatusBanner: View {
-    let state: TrainState
-    let stops: [TripDetail.Stop]
-    let originIndex: Int
-    let source: BoardSnapshot.Source?
-    let now: Date
-    let color: Color
-
-    private let network = RailNetwork.shared
-
-    private func name(_ index: Int) -> String {
-        guard stops.indices.contains(index) else { return "" }
-        return network.station(stops[index].code)?.name ?? stops[index].code
-    }
-
-    private func time(_ index: Int) -> Date? {
-        guard stops.indices.contains(index) else { return nil }
-        return stops[index].expected ?? stops[index].time
-    }
-
-    private func relative(_ date: Date) -> String {
-        let minutes = Int((date.timeIntervalSince(now) / 60).rounded(.up))
-        if minutes <= 0 { return "now" }
-        if minutes < 60 { return "in \(minutes) min" }
-        return "in \(minutes / 60) h \(minutes % 60) min"
-    }
-
-    private var headline: (symbol: String, title: String, detail: String)? {
-        switch state {
-        case .waiting(let departs):
-            return ("zzz", "Waiting at \(name(0))", "Departs \(TorontoTime.hourMinute(departs)), \(relative(departs))")
-        case .moving(let from, _):
-            let next = from + 1
-            let arrival = time(next).map { "\(TorontoTime.hourMinute($0)), \(relative($0))" } ?? ""
-            return ("tram.fill", "Between \(name(from)) and \(name(next))", "Next stop \(name(next)) \(arrival)")
-        case .arrived(let at):
-            return ("flag.checkered", "Arrived at \(name(stops.count - 1))", "At \(TorontoTime.hourMinute(at))")
-        case .unknown:
-            return nil
-        }
-    }
-
-    /// When the train reaches the station whose board this came from, if it hasn't yet.
-    private var originLine: String? {
-        guard originIndex > 0, !state.hasPassed(originIndex, stopCount: stops.count),
-              let at = time(originIndex), at > now else { return nil }
-        if case .arrived = state { return nil }
-        return "Reaches \(name(originIndex)) \(TorontoTime.hourMinute(at)), \(relative(at))"
-    }
-
-    var body: some View {
-        if let headline {
-            HStack(alignment: .top, spacing: 12) {
-                Image(systemName: headline.symbol)
-                    .font(.system(size: 15, weight: .bold))
-                    .foregroundStyle(.white)
-                    .frame(width: 34, height: 34)
-                    .background(state.isMoving ? color : Color.gray, in: Circle())
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(headline.title)
-                        .font(.subheadline.weight(.semibold))
-                    Text(headline.detail)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                    if let originLine {
-                        Text(originLine)
-                            .font(.footnote.weight(.semibold))
-                    }
-                    if source == .schedule {
-                        Text("Estimated from the timetable")
-                            .font(.caption)
-                            .foregroundStyle(.tertiary)
-                    }
-                }
-                Spacer(minLength: 0)
-            }
-            .padding(12)
-            .background(.background.secondary, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .accessibilityElement(children: .combine)
-        }
     }
 }
 
