@@ -120,20 +120,30 @@ jobs:
 
           # The tracked train's Live Activity: track one, then switch to Settings so
           # the island shows it. A few seconds later the app updates it with an
-          # alert, which expands the island for a moment.
+          # alert, which expands the island for a moment; a video catches that.
+          # Then the Home Screen. (The status bar override is lifted meanwhile, in
+          # case it keeps the island from showing the activity.)
           xcrun simctl terminate "$UDID" "$BUNDLE_ID" > /dev/null 2>&1 || true
           sleep 1
           xcrun simctl launch "$UDID" "$BUNDLE_ID" -debugScene liveActivity \
             -homeStation OA -workStation UN > /dev/null
           sleep 25
+          xcrun simctl status_bar "$UDID" clear > /dev/null 2>&1 || true
+          xcrun simctl io "$UDID" recordVideo --codec=h264 --force shots/12-island.mp4 > /dev/null 2>&1 &
+          recorder=$!
+          sleep 1
           xcrun simctl launch "$UDID" com.apple.Preferences > /dev/null
           sleep 2
           xcrun simctl io "$UDID" screenshot --type=png shots/12-island.png > /dev/null 2>&1
-          for i in 1 2 3 4 5 6; do
-            sleep 1
-            xcrun simctl io "$UDID" screenshot --type=png "shots/12-island-alert-$i.png" > /dev/null 2>&1
-          done
+          sleep 10
           xcrun simctl terminate "$UDID" com.apple.Preferences > /dev/null 2>&1 || true
+          sleep 3
+          xcrun simctl io "$UDID" screenshot --type=png shots/12-island-home.png > /dev/null 2>&1
+          sleep 1
+          kill -INT "$recorder" 2>/dev/null || true
+          wait "$recorder" 2>/dev/null || true
+          xcrun simctl status_bar "$UDID" override --time "9:41" --batteryState charged \
+            --batteryLevel 100 --cellularBars 4 --wifiBars 3 > /dev/null 2>&1 || true
           echo 12-island
           # Its views drawn in the app: Lock Screen, compact, minimal, expanded.
           shoot 13-activity-gallery 8 activityGallery
