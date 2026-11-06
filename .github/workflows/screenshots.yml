@@ -118,6 +118,26 @@ jobs:
           shoot 9-home-dialog 14 homeDialog
           shoot 10-work-dialog 14 workDialog
 
+          # The tracked train's Live Activity: track one, then switch to Settings so
+          # the island shows it. A few seconds later the app updates it with an
+          # alert, which expands the island for a moment.
+          xcrun simctl terminate "$UDID" "$BUNDLE_ID" > /dev/null 2>&1 || true
+          sleep 1
+          xcrun simctl launch "$UDID" "$BUNDLE_ID" -debugScene liveActivity \
+            -homeStation OA -workStation UN > /dev/null
+          sleep 25
+          xcrun simctl launch "$UDID" com.apple.Preferences > /dev/null
+          sleep 2
+          xcrun simctl io "$UDID" screenshot --type=png shots/12-island.png > /dev/null 2>&1
+          for i in 1 2 3 4 5 6; do
+            sleep 1
+            xcrun simctl io "$UDID" screenshot --type=png "shots/12-island-alert-$i.png" > /dev/null 2>&1
+          done
+          xcrun simctl terminate "$UDID" com.apple.Preferences > /dev/null 2>&1 || true
+          echo 12-island
+          # Its views drawn in the app: Lock Screen, compact, minimal, expanded.
+          shoot 13-activity-gallery 8 activityGallery
+
       - name: Check the start-up station
         id: startup
         env:

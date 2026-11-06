@@ -91,10 +91,18 @@ struct RootView: View {
             mapController.frame(coordinates, minWidth: 6_000)
         }
         .task {
-            // Stop tracking a while after the train reaches your stop.
+            // Keep the tracked train's times (and its Live Activity) up to date, and
+            // stop tracking a while after it reaches your stop.
             while !Task.isCancelled {
+                await TripTracker.shared.refresh()
                 TripTracker.shared.dropIfFinished()
                 try? await Task.sleep(for: .seconds(60))
+            }
+        }
+        .onOpenURL { url in
+            // Tapping the Live Activity opens the trip.
+            if url.scheme == TripActivityAttributes.openURL.scheme, url.host() == TripActivityAttributes.openURL.host() {
+                openTrackedTrip()
             }
         }
         .sheet(isPresented: $showSettings) {
@@ -128,9 +136,15 @@ struct RootView: View {
             switch phase {
             case .background:
                 backgroundedAt = .now
+                #if DEBUG
+                if DebugScene.current == .liveActivity {
+                    TripActivityController.shared.alertForScreenshot()
+                }
+                #endif
             case .active:
                 settings.reloadFromCloud()
                 TripTracker.shared.dropIfFinished()
+                Task { await TripTracker.shared.refresh() }
                 refreshTimetable()
                 if let backgroundedAt, Date.now.timeIntervalSince(backgroundedAt) > 180 {
                     Task { await autoSelect() }
@@ -375,8 +389,9 @@ struct RootView: View {
                 board = here.flatMap(bestStation(near:)) ?? settings.homeCode.flatMap(network.station)
             }
         }
-        // Settings may have opened while that was worked out.
-        if showSettings { board = nil }
+        // Settings, or the tracked trip (from its Live Activity), may have opened
+        // while that was worked out.
+        if showSettings || trackedSelection != nil { board = nil }
 
         if let here, RailNetwork.isInServiceArea(here.coordinate) {
             if let board {
@@ -428,8 +443,10 @@ struct RootView: View {
         case .stationLarge, .stationScrolled:
             select(union, detent: .large)
 
-        case .trackedTrip:
+        case .trackedTrip, .liveActivity:
             await trackDebugTrain()
+        case .activityGallery:
+            break  // DeparturesApp shows the gallery in place of the map.
         }
     }
 
