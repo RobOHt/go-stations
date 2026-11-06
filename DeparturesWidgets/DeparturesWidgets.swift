@@ -6,7 +6,7 @@ import WidgetKit
 /// Live Activity; its views live in Departures/Tracking/TripActivity.swift,
 /// which the app compiles too.
 @main
-struct DeparturesWidgets: WidgetBundle {
+struct DeparturesWidgetsBundle: WidgetBundle {
     var body: some Widget {
         TripLiveActivity()
     }
