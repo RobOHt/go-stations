@@ -5,8 +5,11 @@ import SwiftUI
 /// drawn in the app, for screenshots, since the simulator can't be locked or its
 /// island held open from a script. The black island shapes and the Lock Screen
 /// card around them are approximations of the system's. The trips are made up.
+/// With `-galleryLockScreen YES` the Lock Screen comes first, for a second screenshot.
 struct TripActivityGallery: View {
     private typealias Snapshot = TripActivityAttributes.ContentState
+
+    private let lockScreenFirst = UserDefaults.standard.bool(forKey: "galleryLockScreen")
 
     private struct Sample {
         let attributes: TripActivityAttributes
@@ -18,29 +21,13 @@ struct TripActivityGallery: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 10) {
-                heading("Dynamic Island")
-                compact(approaching)
-                compact(riding)
-                compact(leavingLater)
-                compact(arrived)
-                HStack(spacing: 14) {
-                    minimal(approaching)
-                    minimal(riding)
-                    minimal(arrived)
-                    Text("Minimal, and the narrow island's leading view")
-                        .font(.caption)
-                        .foregroundStyle(.white.opacity(0.8))
+                if lockScreenFirst {
+                    lockScreens
+                    island
+                } else {
+                    island
+                    lockScreens
                 }
-                expanded(riding)
-                    .padding(.top, 6)
-                expanded(approaching)
-                heading("Lock Screen")
-                lockScreen(approaching)
-                    .environment(\.colorScheme, .light)
-                lockScreen(riding)
-                    .environment(\.colorScheme, .dark)
-                lockScreen(standing)
-                    .environment(\.colorScheme, .light)
             }
             .padding(.horizontal, 16)
             .frame(maxWidth: .infinity)
@@ -51,6 +38,37 @@ struct TripActivityGallery: View {
                            startPoint: .top, endPoint: .bottom)
                 .ignoresSafeArea()
         }
+    }
+
+    @ViewBuilder private var island: some View {
+        heading("Dynamic Island")
+        compact(approaching)
+        compact(riding)
+        compact(leavingLater)
+        compact(arrived)
+        HStack(spacing: 14) {
+            minimal(approaching)
+            minimal(riding)
+            minimal(arrived)
+            Text("Minimal, and the narrow island's leading view")
+                .font(.caption)
+                .foregroundStyle(.white.opacity(0.8))
+        }
+        expanded(riding)
+            .padding(.top, 6)
+        expanded(approaching)
+    }
+
+    @ViewBuilder private var lockScreens: some View {
+        heading("Lock Screen")
+        lockScreen(approaching)
+            .environment(\.colorScheme, .light)
+        lockScreen(riding)
+            .environment(\.colorScheme, .dark)
+        lockScreen(standing)
+            .environment(\.colorScheme, .light)
+        lockScreen(leavingLater)
+            .environment(\.colorScheme, .dark)
     }
 
     // MARK: Samples (made-up trips)

@@ -139,6 +139,7 @@ jobs:
           echo 12-island
           # Its views drawn in the app: Lock Screen, compact, minimal, expanded.
           shoot 13-activity-gallery 8 activityGallery
+          shoot 13b-activity-lock-screen 8 activityGallery -galleryLockScreen YES
 
       - name: Check the start-up station
         id: startup

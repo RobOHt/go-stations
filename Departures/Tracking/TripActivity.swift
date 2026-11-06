@@ -247,8 +247,7 @@ struct TripActivityTrip {
         let train = TrainState.locate(times: times, now: now)
         let reached = train.reached(stopCount: stops.count)
         if let end = arrival(at: destination), now >= end {
-            return TripMoment(kind: .arrived, train: train, next: destination, target: end,
-                              reached: max(reached, destination))
+            return TripMoment(kind: .arrived, train: train, next: destination, target: end, reached: destination)
         }
         if awaitsTrain, let comes = arrival(at: boarding), now < comes {
             return TripMoment(kind: .approaching, train: train, next: boarding, target: comes, reached: reached)
@@ -277,18 +276,24 @@ struct TripActivityTrip {
 
     /// The stops the strip shows: the one the train last reached and the one
     /// before, then the next ones up to the focus (the last few left out when
-    /// they don't fit), with stops it has passed filling any room left.
+    /// they don't fit), with stops it has passed filling any room left. On its way
+    /// to your station, the stops after it (where you're going) fill the room instead.
     func strip(for moment: TripMoment, count: Int = 5) -> [Int] {
         let last = stops.count - 1
-        let reached = min(max(moment.reached, 0), last)
-        let end = min(max(focus(moment), reached + 1), last)
+        let goal = min(focus(moment), last)
+        let reached = moment.kind == .arrived ? goal : min(max(moment.reached, 0), last)
+        let end = moment.kind == .arrived ? reached : min(max(goal, reached + 1), last)
         var ahead = reached < end ? Array((reached + 1)...end) : []
         let room = count - min(reached + 1, 2)
         if ahead.count > room {
             ahead = Array(ahead.prefix(max(room - 1, 1))) + [end]
         }
         let behind = min(reached + 1, count - ahead.count)
-        return Array((reached - behind + 1)...reached) + ahead
+        var shown = Array((reached - behind + 1)...reached) + ahead
+        if moment.kind == .approaching, let tail = shown.last, tail < last, shown.count < count {
+            shown += Array((tail + 1)...min(last, tail + count - shown.count))
+        }
+        return shown
     }
 }
 
