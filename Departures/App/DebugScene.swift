@@ -8,6 +8,9 @@ import Foundation
 enum DebugScene: String {
     /// The map with the search field, no sheet.
     case map
+    /// A train tracked from the home station's board (Union's without one):
+    /// moving on the map, its line standing out, the button bottom left.
+    case trackedTrip
     /// The search field active and empty: home and work listed above it.
     case searchFocused
     /// The empty search opened, then the map tapped: the search should close.
@@ -36,6 +39,16 @@ enum DebugScene: String {
 
     static var current: DebugScene? {
         UserDefaults.standard.string(forKey: "debugScene").flatMap(DebugScene.init(rawValue:))
+    }
+
+    /// Debug launches (a scene, a fixed time or place) start with no train
+    /// tracked, so one tracked for an earlier screenshot doesn't show up in the
+    /// rest. The scenes that track a train start one of their own.
+    static var startsUntracked: Bool {
+        if current == .trackedTrip { return false }
+        let defaults = UserDefaults.standard
+        return current != nil || defaults.string(forKey: "debugNow") != nil
+            || defaults.string(forKey: "debugLocation") != nil
     }
 
     /// `-debugNow 2026-11-10T07:30:00-05:00`: the time the app goes by.

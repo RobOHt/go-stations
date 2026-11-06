@@ -7,8 +7,11 @@ import Foundation
 /// timetable rather than on every launch.
 @MainActor
 enum StartupStation {
+    /// Track shapes and stations, for placing trains along the line.
+    static let geometry = TrackGeometry(network: network)
+
     /// The planner's view of the bundled network.
-    private static let network: CommutePlanner.Network = {
+    static let network: CommutePlanner.Network = {
         let rail = RailNetwork.shared
         return CommutePlanner.Network(
             stations: rail.stations.map { .init(code: $0.code, latitude: $0.latitude, longitude: $0.longitude) },
