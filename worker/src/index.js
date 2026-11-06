@@ -46,7 +46,12 @@ export default {
       const body = { ok: true, configured: Boolean(env.METROLINX_API_KEY), push: pushConfigured(env) };
       if (url.searchParams.get("check") === "push" && body.push) {
         const ip = request.headers.get("CF-Connecting-IP") ?? "unknown";
-        if (!env.LIMITER || (await env.LIMITER.limit({ key: ip })).success) body.apple = await checkApple(env);
+        if (!env.LIMITER || (await env.LIMITER.limit({ key: ip })).success) {
+          body.apple = {
+            production: await checkApple(env, "api.push.apple.com"),
+            sandbox: await checkApple(env, "api.sandbox.push.apple.com"),
+          };
+        }
       }
       return new Response(JSON.stringify(body), {
         headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
@@ -250,11 +255,13 @@ async function sendPush(env, job, { event, state, stale, dismissal }) {
   return { gone: response.status === 410 || reason === "BadDeviceToken" };
 }
 
-// Asks Apple's push service to update a made-up Live Activity: "400 BadDeviceToken"
-// means the push key, Key ID and Team ID were all accepted (only the token is wrong).
-async function checkApple(env) {
+// Asks Apple's push service (production for TestFlight and App Store builds,
+// sandbox for Xcode's) to update a made-up Live Activity: "400 BadDeviceToken"
+// means the push key, Key ID and Team ID were all accepted (only the token is
+// wrong); "403 BadEnvironmentKeyInToken", that the key isn't set up for that one.
+async function checkApple(env, host) {
   try {
-    const response = await fetch(`https://api.push.apple.com/3/device/${"0".repeat(64)}`, {
+    const response = await fetch(`https://${host}/3/device/${"0".repeat(64)}`, {
       method: "POST",
       headers: {
         authorization: `bearer ${await providerToken(env)}`,
