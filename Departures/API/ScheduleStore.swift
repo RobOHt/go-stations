@@ -162,9 +162,10 @@ actor ScheduleStore {
     }
 
     /// Every train in service at `now`, from the timetable: trains still waiting at
-    /// their first stop, or done at their last, aren't. Nil when the timetable
-    /// doesn't cover today.
-    func runningTrips(at now: Date) -> [RunningTrip]? {
+    /// their first stop, or done at their last, aren't. With `ahead`, also the ones
+    /// setting off that soon; with `behind`, the ones that got in that recently.
+    /// Nil when the timetable doesn't cover today.
+    func runningTrips(at now: Date, ahead: TimeInterval = 0, behind: TimeInterval = 0) -> [RunningTrip]? {
         loadIfNeeded()
         guard let file else { return nil }
 
@@ -187,8 +188,8 @@ actor ScheduleStore {
             for index in indices where index < file.trips.count {
                 let trip = file.trips[index]
                 guard trip.pattern < file.patterns.count, let first = trip.times.first, let last = trip.times.last,
-                      base.addingTimeInterval(TimeInterval(first * 60)) <= now,
-                      now < base.addingTimeInterval(TimeInterval(last * 60))
+                      base.addingTimeInterval(TimeInterval(first * 60)) <= now.addingTimeInterval(ahead),
+                      now < base.addingTimeInterval(TimeInterval(last * 60) + behind)
                 else { continue }
                 let pattern = file.patterns[trip.pattern]
                 let count = min(pattern.count, trip.times.count)

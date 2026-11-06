@@ -15,7 +15,8 @@ import UIKit
 final class TripActivityController {
     static let shared = TripActivityController()
 
-    /// How long the finished trip stays on the Lock Screen after the train gets in.
+    /// How long the finished trip stays on the Lock Screen after the train gets in,
+    /// at most: it goes when tracking ends (see `TrackedTrip.endsAt`).
     static let summaryTime: TimeInterval = 15 * 60
     /// The background refresh that ends the Live Activity when the app isn't
     /// opened after the train gets in (listed in Info.plist).
@@ -55,7 +56,8 @@ final class TripActivityController {
                 continue
             }
             if trip.phase(at: now) == .arrived {
-                let gone = (trip.arrival ?? now).addingTimeInterval(Self.summaryTime)
+                let summary = (trip.arrival ?? now).addingTimeInterval(Self.summaryTime)
+                let gone = min(trip.endsAt ?? summary, summary)
                 Task { await activity.end(content, dismissalPolicy: .after(gone)) }
             } else if activity.content.state != content.state || activity.content.staleDate != content.staleDate {
                 Task { await activity.update(content) }

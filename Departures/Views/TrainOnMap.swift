@@ -266,8 +266,28 @@ final class TrainAnnotationView: MKAnnotationView {
         if window != nil { updateMotion() }
     }
 
+    // MARK: Coming and going
+
+    /// A train setting off (or just tracked) fades in.
+    func fadeIn() {
+        content.layer.removeAllAnimations()
+        content.alpha = 0
+        UIView.animate(withDuration: 0.6, delay: 0, options: [.curveEaseOut, .allowUserInteraction]) {
+            self.content.alpha = 1
+        }
+    }
+
+    /// A train leaving the map fades out, then `completion` takes it away.
+    func fadeOut(completion: @escaping () -> Void) {
+        UIView.animate(withDuration: 0.6, delay: 0, options: [.curveEaseIn, .beginFromCurrentState],
+                       animations: { self.content.alpha = 0 },
+                       completion: { _ in completion() })
+    }
+
     override func prepareForReuse() {
         super.prepareForReuse()
+        content.layer.removeAllAnimations()
+        content.alpha = 1
         heading = nil
         pointer.isHidden = true
         isAnimated = false

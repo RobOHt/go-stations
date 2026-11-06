@@ -36,6 +36,8 @@ def parse_args():
     ap = argparse.ArgumentParser()
     ap.add_argument("--input", default=OFFICIAL_URL, help="GTFS zip path or URL")
     ap.add_argument("--output", default="Departures/Resources/network.json")
+    ap.add_argument("--refine", action="store_true",
+                    help="only end the lines at their stations in an existing --output file")
     return ap.parse_args()
 
 
@@ -125,10 +127,127 @@ def drop_covered(paths, lat0):
     return kept
 
 
+# --- ending the lines at their stations -------------------------------------
+# GTFS shapes run on past a line's last stations into yards (Union, Old Elm), and
+# some stop short of Union. Each line's tracks are cut at their first and last
+# stations and joined to the station's place on the line: the closest point to
+# the station on its lines' tracks, where the app draws its dot. This uses the
+# app's own flat projection (CommutePlanner.Point) and the same rule as
+# TrackGeometry, so every line ends exactly under the dot.
+
+APP_METRES_PER_DEGREE = 6371000 * math.pi / 180
+APP_COS = math.cos(math.radians(43.7))
+APP_SNAP = 600.0          # CommutePlanner.snap: a station this close to a track is on it
+
+
+def app_xy(lat, lon):
+    return (lon * APP_COS * APP_METRES_PER_DEGREE, lat * APP_METRES_PER_DEGREE)
+
+
+def app_latlon(p):
+    return (p[1] / APP_METRES_PER_DEGREE, p[0] / (APP_COS * APP_METRES_PER_DEGREE))
+
+
+class Track:
+    """A path in the app's projection, with the distance along it at each point."""
+
+    def __init__(self, path):
+        self.xy = [app_xy(la, lo) for la, lo in path]
+        self.cum = [0.0]
+        for a, b in zip(self.xy, self.xy[1:]):
+            self.cum.append(self.cum[-1] + math.dist(a, b))
+
+    def project(self, p):
+        """Distance to the closest point, and how far along the path it is (as the app does)."""
+        best = None
+        for i in range(len(self.xy) - 1):
+            a, b = self.xy[i], self.xy[i + 1]
+            vx, vy = b[0] - a[0], b[1] - a[1]
+            vv = vx * vx + vy * vy
+            t = min(max(((p[0] - a[0]) * vx + (p[1] - a[1]) * vy) / vv, 0.0), 1.0) if vv > 0 else 0.0
+            d = math.dist(p, (a[0] + vx * t, a[1] + vy * t))
+            if best is None or d < best[0]:
+                best = (d, self.cum[i] + (self.cum[i + 1] - self.cum[i]) * t)
+        return best
+
+    def point(self, s):
+        s = min(max(s, 0.0), self.cum[-1])
+        i = 0
+        while i < len(self.xy) - 2 and self.cum[i + 1] < s:
+            i += 1
+        length = self.cum[i + 1] - self.cum[i]
+        u = 0.0 if length <= 0 else (s - self.cum[i]) / length
+        a, b = self.xy[i], self.xy[i + 1]
+        return (a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u)
+
+    def piece(self, s0, s1):
+        inside = [p for p, c in zip(self.xy, self.cum) if s0 < c < s1]
+        return [self.point(s0)] + inside + [self.point(s1)]
+
+
+def end_at_stations(lines_out, stations_out):
+    position = {s["code"]: app_xy(s["lat"], s["lon"]) for s in stations_out}
+    serving = defaultdict(set)
+    for line in lines_out:
+        for pattern in line["patterns"]:
+            for code in pattern:
+                serving[code].add(line["code"])
+    tracks = {line["code"]: [Track(path) for path in line["paths"]] for line in lines_out}
+
+    # Where each station's dot goes: the closest point on its lines' tracks.
+    dot = {}
+    for code, p in position.items():
+        best = None
+        for line in sorted(serving[code]):
+            for track in tracks.get(line, []):
+                d, s = track.project(p)
+                if d <= APP_SNAP and (best is None or d < best[0]):
+                    best = (d, track.point(s))
+        if best:
+            dot[code] = best[1]
+
+    moved = 0.0
+    for line in lines_out:
+        codes = {code for pattern in line["patterns"] for code in pattern if code in dot}
+        paths = []
+        for path, track in zip(line["paths"], tracks[line["code"]]):
+            hits = sorted((s, code) for code in codes
+                          for d, s in [track.project(position[code])] if d <= APP_SNAP)
+            if len(hits) < 2:
+                paths.append(path)
+                continue
+            (s0, first), (s1, last) = hits[0], hits[-1]
+            moved += track.cum[-1] - (s1 - s0)
+            points = [dot[first]] + track.piece(s0, s1) + [dot[last]]
+            kept = [points[0]]
+            for q in points[1:]:
+                if math.dist(q, kept[-1]) > 0.05:
+                    kept.append(q)
+            out = []
+            for k, q in enumerate(kept):
+                la, lo = app_latlon(q)
+                # The ends to the dots exactly; the rest as before.
+                digits = 7 if k in (0, len(kept) - 1) else 5
+                out.append([round(la, digits), round(lo, digits)])
+            paths.append(out)
+        line["paths"] = paths
+    return moved
+
+
 # --- main -------------------------------------------------------------------
 
 def main():
     args = parse_args()
+    if args.refine:
+        with open(args.output, encoding="utf-8") as f:
+            out = json.load(f)
+        moved = end_at_stations(out["lines"], out["stations"])
+        with open(args.output, "w", encoding="utf-8") as f:
+            json.dump(out, f, separators=(",", ":"), ensure_ascii=False)
+        print(f"Ended the lines at their stations ({moved / 1000:.1f} km of track past them) -> {args.output}",
+              file=sys.stderr)
+        return
+
     z = open_zip(args.input)
 
     routes = {r["route_id"]: r for r in rows(z, "routes.txt") if r["route_type"] == "2"}
@@ -202,6 +321,8 @@ def main():
             "lines": [c for c in line_order if c in station_lines[sid]],
             "accessible": s.get("wheelchair_boarding", "") == "1",
         })
+
+    end_at_stations(lines_out, stations_out)
 
     feed_version = ""
     try:

@@ -19,6 +19,10 @@ struct TrackedTrip: Codable, Equatable, Sendable {
 
     var hasStartingStop: Bool { startsAtStop ?? false }
 
+    /// How long tracking goes on after the train reaches your stop, when it runs
+    /// on well past it.
+    static let linger: TimeInterval = 10 * 60
+
     var lineCode: String { row.lineCode }
     var tripNumber: String { row.tripNumber }
     var stopCodes: [String] { stops.map(\.code) }
@@ -36,6 +40,15 @@ struct TrackedTrip: Codable, Equatable, Sendable {
 
     func state(at now: Date) -> TrainState {
         TrainState(stops: stops, now: now)
+    }
+
+    /// When tracking stops and the train leaves the map: a minute after it gets to
+    /// the end of its run, or a while after it reaches your stop when it runs on
+    /// well past it.
+    var endsAt: Date? {
+        let end = stops.last.flatMap { $0.expected ?? $0.time }?.addingTimeInterval(TrainState.lingerAtEnd)
+        let yours = arrival?.addingTimeInterval(Self.linger)
+        return [end, yours].compactMap { $0 }.min()
     }
 
     /// What's next for you: waiting for it to leave your station, riding to your
@@ -114,10 +127,10 @@ final class TripTracker {
     static let shared = TripTracker()
 
     private(set) var trip: TrackedTrip?
+    /// Stops tracking right when the trip ends, rather than at the next check.
+    @ObservationIgnored private var expiry: Task<Void, Never>?
 
     private static let storageKey = "trackedTrip"
-    /// How long after reaching your stop the trip stays tracked.
-    static let linger: TimeInterval = 10 * 60
 
     private init() {
         #if DEBUG
@@ -129,6 +142,7 @@ final class TripTracker {
             trip = try? JSONDecoder().decode(TrackedTrip.self, from: data)
         }
         dropIfFinished()
+        scheduleExpiry()
     }
 
     /// Starts following a train from the station whose board it was picked on.
@@ -154,13 +168,12 @@ final class TripTracker {
         trip?.matches(row) ?? false
     }
 
-    /// Keeps the Live Activity in step (the train leaving your station, then
-    /// getting in), and stops tracking a while after the train reaches your stop.
+    /// Keeps the Live Activity in step (the train reaching each stop, then your
+    /// stop), and stops tracking once the trip ends (see `TrackedTrip.endsAt`).
     func dropIfFinished(now: Date = Date()) {
         TripActivityController.shared.sync(trip, now: now)
         guard let trip else { return }
-        let end = trip.arrival ?? trip.startedAt.addingTimeInterval(4 * 3600)
-        if now > end.addingTimeInterval(Self.linger) {
+        if now >= trip.endsAt ?? trip.startedAt.addingTimeInterval(4 * 3600) {
             set(nil)
         }
     }
@@ -204,6 +217,18 @@ final class TripTracker {
     private func set(_ trip: TrackedTrip?) {
         self.trip = trip
         save()
+        scheduleExpiry()
+    }
+
+    private func scheduleExpiry() {
+        expiry?.cancel()
+        guard let end = trip?.endsAt else { return }
+        expiry = Task { [weak self] in
+            let wait = end.timeIntervalSinceNow
+            if wait > 0 { try? await Task.sleep(for: .seconds(wait)) }
+            guard !Task.isCancelled else { return }
+            self?.dropIfFinished()
+        }
     }
 
     private func save() {

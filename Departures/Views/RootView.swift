@@ -182,13 +182,16 @@ struct RootView: View {
         .ignoresSafeArea()
         .overlay { floatingUI }
         .task(id: settings.showsAllTrains) {
-            // Which trains are running, once a minute (the map moves them in between).
+            // Which trains are running, once a minute (the map moves them in between),
+            // with the ones setting off before the next look, and the ones that just
+            // got in (the map shows them standing there a minute).
             guard settings.showsAllTrains else {
                 runningTrips = []
                 return
             }
             while !Task.isCancelled {
-                runningTrips = await ScheduleStore.shared.runningTrips(at: Date()) ?? []
+                runningTrips = await ScheduleStore.shared.runningTrips(
+                    at: Date(), ahead: 120, behind: TrainState.lingerAtEnd) ?? []
                 try? await Task.sleep(for: .seconds(60))
             }
         }

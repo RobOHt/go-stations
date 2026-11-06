@@ -34,6 +34,9 @@ enum TrainState {
     /// minute: it pulls in a minute before it leaves (or halfway, on a short hop).
     static let dwell: TimeInterval = 60
 
+    /// How long a train stays on the map at the end of its run before it fades away.
+    static let lingerAtEnd: TimeInterval = 60
+
     /// When the train pulls in at stop `index`: a minute before it leaves (or
     /// halfway from the stop before, on a short hop). At its first stop, when it
     /// leaves; at its last, its time there.
