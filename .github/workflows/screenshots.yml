@@ -10,11 +10,13 @@ on:
   pull_request:
     paths:
       - "Departures/**"
+      - "DeparturesWidgets/**"
       - "Departures.xcodeproj/**"
       - "tools/commute_reference.py"
       - ".github/workflows/screenshots.yml"
       - ".github/scripts/pick_simulator.py"
       - ".github/scripts/screenshot_comment.py"
+      - ".github/scripts/video_frames.swift"
   workflow_dispatch:
 
 permissions:
