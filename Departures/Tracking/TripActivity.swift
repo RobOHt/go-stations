@@ -555,6 +555,12 @@ struct TripStopStrip: View {
 
 /// The strip's line: a bar between each pair of neighbouring stops that fills from
 /// when the train leaves one to when it pulls in at the next, the stops' dots on top.
+///
+/// A Live Activity can't move a view of its own over time, only fill progress bars,
+/// so the train is drawn with two: under the line's colour, a bar in white (black
+/// on a light Lock Screen) that runs a little ahead of it, which leaves a bright
+/// head where the train is. It moves by itself, and shrinks away while the train
+/// stands at a station (whose dot is then the train).
 private struct TripStripTrack: View {
     let trip: TripActivityTrip
     let shown: [Int]
@@ -577,13 +583,15 @@ private struct TripStripTrack: View {
             let layout = pieces(column: column)
             ZStack(alignment: .topLeading) {
                 ForEach(layout.pieces) { piece in
-                    ProgressView(timerInterval: piece.start...piece.end, countsDown: false) {
-                        EmptyView()
-                    } currentValueLabel: {
-                        EmptyView()
+                    let lead = piece.end.timeIntervalSince(piece.start) * min(head / max(piece.length, 1), 0.6)
+                    ZStack {
+                        // The line still to go, plainly visible.
+                        Capsule()
+                            .fill(Color.primary.opacity(0.16))
+                            .frame(height: 6)
+                        bar(piece.start...piece.end, tint: .primary)
+                        bar(piece.start.addingTimeInterval(lead)...piece.end.addingTimeInterval(lead), tint: color)
                     }
-                    .progressViewStyle(.linear)
-                    .tint(color)
                     .frame(width: max(piece.length, 1))
                     .position(x: piece.x + piece.length / 2, y: y)
                 }
@@ -600,6 +608,19 @@ private struct TripStripTrack: View {
                 }
             }
         }
+    }
+
+    /// How long the train's bright head is, in points.
+    private var head: CGFloat { compact ? 8 : 10 }
+
+    private func bar(_ interval: ClosedRange<Date>, tint: Color) -> some View {
+        ProgressView(timerInterval: interval, countsDown: false) {
+            EmptyView()
+        } currentValueLabel: {
+            EmptyView()
+        }
+        .progressViewStyle(.linear)
+        .tint(tint)
     }
 
     private func dot(isFocus: Bool) -> some View {
