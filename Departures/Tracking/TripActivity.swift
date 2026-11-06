@@ -329,8 +329,11 @@ struct TripActivityTrip {
         TrainState.arrival(at: index, times: times)
     }
 
-    /// What's happening at `now`, and what the countdown runs to.
-    func moment(at now: Date) -> TripMoment {
+    /// What's happening at `now`, and what the countdown runs to. Once the activity
+    /// is stale (no update came when the last one ran out, so none may come before
+    /// the next stop), a train standing at a station already counts down to the
+    /// next one: "Arrived" would stay up after it left.
+    func moment(at now: Date, isStale: Bool = false) -> TripMoment {
         let train = TrainState.locate(times: times, now: now)
         let reached = train.reached(stopCount: stops.count)
         if let end = arrival(at: destination), now >= end {
@@ -344,6 +347,9 @@ struct TripActivityTrip {
             return TripMoment(kind: .waiting, train: train, next: 0, target: departs, reached: 0)
         case .moving(let from, _):
             return TripMoment(kind: .riding, train: train, next: from + 1, target: arrival(at: from + 1), reached: from)
+        case .stopped(let at) where isStale:
+            let next = min(at + 1, stops.count - 1)
+            return TripMoment(kind: .riding, train: train, next: next, target: arrival(at: next), reached: at)
         case .stopped(let at):
             // Standing at a station for its minute there, until it leaves.
             return TripMoment(kind: .atStop, train: train, next: at, target: times[at] ?? arrival(at: at),
@@ -790,7 +796,7 @@ struct TripLockScreen: View {
 
     var body: some View {
         let trip = TripActivityTrip(attributes, state)
-        let moment = trip.moment(at: Date())
+        let moment = trip.moment(at: Date(), isStale: isStale)
         let onDark = colorScheme == .dark
         VStack(alignment: .leading, spacing: 12) {
             if moment.kind == .approaching {
@@ -867,7 +873,7 @@ struct TripCompactTrailing: View {
 
     @ViewBuilder private var countdown: some View {
         let now = Date()
-        let moment = TripActivityTrip(attributes, state).moment(at: now)
+        let moment = TripActivityTrip(attributes, state).moment(at: now, isStale: isStale)
         if moment.kind == .arrived {
             Image(systemName: "checkmark")
                 .font(.system(size: 14, weight: .bold))
@@ -898,7 +904,7 @@ struct TripMinimal: View {
     var body: some View {
         let now = Date()
         let trip = TripActivityTrip(attributes, state)
-        let moment = trip.moment(at: now)
+        let moment = trip.moment(at: now, isStale: isStale)
         ZStack {
             ProgressView(timerInterval: interval(trip, moment, now: now), countsDown: false) {
                 EmptyView()
@@ -951,7 +957,7 @@ struct TripExpandedTrailing: View {
 
     var body: some View {
         let trip = TripActivityTrip(attributes, state)
-        TripTimeBlock(trip: trip, moment: trip.moment(at: Date()), fontSize: 24)
+        TripTimeBlock(trip: trip, moment: trip.moment(at: Date(), isStale: isStale), fontSize: 24)
     }
 }
 
@@ -966,7 +972,7 @@ struct TripExpandedCenter: View {
         let trip = TripActivityTrip(attributes, state)
         VStack(spacing: 2) {
             TripTitle(attributes: attributes, trip: trip)
-            TripNextLine(attributes: attributes, trip: trip, moment: trip.moment(at: Date()))
+            TripNextLine(attributes: attributes, trip: trip, moment: trip.moment(at: Date(), isStale: isStale))
                 .font(.subheadline)
         }
         .minimumScaleFactor(0.8)
@@ -981,7 +987,7 @@ struct TripExpandedBottom: View {
 
     var body: some View {
         let trip = TripActivityTrip(attributes, state)
-        TripStopStrip(trip: trip, moment: trip.moment(at: Date()), color: attributes.lineColorOnDark, compact: true)
+        TripStopStrip(trip: trip, moment: trip.moment(at: Date(), isStale: isStale), color: attributes.lineColorOnDark, compact: true)
     }
 }
 
