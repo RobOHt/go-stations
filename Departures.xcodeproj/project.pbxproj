@@ -7,9 +7,11 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		2FF9ECE8C3B3D422FCED32DC /* TripActivityController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4E8597CF7576FE4AB1F4CDF /* TripActivityController.swift */; };
 		30EE1E5E4015E0AC2D3074E9 /* StartupStation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98D526AB488EC8090B57DFA5 /* StartupStation.swift */; };
 		333FBA9314F3494575C93A0E /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = BD19958788A805717D008E2E /* Assets.xcassets */; };
 		4330800974904FA294B8E785 /* network.json in Resources */ = {isa = PBXBuildFile; fileRef = A9BE92FD3DD0AB0A0A401EED /* network.json */; };
+		44F11FF0FECB6BB72A2BA386 /* TripActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5D867F04C518D525446C583 /* TripActivity.swift */; };
 		488BB9FF5561346B8614F7E0 /* schedule.json in Resources */ = {isa = PBXBuildFile; fileRef = 290D6E9F76D46363F2480265 /* schedule.json */; };
 		50E4247C83789EF3EE516DCE /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 082D21D2D2C770F357B53552 /* AppSettings.swift */; };
 		5FB905A092DA55E4EC67121C /* StationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8DD54A97E3BD853130248E1 /* StationSheet.swift */; };
@@ -18,6 +20,9 @@
 		6BD809B94BFDAF2264E3E20C /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 52CF198FA6EEC18089A74BB2 /* Foundation.framework */; };
 		6D6BE623D20C16B5AB0E3887 /* MetrolinxClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFE6B35F3135D0FF6BF810DA /* MetrolinxClient.swift */; };
 		71BB9A4ECAF76F184F195DAD /* TrackGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED83762207B3DD4083C6E973 /* TrackGeometry.swift */; };
+		7A2A3A23AA604E05BCFB318D /* TripActivityGallery.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1DC09E48CBF703842B4962F /* TripActivityGallery.swift */; };
+		7A723A9524F2B925F3677C32 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 52CF198FA6EEC18089A74BB2 /* Foundation.framework */; };
+		7B7888CFF14B233B77F35E23 /* TripActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5D867F04C518D525446C583 /* TripActivity.swift */; };
 		81DDC4ED82A4427124258725 /* RailNetwork.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12948FD6FD773B6E0FBBE382 /* RailNetwork.swift */; };
 		8863CED99CC0AF8D28AD66CD /* TrackedTripButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E57EFAEAFE85C933766BB3A /* TrackedTripButton.swift */; };
 		8A41B2C4EBBA0B79F9C9D2B4 /* BoardModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E16713FA8D25912C5662B0DD /* BoardModel.swift */; };
@@ -25,6 +30,7 @@
 		8DCAB47B9A0B106A3A3BF611 /* CommutePlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71B799139357A2772A60C03 /* CommutePlanner.swift */; };
 		8F7D2B46FED169B5C6580C7A /* BoardTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = C622B10E2C34C13846A534A2 /* BoardTheme.swift */; };
 		8FCB966F59164CF7F1FF5522 /* SearchPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E4A5E2C07E880206D354461 /* SearchPanel.swift */; };
+		957399E914AB7477DBD92231 /* DeparturesWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = FD88BB566A609617693A474D /* DeparturesWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		9622C81409924DE23AB13537 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55E96A0A4A812C9938B0E829 /* RootView.swift */; };
 		989E9B8E29A47B603985F044 /* BoardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26FA8B31A1F2728E021C5B6A /* BoardView.swift */; };
 		A29E9D60A166B42FD5174F50 /* GlassControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = F59BE7F9EC5EA81504DA78A5 /* GlassControls.swift */; };
@@ -32,14 +38,40 @@
 		BF4FAF1018F15829F06FF536 /* ScheduleStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEECCC300CF5D0431410FAAE /* ScheduleStore.swift */; };
 		C72CEF65C6D4FA826441D360 /* LocationProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9948AB743F7973496F01FC60 /* LocationProvider.swift */; };
 		CC907A8260921EE1A4252FB4 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 420AD3DBFC5C7096B0B3CA0A /* SettingsView.swift */; };
+		CDD86E97CC4F4EC78F656661 /* DeparturesWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9EA12E069E84BA3CCEA1F5AF /* DeparturesWidgets.swift */; };
 		DDBA1C3FB2F84B5999C6E4F4 /* DebugScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58F912FB19F268A83449830E /* DebugScene.swift */; };
 		F631C973BB509053AD53E5B1 /* NetworkMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C62F099FD3615F422C7C6289 /* NetworkMapView.swift */; };
 		F84F4DE9239838E432A25741 /* TripSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3939C3EBFFD629B1B5AFB65B /* TripSheet.swift */; };
 		FD837E982E973E9FDE52632F /* BoardService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E30604C09783E66179545ED6 /* BoardService.swift */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		401FC05B70C1346C427F5E1F /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 2B6A4F1D66CCE0DD019BBD47 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = F05E0EC1DC4EBE2B1DC62453;
+			remoteInfo = DeparturesWidgets;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		954C3EB051D4FAADD7001E15 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				957399E914AB7477DBD92231 /* DeparturesWidgets.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
 		082D21D2D2C770F357B53552 /* AppSettings.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
+		0C3A79DCD4E7B2D927DB3419 /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		12948FD6FD773B6E0FBBE382 /* RailNetwork.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RailNetwork.swift; sourceTree = "<group>"; };
 		1CC72142AD9025AD2F76DE07 /* Departures.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; path = Departures.entitlements; sourceTree = "<group>"; };
 		26FA8B31A1F2728E021C5B6A /* BoardView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BoardView.swift; sourceTree = "<group>"; };
@@ -57,7 +89,11 @@
 		8E57EFAEAFE85C933766BB3A /* TrackedTripButton.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TrackedTripButton.swift; sourceTree = "<group>"; };
 		98D526AB488EC8090B57DFA5 /* StartupStation.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StartupStation.swift; sourceTree = "<group>"; };
 		9948AB743F7973496F01FC60 /* LocationProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LocationProvider.swift; sourceTree = "<group>"; };
+		9EA12E069E84BA3CCEA1F5AF /* DeparturesWidgets.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DeparturesWidgets.swift; sourceTree = "<group>"; };
+		A4E8597CF7576FE4AB1F4CDF /* TripActivityController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TripActivityController.swift; sourceTree = "<group>"; };
 		A9BE92FD3DD0AB0A0A401EED /* network.json */ = {isa = PBXFileReference; includeInIndex = 1; path = network.json; sourceTree = "<group>"; };
+		AD40E17FD3626BBC7C96B93B /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		B1DC09E48CBF703842B4962F /* TripActivityGallery.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TripActivityGallery.swift; sourceTree = "<group>"; };
 		BD19958788A805717D008E2E /* Assets.xcassets */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		C622B10E2C34C13846A534A2 /* BoardTheme.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BoardTheme.swift; sourceTree = "<group>"; };
 		C62F099FD3615F422C7C6289 /* NetworkMapView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NetworkMapView.swift; sourceTree = "<group>"; };
@@ -66,9 +102,11 @@
 		DFE6B35F3135D0FF6BF810DA /* MetrolinxClient.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MetrolinxClient.swift; sourceTree = "<group>"; };
 		E16713FA8D25912C5662B0DD /* BoardModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BoardModel.swift; sourceTree = "<group>"; };
 		E30604C09783E66179545ED6 /* BoardService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BoardService.swift; sourceTree = "<group>"; };
+		E5D867F04C518D525446C583 /* TripActivity.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TripActivity.swift; sourceTree = "<group>"; };
 		ED83762207B3DD4083C6E973 /* TrackGeometry.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TrackGeometry.swift; sourceTree = "<group>"; };
 		F46A25BFC1C2C367380E4C69 /* Departures.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Departures.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		F59BE7F9EC5EA81504DA78A5 /* GlassControls.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GlassControls.swift; sourceTree = "<group>"; };
+		FD88BB566A609617693A474D /* DeparturesWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = DeparturesWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		FEECCC300CF5D0431410FAAE /* ScheduleStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ScheduleStore.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -78,6 +116,14 @@
 			buildActionMask = 2147483647;
 			files = (
 				6BD809B94BFDAF2264E3E20C /* Foundation.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		860AB8BBD17AB69A4FB4E67B /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				7A723A9524F2B925F3677C32 /* Foundation.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -138,8 +184,19 @@
 			isa = PBXGroup;
 			children = (
 				F46A25BFC1C2C367380E4C69 /* Departures.app */,
+				FD88BB566A609617693A474D /* DeparturesWidgets.appex */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		59CE3B1EA8C37F33F457B98A /* DeparturesWidgets */ = {
+			isa = PBXGroup;
+			children = (
+				9EA12E069E84BA3CCEA1F5AF /* DeparturesWidgets.swift */,
+				0C3A79DCD4E7B2D927DB3419 /* Info.plist */,
+			);
+			name = DeparturesWidgets;
+			path = DeparturesWidgets;
 			sourceTree = "<group>";
 		};
 		674A2C71B83B6B0AE05E22C3 /* Model */ = {
@@ -193,6 +250,7 @@
 				1CC72142AD9025AD2F76DE07 /* Departures.entitlements */,
 				82C44355C33EF3F78B342841 /* Planner */,
 				E483AD05ADC3D2D37A09ED3D /* Tracking */,
+				AD40E17FD3626BBC7C96B93B /* Info.plist */,
 			);
 			name = Departures;
 			path = Departures;
@@ -221,6 +279,7 @@
 				5374EF5CAA25BC7AEEF82E5D /* Products */,
 				B785380940D2AA5EA0F20C26 /* Frameworks */,
 				87FA03BBFE102039EAA83855 /* Departures */,
+				59CE3B1EA8C37F33F457B98A /* DeparturesWidgets */,
 			);
 			sourceTree = "<group>";
 		};
@@ -229,6 +288,9 @@
 			children = (
 				7FD5031FC1E48B028D172FC8 /* TripTracker.swift */,
 				8E57EFAEAFE85C933766BB3A /* TrackedTripButton.swift */,
+				E5D867F04C518D525446C583 /* TripActivity.swift */,
+				A4E8597CF7576FE4AB1F4CDF /* TripActivityController.swift */,
+				B1DC09E48CBF703842B4962F /* TripActivityGallery.swift */,
 			);
 			name = Tracking;
 			path = Tracking;
@@ -254,15 +316,34 @@
 				AC30A34D0C85C02E177770F9 /* Sources */,
 				1C247C377D61B978A4BC18D3 /* Frameworks */,
 				9E9C0B8957CB9ECEA49BA2AD /* Resources */,
+				954C3EB051D4FAADD7001E15 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				82CDE4C2C601C3842DB8C3ED /* PBXTargetDependency */,
 			);
 			name = Departures;
 			productName = Departures;
 			productReference = F46A25BFC1C2C367380E4C69 /* Departures.app */;
 			productType = "com.apple.product-type.application";
+		};
+		F05E0EC1DC4EBE2B1DC62453 /* DeparturesWidgets */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = DDBDBED33AE9959FBFD17A14 /* Build configuration list for PBXNativeTarget "DeparturesWidgets" */;
+			buildPhases = (
+				07EF4A3258C492E863749CA9 /* Sources */,
+				860AB8BBD17AB69A4FB4E67B /* Frameworks */,
+				6428DB6E97C6BB22F671A541 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = DeparturesWidgets;
+			productName = DeparturesWidgets;
+			productReference = FD88BB566A609617693A474D /* DeparturesWidgets.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
 
@@ -274,6 +355,9 @@
 				LastUpgradeCheck = 2600;
 				TargetAttributes = {
 					14FA7FBE795FC0BBDAC74CF2 = {
+						CreatedOnToolsVersion = 26.0;
+					};
+					F05E0EC1DC4EBE2B1DC62453 = {
 						CreatedOnToolsVersion = 26.0;
 					};
 				};
@@ -295,11 +379,19 @@
 			projectRoot = "";
 			targets = (
 				14FA7FBE795FC0BBDAC74CF2 /* Departures */,
+				F05E0EC1DC4EBE2B1DC62453 /* DeparturesWidgets */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		6428DB6E97C6BB22F671A541 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		9E9C0B8957CB9ECEA49BA2AD /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -313,6 +405,15 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		07EF4A3258C492E863749CA9 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				CDD86E97CC4F4EC78F656661 /* DeparturesWidgets.swift in Sources */,
+				7B7888CFF14B233B77F35E23 /* TripActivity.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		AC30A34D0C85C02E177770F9 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -342,10 +443,22 @@
 				8BD20D26B90F1F086D2F5655 /* TripTracker.swift in Sources */,
 				8863CED99CC0AF8D28AD66CD /* TrackedTripButton.swift in Sources */,
 				B450E7F44E55F87E5F4E0E73 /* TrainOnMap.swift in Sources */,
+				44F11FF0FECB6BB72A2BA386 /* TripActivity.swift in Sources */,
+				2FF9ECE8C3B3D422FCED32DC /* TripActivityController.swift in Sources */,
+				7A2A3A23AA604E05BCFB318D /* TripActivityGallery.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		82CDE4C2C601C3842DB8C3ED /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = DeparturesWidgets;
+			target = F05E0EC1DC4EBE2B1DC62453 /* DeparturesWidgets */;
+			targetProxy = 401FC05B70C1346C427F5E1F /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		07E2C94C043A74EE80F8118A /* Release */ = {
@@ -417,6 +530,7 @@
 				DEVELOPMENT_TEAM = "";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Departures/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "GO Stations";
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.navigation";
@@ -507,6 +621,35 @@
 			};
 			name = Debug;
 		};
+		BE270C5132E6F30CB0A4E734 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = DeparturesWidgets/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "GO Stations";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.robinzhong.Departures.Widgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
 		CE669A4F39BB3958FF27D332 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -519,6 +662,7 @@
 				DEVELOPMENT_TEAM = "";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Departures/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "GO Stations";
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.navigation";
@@ -546,6 +690,36 @@
 			};
 			name = Release;
 		};
+		ECEFA53B430B8D465DD6D453 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = DeparturesWidgets/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "GO Stations";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.robinzhong.Departures.Widgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -563,6 +737,15 @@
 			buildConfigurations = (
 				B101C353B16BB10368AADB37 /* Debug */,
 				07E2C94C043A74EE80F8118A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		DDBDBED33AE9959FBFD17A14 /* Build configuration list for PBXNativeTarget "DeparturesWidgets" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				ECEFA53B430B8D465DD6D453 /* Release */,
+				BE270C5132E6F30CB0A4E734 /* Debug */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

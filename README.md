@@ -8,6 +8,7 @@ A tiny native iOS app that puts the GO Transit station departure board in your p
   - near home or work, that station;
   - on a train of your commute (judged from where the timetable puts the trains), the next station where you change;
   - anywhere else, the station you'd get home from soonest (on weekday mornings, to work), on foot if one is within a 10-minute walk, otherwise by car.
+- **Track a train.** Tap *Track* on a train's stops. It moves along its line on the map (one pin with your location when you're on it), a button bottom left opens it again, and a Live Activity counts down on the Lock Screen and in the Dynamic Island: to when it leaves your station, then to when it reaches your stop.
 - **No accounts, no ads.** Home/work sync through iCloud key-value storage. Live data comes from Metrolinx through a tiny Cloudflare Worker that holds the API key, so nothing secret ships in the app.
 
 Trains only for now.
@@ -38,7 +39,7 @@ To build locally instead, open `Departures.xcodeproj` in Xcode 26 or later, pick
 | Station alerts under the board | `ServiceUpdate/ServiceAlert/All`, filtered to the station's lines |
 | Fallback when live data is unavailable | `schedule.json`: the next 14 days of trains from GO's GTFS, rebuilt daily on the `schedule-data` branch and bundled into each build (`tools/build_schedule.py`) |
 
-The board refreshes every 20 seconds while it's open (matching the Worker's cache) and right away when you come back to the app. It stops when you close it, so the app makes no requests in the background. Metrolinx has no push feed, so polling is as fresh as it gets.
+The board refreshes every 20 seconds while it's open (matching the Worker's cache) and right away when you come back to the app. It stops when you close it, so the app makes no requests in the background (apart from one check, a while after a tracked train is due at your stop, to end its Live Activity). Metrolinx has no push feed, so polling is as fresh as it gets.
 
 Express trips are detected from the trip's stop list: if it skips two or more stations in a row that the line's all-stops pattern serves, it gets the ⚡. At Union the feed marks them directly.
 
@@ -63,8 +64,10 @@ Departures/
   Settings/     iCloud KV + Keychain settings
   Location/     one-shot location
   Planner/      which board to open on launch
+  Tracking/     the tracked train: its button, its Live Activity (views shared with the widget extension)
   Views/        map, station sheet, settings
   Resources/    network.json, asset catalog
+DeparturesWidgets/   widget extension that draws the Live Activity
 tools/build_network.py
 tools/commute_reference.py   the launch logic again in Python; CI checks the app against it
 ```

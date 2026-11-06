@@ -102,25 +102,66 @@ final class TripTracker {
         let boarding = codes.firstIndex(of: selection.station.code) ?? 0
         let later = codes.indices.filter { $0 > boarding }
         let destination = later.first { codes[$0] == home || codes[$0] == work } ?? later.last ?? boarding
-        set(TrackedTrip(row: selection.row, boardingCode: codes[boarding], boardingIndex: boarding,
-                         destinationIndex: destination, stops: detail.stops, source: detail.source,
-                         startedAt: Date()))
+        let trip = TrackedTrip(row: selection.row, boardingCode: codes[boarding], boardingIndex: boarding,
+                               destinationIndex: destination, stops: detail.stops, source: detail.source,
+                               startedAt: Date())
+        set(trip)
+        TripActivityController.shared.start(trip)
     }
 
     func stop() {
         set(nil)
+        TripActivityController.shared.endAll()
     }
 
     func isTracking(_ row: BoardRow) -> Bool {
         trip?.matches(row) ?? false
     }
 
-    /// Stops tracking a while after the train reaches your stop.
+    /// Keeps the Live Activity in step (the train leaving your station, then
+    /// getting in), and stops tracking a while after the train reaches your stop.
     func dropIfFinished(now: Date = Date()) {
+        TripActivityController.shared.sync(trip, now: now)
         guard let trip else { return }
         let end = trip.arrival ?? trip.startedAt.addingTimeInterval(4 * 3600)
         if now > end.addingTimeInterval(Self.linger) {
             set(nil)
+        }
+    }
+
+    /// Fetches the tracked train's latest times (live ones when there are any),
+    /// so the map and the Live Activity keep up with delays.
+    func refresh() async {
+        guard let trip, let station = RailNetwork.shared.station(trip.boardingCode) else { return }
+        let detail = await BoardService.shared.tripDetail(for: trip.row, from: station)
+        // Still the same trip, and no worse times than it has (never live ones
+        // replaced by the timetable's).
+        guard let current = self.trip, current.startedAt == trip.startedAt, detail.source != nil,
+              detail.source == .live || current.source != .live
+        else { return }
+        // Your stations again, in the new list of stops.
+        let codes = detail.stops.map(\.code)
+        guard let boarding = codes.firstIndex(of: current.boardingCode),
+              let destination = codes.indices.first(where: { $0 > boarding && codes[$0] == current.destinationCode })
+        else { return }
+        let updated = TrackedTrip(row: current.row, boardingCode: current.boardingCode, boardingIndex: boarding,
+                                  destinationIndex: destination, stops: detail.stops, source: detail.source,
+                                  startedAt: current.startedAt)
+        guard updated != current else { return }
+        set(updated)
+        TripActivityController.shared.sync(updated)
+        TripActivityController.shared.scheduleRefresh(for: updated)
+    }
+
+    /// Run by iOS in the background a while after the train is due at your stop:
+    /// catches up on its times and, once it's in, ends the Live Activity, for when
+    /// the app isn't opened after the ride.
+    func backgroundRefresh() async {
+        guard trip != nil else { return }
+        await refresh()
+        dropIfFinished()
+        if let trip, trip.phase(at: Date()) != .arrived {
+            TripActivityController.shared.scheduleRefresh(for: trip)
         }
     }
 

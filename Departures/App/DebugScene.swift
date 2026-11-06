@@ -11,6 +11,13 @@ enum DebugScene: String {
     /// A train tracked from the home station's board (Union's without one):
     /// moving on the map, its line standing out, the button bottom left.
     case trackedTrip
+    /// The same, for its Live Activity: the Screenshots workflow then switches to
+    /// another app so the island shows it, and a few seconds after that the app
+    /// updates it with an alert, which expands the island.
+    case liveActivity
+    /// The Live Activity's views drawn in the app (Lock Screen, compact, minimal,
+    /// expanded), since the simulator can't be locked or its island held from a script.
+    case activityGallery
     /// The search field active and empty: home and work listed above it.
     case searchFocused
     /// The empty search opened, then the map tapped: the search should close.
@@ -45,7 +52,7 @@ enum DebugScene: String {
     /// tracked, so one tracked for an earlier screenshot doesn't show up in the
     /// rest. The scenes that track a train start one of their own.
     static var startsUntracked: Bool {
-        if current == .trackedTrip { return false }
+        if current == .trackedTrip || current == .liveActivity { return false }
         let defaults = UserDefaults.standard
         return current != nil || defaults.string(forKey: "debugNow") != nil
             || defaults.string(forKey: "debugLocation") != nil
