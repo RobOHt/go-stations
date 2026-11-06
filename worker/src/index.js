@@ -52,6 +52,7 @@ export default {
           body.apple = {
             production: await checkApple(env, "api.push.apple.com"),
             sandbox: await checkApple(env, "api.sandbox.push.apple.com"),
+            recent: await env.LIVE_ACTIVITIES.get(env.LIVE_ACTIVITIES.idFromName("all")).recent(),
           };
         }
         if (checks.includes("metrolinx") && body.configured) body.metrolinx = await checkMetrolinx(env);
@@ -189,6 +190,11 @@ export class LiveActivities extends DurableObject {
     await this.wake();
   }
 
+  // What Apple said to the last few pushes (no tokens), for the health check.
+  async recent() {
+    return (await this.ctx.storage.get("log")) ?? [];
+  }
+
   async alarm() {
     const now = Date.now() / 1000;
     const jobs = await this.ctx.storage.list({ prefix: "job:" });
@@ -198,9 +204,12 @@ export class LiveActivities extends DurableObject {
       const state = { ...job.state, revision: job.revision };
       const later = job.times.filter((t) => t > now + 1);
       const ending = now >= job.end - 1;
-      const { gone } = ending
+      const { gone, result } = ending
         ? await sendPush(this.env, job, { event: "end", state, dismissal: job.dismissal })
         : await sendPush(this.env, job, { event: "update", state, stale: later[0] ?? job.end });
+      const log = (await this.ctx.storage.get("log")) ?? [];
+      log.push(`${new Date().toISOString().slice(0, 16)} ${ending ? "end" : "update"} ${result}`);
+      await this.ctx.storage.put("log", log.slice(-12));
       if (ending || gone) {
         await this.ctx.storage.delete(key);
       } else {
@@ -249,13 +258,13 @@ async function sendPush(env, job, { event, state, stale, dismissal }) {
     });
   } catch (e) {
     console.log("APNs unreachable:", String(e));
-    return { gone: false };
+    return { gone: false, result: "unreachable" };
   }
-  if (response.ok) return { gone: false };
+  if (response.ok) return { gone: false, result: "200" };
   const reason = (await response.json().catch(() => ({}))).reason ?? "";
   console.log(`APNs ${response.status} ${reason} (${event})`);
   if (reason === "ExpiredProviderToken" || reason === "InvalidProviderToken") provider = null;
-  return { gone: response.status === 410 || reason === "BadDeviceToken" };
+  return { gone: response.status === 410 || reason === "BadDeviceToken", result: `${response.status} ${reason}` };
 }
 
 // Asks Metrolinx for the Union board: "200 OK" means the API key works.
