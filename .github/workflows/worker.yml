@@ -6,6 +6,9 @@ name: Worker
 #   CLOUDFLARE_API_TOKEN    API token from the "Edit Cloudflare Workers" template
 #   CLOUDFLARE_ACCOUNT_ID   Cloudflare account ID
 #   METROLINX_API_KEY       Metrolinx Open Data API key (stored as a Worker secret)
+#   APNS_KEY_P8, APNS_KEY_ID  Apple push key (.p8 contents) and its Key ID, for the
+#                           Live Activity's push updates (stored as Worker secrets,
+#                           with APPLE_TEAM_ID)
 #
 # Until the Cloudflare secrets exist, runs stop at a "not configured" notice.
 
@@ -30,6 +33,9 @@ jobs:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       METROLINX_API_KEY: ${{ secrets.METROLINX_API_KEY }}
+      APNS_KEY_P8: ${{ secrets.APNS_KEY_P8 }}
+      APNS_KEY_ID: ${{ secrets.APNS_KEY_ID }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
     steps:
       - name: Check configuration
         id: config
@@ -63,6 +69,14 @@ jobs:
         if: steps.config.outputs.ready == 'true' && env.METROLINX_API_KEY != ''
         working-directory: worker
         run: printf '%s' "$METROLINX_API_KEY" | npx --yes wrangler@4 secret put METROLINX_API_KEY
+
+      - name: Store Apple push key
+        if: steps.config.outputs.ready == 'true' && env.APNS_KEY_P8 != '' && env.APNS_KEY_ID != '' && env.APPLE_TEAM_ID != ''
+        working-directory: worker
+        run: |
+          printf '%s' "$APNS_KEY_P8" | npx --yes wrangler@4 secret put APNS_KEY_P8
+          printf '%s' "$APNS_KEY_ID" | npx --yes wrangler@4 secret put APNS_KEY_ID
+          printf '%s' "$APPLE_TEAM_ID" | npx --yes wrangler@4 secret put APPLE_TEAM_ID
 
       - name: Health check
         if: steps.config.outputs.ready == 'true' && env.WORKER_URL != ''

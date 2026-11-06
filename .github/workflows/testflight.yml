@@ -44,6 +44,9 @@ jobs:
       ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
       ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
       APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      # Set once the Apple push key is (see worker.yml): the app then gets push
+      # tokens for its Live Activity, for the worker's updates at each stop.
+      APNS_KEY_ID: ${{ secrets.APNS_KEY_ID }}
     steps:
       - name: Check configuration
         id: config
@@ -142,6 +145,10 @@ jobs:
             codesign -d --entitlements - "$APPEX" 2>/dev/null | head -10
           done
           APP_ID="${APPLE_TEAM_ID}.${BUNDLE_ID}"
+          PUSH=""
+          if [ -n "$APNS_KEY_ID" ]; then
+            PUSH="<key>aps-environment</key><string>production</string>"
+          fi
           cat > "$RUNNER_TEMP/entitlements.plist" <<EOF
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -150,6 +157,7 @@ jobs:
             <key>application-identifier</key><string>${APP_ID}</string>
             <key>com.apple.developer.team-identifier</key><string>${APPLE_TEAM_ID}</string>
             <key>com.apple.developer.ubiquity-kvstore-identifier</key><string>${APP_ID}</string>
+            ${PUSH}
           </dict>
           </plist>
           EOF

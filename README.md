@@ -8,7 +8,7 @@ A tiny native iOS app that puts the GO Transit station departure board in your p
   - near home or work, that station;
   - on a train of your commute (judged from where the timetable puts the trains), the next station where you change;
   - anywhere else, the station you'd get home from soonest (on weekday mornings, to work), on foot if one is within a 10-minute walk, otherwise by car.
-- **Track a train.** Tap *Track this train* on a train's stops. It moves along its line on the map with a pointer showing which way it's going (one pin with your location when you're on it), a button bottom left opens it again, and a Live Activity on the Lock Screen and in the Dynamic Island counts down to its next stop, with the stops either side of it. Tracked from your station's board, it first counts down to the train getting to you ("Your Lakeshore East line 08:12 westbound train to Union Station will arrive in 6 minutes").
+- **Track a train.** Tap *Track this train* on a train's stops. It moves along its line on the map with a pointer showing which way it's going (one pin with your location when you're on it), a button bottom left opens it again, and a Live Activity on the Lock Screen and in the Dynamic Island counts down to its next stop, with the stops either side of it. Tracked from your station's board, it first counts down to the train getting to you ("Your Lakeshore East line 08:12 westbound train to Union Station will arrive in 6 minutes"). With push set up (step 5 below), the Worker pushes it an update at every stop, so it keeps up with the app closed.
 - **Every train at once.** Turn on *Show all trains* in Settings to see every train running now move along its line, placed from the timetable. Trains fade in as they set off and fade out a minute after their last stop. Tap one for its stops.
 - **No accounts, no ads.** Home/work sync through iCloud key-value storage. Live data comes from Metrolinx through a tiny Cloudflare Worker that holds the API key, so nothing secret ships in the app.
 
@@ -22,6 +22,7 @@ Trains only for now.
    - `METROLINX_API_KEY`, which the Worker workflow stores as a Worker secret
 3. **App Store Connect** (for TestFlight builds from GitHub): create an API key with the Admin role and add `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_P8` and `APPLE_TEAM_ID`.
 4. Point `ProxyConfig.baseURL` (in `Departures/API/MetrolinxClient.swift`) at your Worker.
+5. **Live Activity push updates** (optional): in your Apple Developer account, create a key with *Apple Push Notifications service* (Sandbox & Production, Team Scoped) and turn on *Push Notifications* for the app's identifier. Add `APNS_KEY_P8` (the whole .p8 file) and `APNS_KEY_ID`; the Worker workflow stores them as Worker secrets, and TestFlight builds then get push tokens. The Worker keeps a tracked trip's push token and stop times only until the trip ends.
 
 Every push to `main` builds the app and uploads it to TestFlight. Changes under `worker/` redeploy the Worker.
 

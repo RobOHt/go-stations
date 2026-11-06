@@ -8,9 +8,9 @@ import UIKit
 /// Keeps a Live Activity for the tracked trip: started when you track a train,
 /// updated while the app runs (new times, the train reaching each stop), and
 /// ended when you stop tracking or the train reaches your stop. In between its
-/// countdown and stop strip run on their own, and iOS draws it again when the
-/// train reaches the stop it counts down to. (Moving on past more stops than
-/// that without the app needs push updates from a server.)
+/// countdown and stop strip run on their own, iOS draws it again when the train
+/// reaches the stop it counts down to, and the worker pushes it an update at every
+/// stop after that (TripActivityPush), so it keeps up while the app isn't running.
 @MainActor
 final class TripActivityController {
     static let shared = TripActivityController()
@@ -21,6 +21,10 @@ final class TripActivityController {
     /// The background refresh that ends the Live Activity when the app isn't
     /// opened after the train gets in (listed in Info.plist).
     nonisolated static let refreshTaskID = "com.robinzhong.Departures.trip"
+
+    /// Each running activity's push token, by activity, once iOS hands it over.
+    private var pushTokens: [String: Data] = [:]
+    private var tokenWatchers: [String: Task<Void, Never>] = [:]
 
     private init() {}
 
@@ -35,12 +39,13 @@ final class TripActivityController {
               let attributes = Self.attributes(for: trip),
               let content = Self.content(for: trip, now: now)
         else { return }
-        do {
-            _ = try Activity.request(attributes: attributes, content: content, pushType: nil)
-        } catch {
-            // Live Activities are off for the app, or too many are running: tracking
-            // carries on in the app without one.
-        }
+        // With a push token for the worker's updates when the app can have one (it
+        // can't before push is set up), otherwise without. If neither works, Live
+        // Activities are off for the app or too many are running: tracking carries
+        // on in the app without one.
+        let activity = (try? Activity.request(attributes: attributes, content: content, pushType: .token))
+            ?? (try? Activity.request(attributes: attributes, content: content, pushType: nil))
+        if let activity { watchPushToken(of: activity) }
         scheduleRefresh(for: trip)
     }
 
@@ -52,22 +57,33 @@ final class TripActivityController {
             guard let trip, activity.attributes.tripID == trip.row.id,
                   let content = Self.content(for: trip, now: now)
             else {
+                stopPushes(to: activity)
                 Task { await activity.end(nil, dismissalPolicy: .immediate) }
                 continue
             }
             if trip.phase(at: now) == .arrived {
-                let summary = (trip.arrival ?? now).addingTimeInterval(Self.summaryTime)
-                let gone = min(trip.endsAt ?? summary, summary)
-                Task { await activity.end(content, dismissalPolicy: .after(gone)) }
-            } else if activity.content.state != content.state || activity.content.staleDate != content.staleDate {
-                Task { await activity.update(content) }
+                stopPushes(to: activity)
+                Task { await activity.end(content, dismissalPolicy: .after(Self.dismissal(of: trip, now: now))) }
+                continue
             }
+            // (The worker's revision count isn't a change.)
+            var state = content.state
+            state.revision = activity.content.state.revision
+            if activity.content.state != state || activity.content.staleDate != content.staleDate {
+                Task { await activity.update(ActivityContent(state: state, staleDate: content.staleDate)) }
+                if let token = pushTokens[activity.id] {
+                    registerPushes(token, trip: trip, attributes: activity.attributes, now: now)
+                }
+            }
+            // After a relaunch: pick its push token up again.
+            watchPushToken(of: activity)
         }
     }
 
     /// Ends every one at once (you stopped tracking, or tracked another train).
     func endAll() {
         for activity in activities {
+            stopPushes(to: activity)
             Task { await activity.end(nil, dismissalPolicy: .immediate) }
         }
         BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: Self.refreshTaskID)
@@ -81,6 +97,54 @@ final class TripActivityController {
         let request = BGAppRefreshTaskRequest(identifier: Self.refreshTaskID)
         request.earliestBeginDate = arrival.addingTimeInterval(60)
         try? BGTaskScheduler.shared.submit(request)
+    }
+
+    /// When the finished trip leaves the Lock Screen.
+    private static func dismissal(of trip: TrackedTrip, now: Date) -> Date {
+        let summary = (trip.arrival ?? now).addingTimeInterval(summaryTime)
+        return min(trip.endsAt ?? summary, summary)
+    }
+
+    // MARK: Push updates
+
+    /// Hands the activity's push token to the worker whenever iOS issues one.
+    private func watchPushToken(of activity: Activity<TripActivityAttributes>) {
+        guard tokenWatchers[activity.id] == nil else { return }
+        tokenWatchers[activity.id] = Task { [weak self] in
+            for await token in activity.pushTokenUpdates {
+                guard let self else { return }
+                self.pushTokens[activity.id] = token
+                if let trip = TripTracker.shared.trip, activity.attributes.tripID == trip.row.id {
+                    self.registerPushes(token, trip: trip, attributes: activity.attributes, now: Date())
+                }
+            }
+        }
+    }
+
+    /// Tells the worker what the activity shows and when to push it an update: as
+    /// the train reaches each stop on the way to yours, and once it's there, the
+    /// end (which stays on the Lock Screen until `dismissal(of:now:)`).
+    private func registerPushes(_ token: Data, trip: TrackedTrip, attributes: TripActivityAttributes, now: Date) {
+        guard let content = Self.content(for: trip, now: now) else { return }
+        let schedule = TripActivityTrip(attributes, content.state)
+        guard let end = schedule.arrival(at: schedule.destination), end > now else { return }
+        let times = (0..<schedule.destination).compactMap { schedule.arrival(at: $0) }.filter { $0 > now && $0 < end }
+        let job = TripActivityPush.Job(
+            token: TripActivityPush.hex(token),
+            environment: TripActivityPush.environment,
+            state: content.state,
+            times: times.map(TripActivityTime.number),
+            end: TripActivityTime.number(end),
+            dismissal: TripActivityTime.number(Self.dismissal(of: trip, now: now))
+        )
+        Task { await TripActivityPush.send(job) }
+    }
+
+    private func stopPushes(to activity: Activity<TripActivityAttributes>) {
+        tokenWatchers.removeValue(forKey: activity.id)?.cancel()
+        if let token = pushTokens.removeValue(forKey: activity.id) {
+            Task { await TripActivityPush.forget(token) }
+        }
     }
 
     // MARK: What it shows
@@ -171,4 +235,52 @@ final class TripActivityController {
         }
     }
     #endif
+}
+
+/// The worker's push updates for the Live Activity (worker/src/index.js). It gets
+/// the activity's push token, what the activity shows, and when the train reaches
+/// each stop; at each of those times Apple's push service hands the activity an
+/// update, so iOS draws it again with the next stop while the app isn't running.
+/// The worker forgets it all once the trip's over. Best effort: without it the
+/// activity still moves on once by itself, and whenever the app runs.
+enum TripActivityPush {
+    struct Job: Encodable {
+        let token: String
+        let environment: String
+        let state: TripActivityAttributes.ContentState
+        /// When to push an update, in seconds since 1970.
+        let times: [Double]
+        /// When to end the activity, and when it then leaves the Lock Screen.
+        let end: Double
+        let dismissal: Double
+    }
+
+    /// Which of Apple's push servers the app's tokens belong to.
+    #if DEBUG
+    static let environment = "development"
+    #else
+    static let environment = "production"
+    #endif
+
+    static func send(_ job: Job) async {
+        await post("/activity", body: job)
+    }
+
+    static func forget(_ token: Data) async {
+        await post("/activity/end", body: ["token": hex(token)])
+    }
+
+    static func hex(_ token: Data) -> String {
+        token.map { String(format: "%02x", $0) }.joined()
+    }
+
+    private static func post<Body: Encodable>(_ path: String, body: Body) async {
+        guard let url = URL(string: ProxyConfig.baseURL + path), let data = try? JSONEncoder().encode(body) else { return }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = data
+        request.timeoutInterval = 15
+        _ = try? await URLSession.shared.data(for: request)
+    }
 }

@@ -21,3 +21,12 @@ namespace_id = "1001"
 
 [observability]
 enabled = true
+
+# The tracked trains' Live Activity push schedules (see LiveActivities in src/index.js).
+[[durable_objects.bindings]]
+name = "LIVE_ACTIVITIES"
+class_name = "LiveActivities"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["LiveActivities"]

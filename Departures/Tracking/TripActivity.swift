@@ -135,6 +135,9 @@ struct TripActivityAttributes: ActivityAttributes {
         /// Tracked from your station's board: until the train gets there, the
         /// countdown is to it.
         var awaitsTrain: Bool? = nil
+        /// Counted up by each push update from the worker, so iOS draws the
+        /// activity again even when nothing else in it changed.
+        var revision: Int? = nil
     }
 
     /// One of the train's stops.
@@ -166,6 +169,83 @@ struct TripActivityAttributes: ActivityAttributes {
     var direction: String? = nil
     /// When it's due to leave your station, as on its board: "your 20:48 train".
     var boardingTime: Date? = nil
+}
+
+// MARK: - How it's stored
+
+/// The content's times are plain numbers, seconds since 1970, the way push updates
+/// from the worker carry them (whatever ActivityKit's own decoder does with dates).
+/// Times written by earlier builds, as seconds since 2001, still read back: as
+/// seconds since 1970 they'd be before 2008.
+enum TripActivityTime {
+    static func number(_ date: Date) -> Double { date.timeIntervalSince1970 }
+
+    static func date(_ number: Double) -> Date {
+        number > 1_200_000_000 ? Date(timeIntervalSince1970: number) : Date(timeIntervalSinceReferenceDate: number)
+    }
+
+    static func decode<Key: CodingKey>(_ values: KeyedDecodingContainer<Key>, _ key: Key) throws -> Date {
+        if let number = try? values.decode(Double.self, forKey: key) { return date(number) }
+        return try values.decode(Date.self, forKey: key)
+    }
+
+    static func decodeIfPresent<Key: CodingKey>(_ values: KeyedDecodingContainer<Key>, _ key: Key) throws -> Date? {
+        guard values.contains(key), try !values.decodeNil(forKey: key) else { return nil }
+        return try decode(values, key)
+    }
+}
+
+extension TripActivityAttributes.ContentState {
+    private enum CodingKeys: String, CodingKey {
+        case departure, arrival, hasDeparted, minutesLate, platform, stops, boardingIndex, destinationIndex,
+             awaitsTrain, revision
+    }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        departure = try TripActivityTime.decode(values, .departure)
+        arrival = try TripActivityTime.decode(values, .arrival)
+        hasDeparted = try values.decode(Bool.self, forKey: .hasDeparted)
+        minutesLate = try values.decodeIfPresent(Int.self, forKey: .minutesLate)
+        platform = try values.decodeIfPresent(String.self, forKey: .platform)
+        stops = try values.decodeIfPresent([TripActivityAttributes.Stop].self, forKey: .stops)
+        boardingIndex = try values.decodeIfPresent(Int.self, forKey: .boardingIndex)
+        destinationIndex = try values.decodeIfPresent(Int.self, forKey: .destinationIndex)
+        awaitsTrain = try values.decodeIfPresent(Bool.self, forKey: .awaitsTrain)
+        revision = try values.decodeIfPresent(Int.self, forKey: .revision)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var values = encoder.container(keyedBy: CodingKeys.self)
+        try values.encode(TripActivityTime.number(departure), forKey: .departure)
+        try values.encode(TripActivityTime.number(arrival), forKey: .arrival)
+        try values.encode(hasDeparted, forKey: .hasDeparted)
+        try values.encodeIfPresent(minutesLate, forKey: .minutesLate)
+        try values.encodeIfPresent(platform, forKey: .platform)
+        try values.encodeIfPresent(stops, forKey: .stops)
+        try values.encodeIfPresent(boardingIndex, forKey: .boardingIndex)
+        try values.encodeIfPresent(destinationIndex, forKey: .destinationIndex)
+        try values.encodeIfPresent(awaitsTrain, forKey: .awaitsTrain)
+        try values.encodeIfPresent(revision, forKey: .revision)
+    }
+}
+
+extension TripActivityAttributes.Stop {
+    private enum CodingKeys: String, CodingKey {
+        case name, time
+    }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        name = try values.decode(String.self, forKey: .name)
+        time = try TripActivityTime.decodeIfPresent(values, .time)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var values = encoder.container(keyedBy: CodingKeys.self)
+        try values.encode(name, forKey: .name)
+        try values.encodeIfPresent(time.map(TripActivityTime.number), forKey: .time)
+    }
 }
 
 extension TripActivityAttributes {
