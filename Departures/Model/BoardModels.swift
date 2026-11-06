@@ -1,7 +1,7 @@
 import Foundation
 
 /// One line on the departure board.
-struct BoardRow: Identifiable, Equatable, Sendable {
+struct BoardRow: Identifiable, Equatable, Codable, Sendable {
     let tripNumber: String
     let lineCode: String
     let lineName: String
@@ -29,7 +29,7 @@ struct BoardRow: Identifiable, Equatable, Sendable {
 
 /// Every stop of one trip, for the trip sheet.
 struct TripDetail: Sendable {
-    struct Stop: Identifiable, Sendable {
+    struct Stop: Identifiable, Equatable, Codable, Sendable {
         let index: Int
         let code: String
         /// Scheduled time at this stop.
@@ -54,7 +54,7 @@ struct StationAlert: Identifiable, Equatable, Sendable {
 }
 
 struct BoardSnapshot: Equatable, Sendable {
-    enum Source: Equatable, Sendable {
+    enum Source: Equatable, Codable, Sendable {
         /// Live Metrolinx data.
         case live
         /// The GTFS timetable, used when live data isn't available.

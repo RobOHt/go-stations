@@ -113,6 +113,7 @@ jobs:
           }
           # The first launch also warms up map tiles.
           shoot 1-map 20 map
+          shoot 1b-tracked-trip 25 trackedTrip
           shoot 2-search-focused 8 searchFocused
           shoot 2b-search-tap-away 10 searchTapAway
           shoot 3-search-typing 10 searchTyping
@@ -122,6 +123,46 @@ jobs:
           shoot 7-trip 15 trip
           # Control: a board scrolled under its pinned header (does the simulator draw edge effects?).
           shoot 8-station-scrolled 16 stationScrolled
+          # The home and work buttons ask first: replace home (set to Oakville), remove work (Union).
+          shoot 9-home-dialog 14 homeDialog
+          shoot 10-work-dialog 14 workDialog
+          shoot 11-station-earlier 14 stationEarlier
+
+          # The tracked train's Live Activity: track one, then switch to Settings so
+          # the island shows it. A few seconds later the app updates it with an
+          # alert, which expands the island for a moment; a video catches that.
+          # Then the Home Screen. (The status bar override is lifted meanwhile, in
+          # case it keeps the island from showing the activity.)
+          xcrun simctl terminate "$UDID" "$BUNDLE_ID" > /dev/null 2>&1 || true
+          sleep 1
+          xcrun simctl launch "$UDID" "$BUNDLE_ID" -debugScene liveActivity \
+            -homeStation OA -workStation UN > /dev/null
+          sleep 25
+          xcrun simctl status_bar "$UDID" clear > /dev/null 2>&1 || true
+          xcrun simctl io "$UDID" recordVideo --codec=h264 --force shots/12-island.mp4 > /dev/null 2>&1 &
+          recorder=$!
+          sleep 1
+          xcrun simctl launch "$UDID" com.apple.Preferences > /dev/null
+          sleep 2
+          xcrun simctl io "$UDID" screenshot --type=png shots/12-island.png > /dev/null 2>&1
+          sleep 10
+          xcrun simctl terminate "$UDID" com.apple.Preferences > /dev/null 2>&1 || true
+          sleep 3
+          xcrun simctl io "$UDID" screenshot --type=png shots/12-island-home.png > /dev/null 2>&1
+          sleep 1
+          kill -INT "$recorder" 2>/dev/null || true
+          wait "$recorder" 2>/dev/null || true
+          # The video is too big to push: keep the top of the screen every half second.
+          if xcrun swiftc -swift-version 5 -o "$RUNNER_TEMP/video_frames" .github/scripts/video_frames.swift \
+            > /dev/null 2>&1; then
+            "$RUNNER_TEMP/video_frames" shots/12-island.mp4 shots/12-island-video 0.5 760 || true
+          fi
+          rm -f shots/12-island.mp4
+          xcrun simctl status_bar "$UDID" override --time "9:41" --batteryState charged \
+            --batteryLevel 100 --cellularBars 4 --wifiBars 3 > /dev/null 2>&1 || true
+          echo 12-island
+          # Its views drawn in the app: Lock Screen, compact, minimal, expanded.
+          shoot 13-activity-gallery 8 activityGallery
 
       - name: Check the start-up station
         id: startup

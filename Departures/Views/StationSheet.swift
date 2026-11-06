@@ -11,6 +11,13 @@ struct StationSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var model = BoardModel()
     @State private var selectedTrip: TripSelection?
+    /// Trains that already left, when asked for (nil while hidden).
+    @State private var earlierRows: [BoardRow]?
+    /// What the home or work button is about to do, asked first. Worked out when the
+    /// button is tapped, so the words don't change while the dialog closes.
+    @State private var roleDialog = RoleDialog()
+    @State private var showsHomeDialog = false
+    @State private var showsWorkDialog = false
     /// Bumped when the app comes back to the foreground, restarting the refresh loop
     /// so the board updates right away instead of waiting out the interval.
     @State private var wake = 0
@@ -28,10 +35,13 @@ struct StationSheet: View {
                         now: context.date,
                         message: boardMessage,
                         isLoading: model.snapshot == nil && model.errorMessage == nil,
-                        isScheduled: model.snapshot?.source == .schedule
-                    ) { row in
-                        selectedTrip = TripSelection(row: row, station: station)
-                    }
+                        isScheduled: model.snapshot?.source == .schedule,
+                        onSelectRow: { row in
+                            selectedTrip = TripSelection(row: row, station: station)
+                        },
+                        earlierRows: earlierRows,
+                        onToggleEarlier: { toggleEarlier() }
+                    )
                 }
                 statusLine
                 alerts
@@ -61,6 +71,26 @@ struct StationSheet: View {
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { wake += 1 }
         }
+        // Trains that just left move into the earlier list while it's open.
+        .onChange(of: model.snapshot?.fetchedAt) { _, _ in
+            guard earlierRows != nil else { return }
+            Task { await loadEarlier() }
+        }
+        #if DEBUG
+        // Screenshot scenes: tap home or work once the sheet is up.
+        .task {
+            if DebugScene.current == .stationEarlier {
+                try? await Task.sleep(for: .seconds(2))
+                toggleEarlier()
+                return
+            }
+            guard let scene = DebugScene.current, scene == .homeDialog || scene == .workDialog else { return }
+            try? await Task.sleep(for: .seconds(2))
+            let role: Role = scene == .homeDialog ? .home : .work
+            roleDialog = dialog(for: role)
+            if role == .home { showsHomeDialog = true } else { showsWorkDialog = true }
+        }
+        #endif
         #if DEBUG
         // Screenshot scene: open the first train once the board has loaded.
         .onChange(of: model.snapshot?.rows.first?.id) { _, _ in
@@ -75,6 +105,19 @@ struct StationSheet: View {
             selectedTrip = TripSelection(row: row, station: station)
         }
         #endif
+    }
+
+    private func toggleEarlier() {
+        if earlierRows != nil {
+            withAnimation(.snappy) { earlierRows = nil }
+        } else {
+            Task { await loadEarlier() }
+        }
+    }
+
+    private func loadEarlier() async {
+        let rows = await BoardService.shared.earlierRows(for: station)
+        withAnimation(.snappy) { earlierRows = rows }
     }
 
     private var boardMessage: String? {
@@ -114,23 +157,37 @@ struct StationSheet: View {
             GlassEffectContainer(spacing: 10) {
                 HStack(spacing: 10) {
                     GlassButtonGroup(axis: .horizontal) {
+                        // Each asks first, in an action sheet that comes out of the button
+                        // (the HIG's pattern for confirming something you just chose).
                         Button {
-                            settings.setHome(isHome ? nil : station.code)
+                            roleDialog = dialog(for: .home)
+                            showsHomeDialog = true
                         } label: {
                             GlassIcon(systemName: isHome ? "house.fill" : "house",
                                       fill: isHome ? RoleColor.home : nil)
                         }
                         .accessibilityLabel(isHome ? "Remove as home station" : "Set as home station")
                         .accessibilityAddTraits(isHome ? .isSelected : [])
+                        .confirmationDialog(roleDialog.title, isPresented: $showsHomeDialog, titleVisibility: .visible) {
+                            roleActions(.home)
+                        } message: {
+                            if let message = roleDialog.message { Text(message) }
+                        }
 
                         Button {
-                            settings.setWork(isWork ? nil : station.code)
+                            roleDialog = dialog(for: .work)
+                            showsWorkDialog = true
                         } label: {
                             GlassIcon(systemName: isWork ? "briefcase.fill" : "briefcase",
                                       fill: isWork ? RoleColor.work : nil)
                         }
                         .accessibilityLabel(isWork ? "Remove as work station" : "Set as work station")
                         .accessibilityAddTraits(isWork ? .isSelected : [])
+                        .confirmationDialog(roleDialog.title, isPresented: $showsWorkDialog, titleVisibility: .visible) {
+                            roleActions(.work)
+                        } message: {
+                            if let message = roleDialog.message { Text(message) }
+                        }
                     }
 
                     GlassCloseButton { dismiss() }
@@ -141,6 +198,55 @@ struct StationSheet: View {
 
     private var isHome: Bool { settings.homeCode == station.code }
     private var isWork: Bool { settings.workCode == station.code }
+
+    // MARK: Home and work dialogs
+
+    fileprivate enum Role {
+        case home, work
+    }
+
+    /// What tapping home or work would do: set this station, replace the one that's
+    /// set, or remove this one.
+    fileprivate struct RoleDialog {
+        var title = ""
+        var message: String?
+        var confirm = ""
+        var destructive = false
+        /// What to save on confirming; nil removes it.
+        var code: String?
+    }
+
+    private func dialog(for role: Role) -> RoleDialog {
+        let current = role == .home ? settings.homeCode : settings.workCode
+        let kind = role == .home ? "home" : "work"
+        if current == station.code {
+            return RoleDialog(title: "Remove \(station.name) as your \(kind) station?",
+                              confirm: "Remove", destructive: true, code: nil)
+        }
+        if let current, let other = RailNetwork.shared.station(current) {
+            return RoleDialog(title: "Replace your \(kind) station?",
+                              message: "Your \(kind) station is \(other.name). \(station.name) will replace it.",
+                              confirm: "Replace", code: station.code)
+        }
+        let button = role == .home ? "house" : "briefcase"
+        return RoleDialog(title: "Make \(station.name) your \(kind) station?",
+                          message: "The app uses your \(kind) station to choose the board it opens with, "
+                              + "and the \(button) button on the map takes you straight to it.",
+                          confirm: role == .home ? "Set as Home" : "Set as Work", code: station.code)
+    }
+
+    @ViewBuilder
+    private func roleActions(_ role: Role) -> some View {
+        let dialog = roleDialog
+        Button(dialog.confirm, role: dialog.destructive ? ButtonRole.destructive : nil) {
+            if role == .home {
+                settings.setHome(dialog.code)
+            } else {
+                settings.setWork(dialog.code)
+            }
+        }
+        Button("Cancel", role: .cancel) {}
+    }
 
     private var roleColor: Color {
         switch (isHome, isWork) {

@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Make sure the app's bundle ID exists in the Apple Developer account, with iCloud
-enabled. The App Store Connect app record can only be created once the bundle ID
-exists. Uses the App Store Connect API key from the environment:
+"""Make sure a bundle ID exists in the Apple Developer account: the app's, with
+iCloud enabled (the App Store Connect app record can only be created once it
+exists), or its widget extension's, with --no-icloud. Uses the App Store Connect
+API key from the environment:
 
     KEY_PATH, ASC_KEY_ID, ASC_ISSUER_ID
 
-Usage: register_bundle_id.py <bundle-id> <name>
+Usage: register_bundle_id.py <bundle-id> <name> [--no-icloud]
 """
 import json
 import os
@@ -60,6 +61,7 @@ def errors(data) -> str:
 
 def main() -> int:
     bundle, name = sys.argv[1], sys.argv[2]
+    icloud = "--no-icloud" not in sys.argv[3:]
 
     query = urllib.parse.urlencode({"filter[identifier]": bundle, "limit": 200})
     status, data = call("GET", f"/bundleIds?{query}")
@@ -80,6 +82,9 @@ def main() -> int:
             return 1
         bundle_id = data["data"]["id"]
         print(f"::notice title=Bundle ID::Registered {bundle}")
+
+    if not icloud:
+        return 0
 
     status, data = call("GET", f"/bundleIds/{bundle_id}/bundleIdCapabilities")
     capabilities = {c["attributes"].get("capabilityType") for c in data.get("data", [])} if status < 300 else set()

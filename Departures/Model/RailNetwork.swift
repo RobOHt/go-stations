@@ -26,6 +26,8 @@ struct RailLine: Identifiable {
     let apiCode: String
     let name: String
     let color: Color
+    /// The colour as hex ("00853E"), for the Live Activity.
+    let hex: String
     /// Every distinct stop sequence trains on this line run, used to spot express trips.
     let patterns: [[String]]
 
@@ -178,7 +180,7 @@ final class RailNetwork {
         for entry in file.lines {
             let color = Color(hexString: entry.color)
             lines.append(RailLine(code: entry.code, apiCode: entry.apiCode, name: entry.name,
-                                  color: color, patterns: entry.patterns))
+                                  color: color, hex: entry.color, patterns: entry.patterns))
             for (index, path) in entry.paths.enumerated() {
                 let coordinates = path.compactMap { pair -> CLLocationCoordinate2D? in
                     guard pair.count == 2 else { return nil }

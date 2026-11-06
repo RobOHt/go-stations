@@ -26,6 +26,7 @@ on:
       - ".github/workflows/screenshots.yml"
       - ".github/workflows/commute.yml"
       - ".github/scripts/pick_simulator.py"
+      - ".github/scripts/video_frames.swift"
       - "worker/**"
   workflow_dispatch:
 
@@ -82,10 +83,16 @@ jobs:
         run: |
           python3 -m venv "$RUNNER_TEMP/venv"
           "$RUNNER_TEMP/venv/bin/pip" install --quiet pyjwt cryptography
-          BUNDLE_ID=$(xcodebuild -project Departures.xcodeproj -target Departures -configuration Release \
-            -showBuildSettings 2>/dev/null | awk -F' = ' '/ PRODUCT_BUNDLE_IDENTIFIER = / {print $2; exit}')
+          bundle_id() {
+            xcodebuild -project Departures.xcodeproj -target "$1" -configuration Release \
+              -showBuildSettings 2>/dev/null | awk -F' = ' '/ PRODUCT_BUNDLE_IDENTIFIER = / {print $2; exit}'
+          }
+          BUNDLE_ID=$(bundle_id Departures)
           echo "BUNDLE_ID=$BUNDLE_ID" >> "$GITHUB_ENV"
           "$RUNNER_TEMP/venv/bin/python" .github/scripts/register_bundle_id.py "$BUNDLE_ID" "GO Stations"
+          # The widget extension (the tracked train's Live Activity) needs its own.
+          "$RUNNER_TEMP/venv/bin/python" .github/scripts/register_bundle_id.py "$(bundle_id DeparturesWidgets)" \
+            "GO Stations Widgets" --no-icloud
 
       - name: Bundle a fresh timetable
         if: steps.config.outputs.ready == 'true'
@@ -116,8 +123,25 @@ jobs:
         if: steps.config.outputs.ready == 'true'
         run: |
           # Xcode's export reads the entitlements from the archived app's signature,
-          # so give the unsigned app an ad-hoc signature that carries them.
+          # so give the unsigned app an ad-hoc signature that carries them. Inside
+          # out: the widget extension first, with its own application identifier.
           APP=$(ls -d "$RUNNER_TEMP/GOStations.xcarchive/Products/Applications/"*.app | head -1)
+          for APPEX in "$APP"/PlugIns/*.appex; do
+            [ -d "$APPEX" ] || continue
+            EXT_ID="${APPLE_TEAM_ID}.$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APPEX/Info.plist")"
+            cat > "$RUNNER_TEMP/extension-entitlements.plist" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>application-identifier</key><string>${EXT_ID}</string>
+            <key>com.apple.developer.team-identifier</key><string>${APPLE_TEAM_ID}</string>
+          </dict>
+          </plist>
+          EOF
+            codesign --force --sign - --entitlements "$RUNNER_TEMP/extension-entitlements.plist" "$APPEX"
+            codesign -d --entitlements - "$APPEX" 2>/dev/null | head -10
+          done
           APP_ID="${APPLE_TEAM_ID}.${BUNDLE_ID}"
           cat > "$RUNNER_TEMP/entitlements.plist" <<EOF
           <?xml version="1.0" encoding="UTF-8"?>

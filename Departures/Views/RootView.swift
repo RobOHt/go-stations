@@ -10,6 +10,8 @@ struct RootView: View {
     @State private var selected: Station?
     @State private var detent: PresentationDetent = .medium
     @State private var showSettings = false
+    /// The tracked trip's details, opened from the map.
+    @State private var trackedSelection: TripSelection?
     @State private var backgroundedAt: Date?
 
     @State private var search = PlaceSearchModel()
@@ -75,6 +77,39 @@ struct RootView: View {
                     .presentationDragIndicator(.visible)
             }
         }
+        .sheet(item: $trackedSelection) { selection in
+            TripSheet(selection: selection)
+                .environment(settings)
+                .presentationDetents([.medium, .large])
+                .presentationBackgroundInteraction(.enabled(upThrough: .medium))
+                .presentationDragIndicator(.visible)
+        }
+        .onChange(of: TripTracker.shared.trip?.startedAt) { _, started in
+            // A newly tracked trip: show where the train is and where it goes (behind
+            // the sheets until they close).
+            guard started != nil, let trip = TripTracker.shared.trip else { return }
+            var coordinates = [trip.boardingCode, trip.destinationCode].compactMap { network.station($0)?.coordinate }
+            if let train = trip.position(at: Date(), on: StartupStation.geometry) {
+                let place = TrackGeometry.coordinate(train)
+                coordinates.append(CLLocationCoordinate2D(latitude: place.latitude, longitude: place.longitude))
+            }
+            mapController.frame(coordinates, minWidth: 6_000)
+        }
+        .task {
+            // Keep the tracked train's times (and its Live Activity) up to date, and
+            // stop tracking a while after it reaches your stop.
+            while !Task.isCancelled {
+                await TripTracker.shared.refresh()
+                TripTracker.shared.dropIfFinished()
+                try? await Task.sleep(for: .seconds(60))
+            }
+        }
+        .onOpenURL { url in
+            // Tapping the Live Activity opens the trip.
+            if url.scheme == TripActivityAttributes.openURL.scheme, url.host() == TripActivityAttributes.openURL.host() {
+                openTrackedTrip()
+            }
+        }
         .sheet(isPresented: $showSettings) {
             SettingsView()
         }
@@ -106,8 +141,15 @@ struct RootView: View {
             switch phase {
             case .background:
                 backgroundedAt = .now
+                #if DEBUG
+                if DebugScene.current == .liveActivity {
+                    TripActivityController.shared.alertForScreenshot()
+                }
+                #endif
             case .active:
                 settings.reloadFromCloud()
+                TripTracker.shared.dropIfFinished()
+                Task { await TripTracker.shared.refresh() }
                 refreshTimetable()
                 if let backgroundedAt, Date.now.timeIntervalSince(backgroundedAt) > 180 {
                     Task { await autoSelect() }
@@ -127,6 +169,8 @@ struct RootView: View {
             workCode: settings.workCode,
             place: search.place,
             onTapMap: { searchFocused = false },
+            trackedTrip: TripTracker.shared.trip,
+            onSelectTrain: { openTrackedTrip() },
             onSelect: { station in select(station, detent: .medium) }
         )
         .ignoresSafeArea()
@@ -168,9 +212,18 @@ struct RootView: View {
         VStack(alignment: .trailing, spacing: 12) {
             Spacer(minLength: 0)
             if showsControls {
-                controls
-                    .padding(.trailing, BottomBarMetrics.controlsTrailingInset)
-                    .transition(.scale(scale: 0.85, anchor: .bottomTrailing).combined(with: .opacity))
+                // The tracked trip bottom left; the map buttons bottom right.
+                HStack(alignment: .bottom, spacing: 12) {
+                    if let trip = TripTracker.shared.trip {
+                        TrackedTripButton(trip: trip) { openTrackedTrip() }
+                            .padding(.leading, BottomBarMetrics.controlsTrailingInset)
+                            .transition(.scale(scale: 0.85, anchor: .bottomLeading).combined(with: .opacity))
+                    }
+                    Spacer(minLength: 0)
+                    controls
+                        .padding(.trailing, BottomBarMetrics.controlsTrailingInset)
+                }
+                .transition(.scale(scale: 0.85, anchor: .bottom).combined(with: .opacity))
             }
             if selected == nil, searchActive {
                 SearchResults(
@@ -188,6 +241,7 @@ struct RootView: View {
         .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).maxY } action: { floatingBottom = $0 }
         .animation(.smooth(duration: 0.3), value: selected == nil)
         .animation(.smooth(duration: 0.3), value: showsControls)
+        .animation(.smooth(duration: 0.3), value: TripTracker.shared.trip?.startedAt)
         .animation(.smooth(duration: 0.25), value: sheetLift)
     }
 
@@ -289,6 +343,23 @@ struct RootView: View {
         }
     }
 
+    /// Opens the tracked trip's details (closing the station sheet or Settings first).
+    private func openTrackedTrip() {
+        guard let trip = TripTracker.shared.trip, let station = network.station(trip.boardingCode) else { return }
+        let selection = TripSelection(row: trip.row, station: station)
+        searchFocused = false
+        guard selected != nil || showSettings else {
+            trackedSelection = selection
+            return
+        }
+        selected = nil
+        showSettings = false
+        Task {
+            try? await Task.sleep(for: .milliseconds(450))
+            trackedSelection = selection
+        }
+    }
+
     private func openSettings() {
         guard selected != nil else {
             showSettings = true
@@ -323,8 +394,9 @@ struct RootView: View {
                 board = here.flatMap(bestStation(near:)) ?? settings.homeCode.flatMap(network.station)
             }
         }
-        // Settings may have opened while that was worked out.
-        if showSettings { board = nil }
+        // Settings, or the tracked trip (from its Live Activity), may have opened
+        // while that was worked out.
+        if showSettings || trackedSelection != nil { board = nil }
 
         if let here, RailNetwork.isInServiceArea(here.coordinate) {
             if let board {
@@ -371,10 +443,37 @@ struct RootView: View {
             try? await Task.sleep(for: .milliseconds(800))
             _ = search.submit()
             searchFocused = false
-        case .station, .trip:
+        case .station, .trip, .homeDialog, .workDialog, .stationEarlier:
             select(union, detent: .medium)
         case .stationLarge, .stationScrolled:
             select(union, detent: .large)
+
+        case .trackedTrip, .liveActivity:
+            await trackDebugTrain()
+        case .activityGallery:
+            break  // DeparturesApp shows the gallery in place of the map.
+        }
+    }
+
+    /// Tracks a train as if picked on your home station's board (Union's without
+    /// one): one already on its way there when there is one, so it moves on the
+    /// map. (Trains on Union's board mostly start there and just sit.)
+    private func trackDebugTrain() async {
+        guard let station = settings.homeCode.flatMap(network.station) ?? network.station("UN") else { return }
+        center(on: station.coordinate, sheetOpen: false)
+        guard let board = try? await BoardService.shared.board(for: station) else { return }
+        var picked: (BoardRow, TripDetail)?
+        for row in board.rows.prefix(8) where !row.isCancelled {
+            let detail = await BoardService.shared.tripDetail(for: row, from: station)
+            if picked == nil { picked = (row, detail) }
+            if TrainState(stops: detail.stops, now: Date()).isMoving {
+                picked = (row, detail)
+                break
+            }
+        }
+        if let picked {
+            TripTracker.shared.track(TripSelection(row: picked.0, station: station), detail: picked.1,
+                                     home: settings.homeCode, work: settings.workCode)
         }
     }
     #endif
