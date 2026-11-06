@@ -44,14 +44,17 @@ export default {
 
     if (url.pathname === "/health") {
       const body = { ok: true, configured: Boolean(env.METROLINX_API_KEY), push: pushConfigured(env) };
-      if (url.searchParams.get("check") === "push" && body.push) {
-        const ip = request.headers.get("CF-Connecting-IP") ?? "unknown";
-        if (!env.LIMITER || (await env.LIMITER.limit({ key: ip })).success) {
+      // ?check=push,metrolinx: also ask Apple and Metrolinx whether they accept the keys.
+      const checks = (url.searchParams.get("check") ?? "").split(",");
+      const ip = request.headers.get("CF-Connecting-IP") ?? "unknown";
+      if (checks.some(Boolean) && (!env.LIMITER || (await env.LIMITER.limit({ key: ip })).success)) {
+        if (checks.includes("push") && body.push) {
           body.apple = {
             production: await checkApple(env, "api.push.apple.com"),
             sandbox: await checkApple(env, "api.sandbox.push.apple.com"),
           };
         }
+        if (checks.includes("metrolinx") && body.configured) body.metrolinx = await checkMetrolinx(env);
       }
       return new Response(JSON.stringify(body), {
         headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
@@ -253,6 +256,22 @@ async function sendPush(env, job, { event, state, stale, dismissal }) {
   console.log(`APNs ${response.status} ${reason} (${event})`);
   if (reason === "ExpiredProviderToken" || reason === "InvalidProviderToken") provider = null;
   return { gone: response.status === 410 || reason === "BadDeviceToken" };
+}
+
+// Asks Metrolinx for the Union board: "200 OK" means the API key works.
+async function checkMetrolinx(env) {
+  try {
+    const response = await fetch(
+      `${UPSTREAM}/ServiceUpdate/UnionDepartures/All?key=${encodeURIComponent(env.METROLINX_API_KEY)}`,
+      { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(10_000) },
+    );
+    const text = await response.text();
+    const code = /"ErrorCode"\s*:\s*"?(\d{3})/.exec(text)?.[1] ?? "";
+    const message = /"ErrorMessage"\s*:\s*"([^"]{0,80})/.exec(text)?.[1] ?? "";
+    return `${response.status} ${code} ${message}`.replace(/\s+/g, " ").trim();
+  } catch (e) {
+    return `failed: ${e?.name ?? "Error"}`;
+  }
 }
 
 // Asks Apple's push service (production for TestFlight and App Store builds,

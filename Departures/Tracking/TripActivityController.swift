@@ -122,13 +122,18 @@ final class TripActivityController {
     }
 
     /// Tells the worker what the activity shows and when to push it an update: as
-    /// the train reaches each stop on the way to yours, and once it's there, the
-    /// end (which stays on the Lock Screen until `dismissal(of:now:)`).
+    /// the train reaches each stop on the way to yours and as it leaves it, and once
+    /// it's at yours, the end (which stays on the Lock Screen until `dismissal(of:now:)`).
     private func registerPushes(_ token: Data, trip: TrackedTrip, attributes: TripActivityAttributes, now: Date) {
         guard let content = Self.content(for: trip, now: now) else { return }
         let schedule = TripActivityTrip(attributes, content.state)
         guard let end = schedule.arrival(at: schedule.destination), end > now else { return }
-        let times = (0..<schedule.destination).compactMap { schedule.arrival(at: $0) }.filter { $0 > now && $0 < end }
+        var moments: Set<Date> = []
+        for index in 0..<schedule.destination {
+            if let arrives = schedule.arrival(at: index) { moments.insert(arrives) }
+            if let leaves = schedule.stops[index].time { moments.insert(leaves) }
+        }
+        let times = moments.filter { $0 > now && $0 < end }.sorted()
         let job = TripActivityPush.Job(
             token: TripActivityPush.hex(token),
             environment: TripActivityPush.environment,

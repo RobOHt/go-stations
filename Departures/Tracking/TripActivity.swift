@@ -302,6 +302,8 @@ struct TripActivityTrip {
     let destination: Int
     /// Tracked from your station's board: the countdown is to the train getting there first.
     let awaitsTrain: Bool
+    /// The last stop's short name, when the activity has all the stops.
+    let terminusName: String?
 
     init(_ attributes: TripActivityAttributes, _ state: TripActivityAttributes.ContentState) {
         if let stops = state.stops, stops.count >= 2 {
@@ -309,11 +311,13 @@ struct TripActivityTrip {
             let last = stops.count - 1
             boarding = min(max(state.boardingIndex ?? 0, 0), last)
             destination = min(max(state.destinationIndex ?? last, boarding), last)
+            terminusName = stops[last].name
         } else {
             stops = [Stop(name: attributes.boardingName, time: state.departure),
                      Stop(name: attributes.destinationName, time: state.arrival)]
             boarding = 0
             destination = 1
+            terminusName = nil
         }
         awaitsTrain = state.awaitsTrain ?? false
     }
@@ -341,9 +345,9 @@ struct TripActivityTrip {
         case .moving(let from, _):
             return TripMoment(kind: .riding, train: train, next: from + 1, target: arrival(at: from + 1), reached: from)
         case .stopped(let at):
-            // Standing at a station: the countdown is already to the one after.
-            let next = min(at + 1, stops.count - 1)
-            return TripMoment(kind: .riding, train: train, next: next, target: arrival(at: next), reached: at)
+            // Standing at a station for its minute there, until it leaves.
+            return TripMoment(kind: .atStop, train: train, next: at, target: times[at] ?? arrival(at: at),
+                              reached: at)
         case .arrived(let time):
             return TripMoment(kind: .arrived, train: train, next: stops.count - 1, target: time, reached: reached)
         case .unknown:
@@ -387,8 +391,10 @@ struct TripMoment {
         case approaching
         /// Hasn't left its first stop.
         case waiting
-        /// On its way: between stops, or standing at one.
+        /// On its way between two stops.
         case riding
+        /// Standing at a station along the way (`next`) until it leaves (`target`).
+        case atStop
         /// At your stop (or the end of its run).
         case arrived
     }
@@ -476,7 +482,28 @@ struct TripCountdown: View {
     }
 }
 
-/// Under "To Union Station": the next stop ("Next stop: Port Credit"), your
+/// Which way the train runs and where it ends: "Westbound to Aldershot".
+struct TripTitle: View {
+    let attributes: TripActivityAttributes
+    let trip: TripActivityTrip
+
+    var body: some View {
+        Text(text)
+            .font(.headline)
+            .lineLimit(1)
+            .minimumScaleFactor(0.85)
+    }
+
+    private var text: String {
+        guard let direction = attributes.direction, let first = direction.first else {
+            return "To \(attributes.terminusName)"
+        }
+        // The stops' names are the short ones ("Union"), which leave room for the direction.
+        return "\(first.uppercased())\(direction.dropFirst()) to \(trip.terminusName ?? attributes.terminusName)"
+    }
+}
+
+/// Under the title: the next stop ("Next stop: Port Credit"), your
 /// station while the train's on its way there ("Your 20:48 from Bramalea"), or
 /// where it got in.
 struct TripNextLine: View {
@@ -503,6 +530,8 @@ struct TripNextLine: View {
             return plain("Waiting at ") + bold(name(0))
         case .riding:
             return plain("Next stop: ") + bold(name(moment.next))
+        case .atStop:
+            return plain("At ") + bold(name(moment.next))
         case .arrived:
             return plain("Arrived at ") + bold(name(moment.next))
         }
@@ -526,6 +555,9 @@ struct TripTimeBlock: View {
                 Text(moment.target.map(TripActivityFormat.time) ?? "")
                     .font(.system(size: fontSize, weight: .semibold))
                     .monospacedDigit()
+            } else if moment.kind == .atStop {
+                Text("Arrived")
+                    .font(.system(size: fontSize, weight: .semibold))
             } else if let target = moment.target {
                 TripCountdown(target: target, fontSize: fontSize, alignment: .trailing)
             }
@@ -538,6 +570,8 @@ struct TripTimeBlock: View {
         case .approaching: return trip.boarding == 0 ? "Leaves in" : "Arrives in"
         case .waiting: return "Leaves in"
         case .riding: return "Arrives in"
+        // "Arrived" itself, in big type, says it.
+        case .atStop: return " "
         case .arrived: return "Arrived"
         }
     }
@@ -771,9 +805,7 @@ struct TripLockScreen: View {
                     TripLinePill(code: attributes.lineCode, color: attributes.lineColor, fontSize: 15, shape: Capsule())
                         .frame(height: 32)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("To \(attributes.terminusName)")
-                            .font(.headline)
-                            .lineLimit(1)
+                        TripTitle(attributes: attributes, trip: trip)
                         TripNextLine(attributes: attributes, trip: trip, moment: moment)
                             .font(.subheadline)
                     }
@@ -841,6 +873,12 @@ struct TripCompactTrailing: View {
                 .font(.system(size: 14, weight: .bold))
                 .foregroundStyle(.white)
                 .accessibilityLabel("Arrived")
+        } else if moment.kind == .atStop {
+            Text("Arrived")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.white)
+                .lineLimit(1)
+                .fixedSize()
         } else if let target = moment.target {
             TripCountdown(target: target, fontSize: target.timeIntervalSince(now) >= 3600 ? 12.5 : 15,
                           alignment: .leading)
@@ -887,6 +925,7 @@ struct TripMinimal: View {
         switch moment.kind {
         case .approaching, .waiting: start = attributes.trackedAt
         case .riding: start = trip.times[moment.reached] ?? attributes.trackedAt
+        case .atStop: start = moment.next.flatMap { trip.arrival(at: $0) } ?? end
         case .arrived: start = end.addingTimeInterval(-1)
         }
         return min(start, end)...end
@@ -926,9 +965,7 @@ struct TripExpandedCenter: View {
     var body: some View {
         let trip = TripActivityTrip(attributes, state)
         VStack(spacing: 2) {
-            Text("To \(attributes.terminusName)")
-                .font(.headline)
-                .lineLimit(1)
+            TripTitle(attributes: attributes, trip: trip)
             TripNextLine(attributes: attributes, trip: trip, moment: trip.moment(at: Date()))
                 .font(.subheadline)
         }
