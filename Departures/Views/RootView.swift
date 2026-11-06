@@ -408,11 +408,18 @@ struct RootView: View {
         }
     }
 
-    /// Centres the map on you, and opens the board you most likely want (see
-    /// CommutePlanner): your home or work station when you're near it, the next
-    /// change station when you're on a train of your commute, otherwise the
-    /// station you'd get home (or, weekday mornings, to work) soonest from.
+    /// At launch and after a while away. With a train tracked: the train, on the map
+    /// and its stops open. Otherwise centres the map on you, and opens the board you
+    /// most likely want (see CommutePlanner): your home or work station when you're
+    /// near it, the next change station when you're on a train of your commute,
+    /// otherwise the station you'd get home (or, weekday mornings, to work) soonest from.
     private func autoSelect() async {
+        // Tracking a train: open on it (its stops, the map on the train), whatever
+        // station would be picked otherwise.
+        if TripTracker.shared.trip != nil {
+            openTrackedTrip()
+            return
+        }
         let here = await LocationProvider.shared.currentLocation()
 
         // SwiftUI can't show the station sheet on top of Settings.
