@@ -479,6 +479,8 @@ struct RootView: View {
         case .stationLarge, .stationScrolled:
             select(union, detent: .large)
 
+        case .allTrains:
+            mapController.show(union.coordinate, width: 60_000, sheetOpen: false)
         case .trackedTrip, .liveActivity:
             await trackDebugTrain()
         case .activityGallery:

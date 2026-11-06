@@ -11,6 +11,9 @@ enum DebugScene: String {
     /// A train tracked from the home station's board (Union's without one):
     /// moving on the map, its line standing out, the button bottom left.
     case trackedTrip
+    /// The network from Oakville to Pickering with every running train on it
+    /// (launch with `-showsAllTrains YES`).
+    case allTrains
     /// The same, for its Live Activity: the Screenshots workflow then switches to
     /// another app so the island shows it, and a few seconds after that the app
     /// updates it with an alert, which expands the island.
