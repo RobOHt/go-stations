@@ -1,16 +1,26 @@
 name: Screenshots
 
 # Runs a Debug build in the iOS Simulator, opens it in a few set-up states
-# (Departures/App/DebugScene.swift), screenshots each, and force-pushes the
-# PNGs to a screenshots-<branch> branch, so changes can be checked by eye before
-# they go to TestFlight. Runs on pushes to preview/** branches, or by hand.
+# (Departures/App/DebugScene.swift) and at a few times and places (checking the
+# board it opens on start-up), screenshots each, force-pushes the PNGs to a
+# screenshots-pr-<number> branch and shows them in a comment on the pull request,
+# so changes can be checked by eye before they go to TestFlight. Runs on pull
+# requests that touch the app, or by hand.
 on:
-  push:
-    branches: ["preview/**"]
+  pull_request:
+    paths:
+      - "Departures/**"
+      - "DeparturesWidgets/**"
+      - "Departures.xcodeproj/**"
+      - "tools/commute_reference.py"
+      - ".github/workflows/screenshots.yml"
+      - ".github/scripts/pick_simulator.py"
+      - ".github/scripts/screenshot_comment.py"
   workflow_dispatch:
 
 permissions:
   contents: write
+  pull-requests: write
 
 concurrency:
   group: screenshots-${{ github.ref }}
@@ -167,9 +177,9 @@ jobs:
             sleep 6
             xcrun simctl io "$UDID" screenshot --type=png "shots/start-$name.png" > /dev/null 2>&1 < /dev/null
             if [ "$got" = "$station $reason" ]; then
-              echo "ok    $name ($when): $got"
+              echo "ok    $name ($when): $got" | tee -a shots/startup.txt
             else
-              echo "FAIL  $name ($when): got '$got', expected '$station $reason'"
+              echo "FAIL  $name ($when): got '$got', expected '$station $reason'" | tee -a shots/startup.txt
               echo "::error title=Start-up station::$name: got '$got', expected '$station $reason'"
               failed=1
             fi
@@ -177,12 +187,17 @@ jobs:
           echo "failed=$failed" >> "$GITHUB_OUTPUT"
 
       - name: Publish to a screenshots branch
+        id: publish
         if: always() && steps.sim.outputs.udid != ''
         env:
           GH_TOKEN: ${{ github.token }}
           DEVICE: ${{ steps.sim.outputs.name }}
+          PR: ${{ github.event.pull_request.number }}
         run: |
           cd shots
+          # Small copies for the pull request comment.
+          mkdir -p thumbs
+          for f in *.png; do sips -Z 640 "$f" --out "thumbs/$f" > /dev/null; done
           printf '# Simulator screenshots\n\n%s, commit %s on %s (run %s).\n' \
             "${DEVICE//_/ }" "$GITHUB_SHA" "$GITHUB_REF_NAME" "$GITHUB_RUN_ID" > README.md
           git init -q -b ci-screenshots
@@ -190,10 +205,33 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
           git commit -qm "Screenshots for ${GITHUB_SHA}"
-          # One screenshots branch per source branch, so parallel runs don't overwrite each other.
-          TARGET="screenshots-${GITHUB_REF_NAME//\//-}"
+          # One screenshots branch per pull request (or branch), so runs don't overwrite each other.
+          if [ -n "$PR" ]; then TARGET="screenshots-pr-$PR"; else TARGET="screenshots-${GITHUB_REF_NAME//\//-}"; fi
           git push -qf "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:$TARGET"
           echo "::notice title=Screenshots::Pushed $(ls *.png | wc -l | tr -d ' ') screenshots to $TARGET"
+          echo "target=$TARGET" >> "$GITHUB_OUTPUT"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Comment on the pull request
+        if: always() && github.event_name == 'pull_request' && steps.publish.outputs.sha != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEVICE: ${{ steps.sim.outputs.name }}
+          PR: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          SHOTS_SHA: ${{ steps.publish.outputs.sha }}
+          TARGET: ${{ steps.publish.outputs.target }}
+        run: |
+          python3 .github/scripts/screenshot_comment.py shots "$GITHUB_REPOSITORY" "$SHOTS_SHA" \
+            "$TARGET" "$HEAD_SHA" "${DEVICE//_/ }" > comment.md
+          # One comment per pull request, updated on every run.
+          id=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" --paginate \
+            --jq '.[] | select(.body | startswith("<!-- screenshots -->")) | .id' | head -1)
+          if [ -n "$id" ]; then
+            gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$id" -F body=@comment.md > /dev/null
+          else
+            gh api -X POST "repos/$GITHUB_REPOSITORY/issues/$PR/comments" -F body=@comment.md > /dev/null
+          fi
 
       - name: Fail if the start-up station was wrong
         if: steps.startup.outputs.failed == '1'

@@ -22,9 +22,19 @@ Trains only for now.
 3. **App Store Connect** (for TestFlight builds from GitHub): create an API key with the Admin role and add `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_P8` and `APPLE_TEAM_ID`.
 4. Point `ProxyConfig.baseURL` (in `Departures/API/MetrolinxClient.swift`) at your Worker.
 
-Every push to `main` builds the app and uploads it to TestFlight. Changes under `worker/` redeploy the Worker.
+Every merge to `main` builds the app and uploads it to TestFlight. Changes under `worker/` redeploy the Worker.
 
 To build locally instead, open `Departures.xcodeproj` in Xcode 26 or later, pick your team under *Signing & Capabilities*, and run.
+
+## Making changes
+
+Work is tracked in [issues](../../issues). Changes go through a pull request, and `main` only takes merges whose checks pass. The exception is small changes from the owner, which can go straight to `main` (and so to TestFlight) without the checks. Each pull request gets:
+
+- **Compile (iOS Simulator)**: the app builds with the iOS 27 SDK.
+- **Swift planner matches the reference**: the start-up board logic agrees with `tools/commute_reference.py` on thousands of random situations on the current timetable, and its journey search never loses to enumerating trains. This also runs daily on the new timetable.
+- **Simulator screenshots** (when the app changes): the app in a few set-up states, plus a check of the board it opens at set times and places, posted as a comment on the pull request.
+
+Merging ships the build to TestFlight.
 
 ## How it works
 
