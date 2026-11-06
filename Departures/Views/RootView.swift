@@ -155,7 +155,10 @@ struct RootView: View {
                 TripTracker.shared.dropIfFinished()
                 Task { await TripTracker.shared.refresh() }
                 refreshTimetable()
-                if let backgroundedAt, Date.now.timeIntervalSince(backgroundedAt) > 180 {
+                if backgroundedAt != nil, TripTracker.shared.trip != nil {
+                    // Tracking a train: back on it every time you come back.
+                    openTrackedTrip()
+                } else if let backgroundedAt, Date.now.timeIntervalSince(backgroundedAt) > 180 {
                     Task { await autoSelect() }
                 }
                 backgroundedAt = nil
@@ -409,7 +412,7 @@ struct RootView: View {
     }
 
     /// At launch and after a while away. With a train tracked: the train, on the map
-    /// and its stops open. Otherwise centres the map on you, and opens the board you
+    /// and its stops open (as every time you come back to the app while tracking). Otherwise centres the map on you, and opens the board you
     /// most likely want (see CommutePlanner): your home or work station when you're
     /// near it, the next change station when you're on a train of your commute,
     /// otherwise the station you'd get home (or, weekday mornings, to work) soonest from.
