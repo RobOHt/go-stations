@@ -142,6 +142,12 @@ jobs:
           sleep 1
           kill -INT "$recorder" 2>/dev/null || true
           wait "$recorder" 2>/dev/null || true
+          # The video is too big to push: keep the top of the screen every half second.
+          if xcrun swiftc -swift-version 5 -o "$RUNNER_TEMP/video_frames" .github/scripts/video_frames.swift \
+            > /dev/null 2>&1; then
+            "$RUNNER_TEMP/video_frames" shots/12-island.mp4 shots/12-island-video 0.5 760 || true
+          fi
+          rm -f shots/12-island.mp4
           xcrun simctl status_bar "$UDID" override --time "9:41" --batteryState charged \
             --batteryLevel 100 --cellularBars 4 --wifiBars 3 > /dev/null 2>&1 || true
           echo 12-island
