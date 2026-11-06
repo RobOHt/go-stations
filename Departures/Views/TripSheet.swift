@@ -4,6 +4,9 @@ import SwiftUI
 struct TripSelection: Identifiable {
     let row: BoardRow
     let station: Station
+    /// Picked on that station's departure board, so it's where you get on: tracking
+    /// it counts down to the train getting there first.
+    var fromBoard = false
 
     var id: String { "\(row.id)@\(station.code)" }
 }
@@ -281,78 +284,11 @@ struct TripSheet: View {
 
 // MARK: - Where the train is
 
-/// Where the train should be right now, worked out from its stop times
-/// (live estimates when there are any, otherwise the timetable).
-enum TrainState {
-    /// Hasn't left its first stop yet.
-    case waiting(departs: Date)
-    /// Between two stops; `fraction` of the way from `from` to `from + 1`.
-    case moving(from: Int, fraction: Double)
-    /// Standing at a station along the way.
-    case stopped(at: Int)
-    /// Reached its last stop.
-    case arrived(at: Date)
-    /// Not enough times to tell.
-    case unknown
-
-    /// How long a train stands at each station along the way. GO's times are one
-    /// per stop (when it leaves), with nothing on how long it stops, so take a
-    /// minute: it pulls in a minute before it leaves (or halfway, on a short hop).
-    static let dwell: TimeInterval = 60
-
+extension TrainState {
+    /// Where the train is, from its stops' times (live estimates when there are any,
+    /// otherwise the timetable).
     init(stops: [TripDetail.Stop], now: Date) {
         self = Self.locate(times: stops.map { $0.expected ?? $0.time }, now: now)
-    }
-
-    /// Where a train is at `now`, from when it leaves each of its stops (nil where
-    /// that isn't known; the last stop's time is when it gets there).
-    static func locate(times: [Date?], now: Date) -> TrainState {
-        guard let first = times.first ?? nil, let last = times.last ?? nil else { return .unknown }
-        if now < first { return .waiting(departs: first) }
-        if now >= last { return .arrived(at: last) }
-        for index in 0..<(times.count - 1) {
-            guard let start = times[index], let end = times[index + 1], now >= start, now < end else { continue }
-            let stand = index + 1 == times.count - 1 ? 0 : min(dwell, end.timeIntervalSince(start) / 2)
-            let arrives = end.addingTimeInterval(-stand)
-            if now >= arrives { return .stopped(at: index + 1) }
-            let run = arrives.timeIntervalSince(start)
-            return .moving(from: index, fraction: run > 0 ? now.timeIntervalSince(start) / run : 0)
-        }
-        return .unknown
-    }
-
-    /// Position along the list, in stops (0 = first stop).
-    func progress(stopCount: Int) -> Double? {
-        switch self {
-        case .waiting: return 0
-        case .moving(let from, let fraction): return Double(from) + fraction
-        case .stopped(let at): return Double(at)
-        case .arrived: return Double(max(stopCount - 1, 0))
-        case .unknown: return nil
-        }
-    }
-
-    /// Whether the train has already left this stop.
-    func hasPassed(_ index: Int, stopCount: Int) -> Bool {
-        switch self {
-        case .waiting, .unknown: return false
-        case .moving(let from, _): return index <= from
-        case .stopped(let at): return index < at
-        case .arrived: return index < stopCount - 1
-        }
-    }
-
-    var isMoving: Bool {
-        if case .moving = self { return true }
-        return false
-    }
-
-    /// Waiting to start, or done: not in service.
-    var isIdle: Bool {
-        switch self {
-        case .waiting, .arrived, .unknown: return true
-        case .moving, .stopped: return false
-        }
     }
 }
 

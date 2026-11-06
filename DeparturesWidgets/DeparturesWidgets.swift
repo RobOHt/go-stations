@@ -25,20 +25,22 @@ struct TripLiveActivity: Widget {
                     TripExpandedLeading(attributes: context.attributes)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    TripTimeBlock(state: context.state, isStale: context.isStale, fontSize: 24)
+                    TripExpandedTrailing(attributes: context.attributes, state: context.state,
+                                         isStale: context.isStale)
                 }
                 DynamicIslandExpandedRegion(.center) {
                     TripExpandedCenter(attributes: context.attributes, state: context.state,
                                        isStale: context.isStale)
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    TripRouteProgress(attributes: context.attributes, state: context.state, onDark: true)
+                    TripExpandedBottom(attributes: context.attributes, state: context.state,
+                                       isStale: context.isStale)
                         .padding(.top, 6)
                 }
             } compactLeading: {
                 TripCompactLeading(attributes: context.attributes, state: context.state, isStale: context.isStale)
             } compactTrailing: {
-                TripCompactTrailing(state: context.state, isStale: context.isStale)
+                TripCompactTrailing(attributes: context.attributes, state: context.state, isStale: context.isStale)
             } minimal: {
                 TripMinimal(attributes: context.attributes, state: context.state, isStale: context.isStale)
             }

@@ -264,7 +264,9 @@ struct NetworkMapView: UIViewRepresentable {
         mapView.register(MKUserLocationView.self, forAnnotationViewWithReuseIdentifier: Coordinator.userLocationID)
         mapView.register(TrainAnnotationView.self, forAnnotationViewWithReuseIdentifier: TrainAnnotationView.reuseID)
         coordinator.installOverlays(on: mapView)
-        mapView.addAnnotations(RailNetwork.shared.stations.map { StationAnnotation(station: $0) })
+        mapView.addAnnotations(RailNetwork.shared.stations.map {
+            StationAnnotation(station: $0, coordinate: coordinator.onTrack($0))
+        })
         coordinator.syncRolePins(in: mapView)
 
         let tap = UITapGestureRecognizer(target: coordinator, action: #selector(Coordinator.handleTap(_:)))
@@ -392,6 +394,11 @@ struct NetworkMapView: UIViewRepresentable {
 
         // MARK: Stations
 
+        /// Where a station's dot goes: on its line, where the track passes it.
+        func onTrack(_ station: Station) -> CLLocationCoordinate2D {
+            geometry.stop(station.code).map { Self.coordinate($0) } ?? station.coordinate
+        }
+
         private func role(for station: Station) -> StationRole {
             if station.code == homeCode { return .home }
             if station.code == workCode { return .work }
@@ -410,7 +417,7 @@ struct NetworkMapView: UIViewRepresentable {
             guard current != next else { return }
 
             mapView.removeAnnotations(rolePins)
-            rolePins = wanted.map { RoleAnnotation(station: $0.0, role: $0.1) }
+            rolePins = wanted.map { RoleAnnotation(station: $0.0, role: $0.1, coordinate: onTrack($0.0)) }
             mapView.addAnnotations(rolePins)
         }
 
@@ -483,7 +490,7 @@ struct NetworkMapView: UIViewRepresentable {
             }
             var best: (station: Station, distance: CGFloat)?
             for station in RailNetwork.shared.stations {
-                let stationPoint = mapView.convert(station.coordinate, toPointTo: mapView)
+                let stationPoint = mapView.convert(onTrack(station), toPointTo: mapView)
                 let distance = hypot(stationPoint.x - point.x, stationPoint.y - point.y)
                 if distance < (best?.distance ?? .greatestFiniteMagnitude) {
                     best = (station, distance)
@@ -619,16 +626,17 @@ struct NetworkMapView: UIViewRepresentable {
 
         private var trip: TrackedTrip?
         private var train: TrainAnnotation?
-        /// The stretch still to travel: its white casing and its line.
+        /// The stretch still to travel, from the last stop the train reached to
+        /// your stop: its white casing and its line.
         private var route: [TrainRouteOverlay] = []
+        /// The stop that stretch starts at (it's redrawn when the train reaches the next).
+        private var routeStart: Int?
         private var routeRenderers: [ObjectIdentifier: MKPolylineRenderer] = [:]
         /// The trip's track from its first stop to your stop.
         private var fullRoute: [TrackGeometry.Point] = []
-        /// Moves the trains every second; the stretch ahead of the tracked one is
-        /// redrawn every five.
+        /// Moves the trains every second.
         private var timer: Timer?
         private weak var trackedMap: MKMapView?
-        private var ticks = 0
         /// The other trains running now, by trip.
         private var running: [String: TrainAnnotation] = [:]
         /// Track between neighbouring stops, by line and stops, measured once.
@@ -652,6 +660,7 @@ struct NetworkMapView: UIViewRepresentable {
             mapView.removeOverlays(route)
             train = nil
             route = []
+            routeStart = nil
             routeRenderers = [:]
             fullRoute = []
             trip = newTrip
@@ -699,7 +708,6 @@ struct NetworkMapView: UIViewRepresentable {
         private func updateTimer() {
             let needed = trip != nil || !running.isEmpty
             if needed, timer == nil {
-                ticks = 0
                 let timer = Timer(timeInterval: 1, target: self, selector: #selector(tick), userInfo: nil, repeats: true)
                 RunLoop.main.add(timer, forMode: .common)
                 self.timer = timer
@@ -712,13 +720,10 @@ struct NetworkMapView: UIViewRepresentable {
         @objc private func tick() {
             guard let mapView = trackedMap else { return }
             let now = Date()
-            ticks += 1
             moveRunning(in: mapView, now: now)
             if trip != nil {
                 moveTrain(in: mapView, now: now)
-                if ticks % 5 == 0 {
-                    updateRoute(in: mapView, now: now)
-                }
+                updateRoute(in: mapView, now: now)
             }
             keepTrainsOnTop(in: mapView)
         }
@@ -904,25 +909,32 @@ struct NetworkMapView: UIViewRepresentable {
             }
         }
 
-        /// Redraws the stretch from the train to your stop.
+        /// The stretch from the last stop the train reached to your stop, drawn again
+        /// only when it reaches the next one: its ends sit under the station dots,
+        /// and the train moves along it.
         private func updateRoute(in mapView: MKMapView, now: Date) {
-            guard let trip, fullRoute.count >= 2 else { return }
-            var remaining = fullRoute
-            if let point = trainPoint(at: now), let hit = TrackGeometry.locate(point, on: fullRoute) {
-                let path = CommutePlanner.Path(fullRoute)
-                let total = path.cumulative.last ?? 0
-                remaining = hit.along < total - 1 ? path.piece(hit.along, total) : []
-            }
+            guard let trip else { return }
+            let start = trip.state(at: now).reached(stopCount: trip.stops.count)
+            guard start != routeStart else { return }
+            routeStart = start
             let old = route
-            if remaining.count >= 2 {
-                let coordinates = remaining.map { Self.coordinate($0) }
+            let points = start < trip.destinationIndex
+                ? geometry.route(line: trip.lineCode, stops: trip.stopCodes, from: start, to: trip.destinationIndex)
+                : []
+            if points.count >= 2 {
+                let coordinates = points.map { Self.coordinate($0) }
                 route = [true, false].map { TrainRouteOverlay.make(coordinates, color: lineColor(trip.lineCode), casing: $0) }
                 mapView.addOverlays(route, level: .aboveRoads)
             } else {
                 route = []
             }
-            mapView.removeOverlays(old)
-            for overlay in old { routeRenderers[ObjectIdentifier(overlay)] = nil }
+            guard !old.isEmpty else { return }
+            // The old stretch goes once the new one has drawn, so the line doesn't blink.
+            Task { [weak self, weak mapView] in
+                try? await Task.sleep(for: .milliseconds(700))
+                mapView?.removeOverlays(old)
+                for overlay in old { self?.routeRenderers[ObjectIdentifier(overlay)] = nil }
+            }
         }
 
         /// You're on the train when you're on its track, near where it should be, and
@@ -1003,9 +1015,10 @@ final class StationAnnotation: NSObject, MKAnnotation {
     let station: Station
     let coordinate: CLLocationCoordinate2D
 
-    init(station: Station) {
+    /// At `coordinate` when given: the station's place on its line.
+    init(station: Station, coordinate: CLLocationCoordinate2D? = nil) {
         self.station = station
-        self.coordinate = station.coordinate
+        self.coordinate = coordinate ?? station.coordinate
     }
 
     var title: String? { station.name }
@@ -1121,10 +1134,10 @@ final class RoleAnnotation: NSObject, MKAnnotation {
     let role: StationRole
     let coordinate: CLLocationCoordinate2D
 
-    init(station: Station, role: StationRole) {
+    init(station: Station, role: StationRole, coordinate: CLLocationCoordinate2D? = nil) {
         self.station = station
         self.role = role
-        self.coordinate = station.coordinate
+        self.coordinate = coordinate ?? station.coordinate
     }
 
     var title: String? { role == .home ? "Home: \(station.name)" : "Work: \(station.name)" }

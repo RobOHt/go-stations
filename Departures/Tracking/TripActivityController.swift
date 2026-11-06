@@ -6,9 +6,11 @@ import UIKit
 #endif
 
 /// Keeps a Live Activity for the tracked trip: started when you track a train,
-/// updated while the app runs (new times, the train leaving your station), and
-/// ended when you stop tracking or the train reaches your stop. In between it
-/// counts down, and flips from the wait to the ride, on its own.
+/// updated while the app runs (new times, the train reaching each stop), and
+/// ended when you stop tracking or the train reaches your stop. In between its
+/// countdown and stop strip run on their own, and iOS draws it again when the
+/// train reaches the stop it counts down to. (Moving on past more stops than
+/// that without the app needs push updates from a server.)
 @MainActor
 final class TripActivityController {
     static let shared = TripActivityController()
@@ -85,6 +87,10 @@ final class TripActivityController {
         let network = RailNetwork.shared
         guard let line = network.line(code: trip.lineCode), let last = trip.stops.last else { return nil }
         func name(_ code: String) -> String { network.station(code)?.name ?? code }
+        var direction: String?
+        if let first = trip.stops.first.flatMap({ network.station($0.code) }), let end = network.station(last.code) {
+            direction = TravelDirection.of(lineCode: line.code, from: first, to: end, network: network)?.label.lowercased()
+        }
         return TripActivityAttributes(
             tripID: trip.row.id,
             tripNumber: trip.tripNumber,
@@ -93,15 +99,21 @@ final class TripActivityController {
             boardingName: name(trip.boardingCode),
             destinationName: name(trip.destinationCode),
             terminusName: name(last.code),
-            trackedAt: trip.startedAt
+            trackedAt: trip.startedAt,
+            lineName: line.name,
+            direction: direction,
+            boardingTime: trip.stops[trip.boardingIndex].time ?? trip.row.scheduled
         )
     }
 
-    /// The times, delay and platform as of `now`. Goes stale at the next of the
-    /// departure and the arrival, so the activity moves on by itself even if the
-    /// app isn't running then.
+    /// The times, delay and platform as of `now`, and every stop with its time,
+    /// so the Live Activity can show where the train is whenever it's drawn. Goes
+    /// stale when the train reaches the stop its countdown runs to, so iOS draws
+    /// it again then (with the next one) even if the app isn't running.
     static func content(for trip: TrackedTrip, now: Date) -> ActivityContent<TripActivityAttributes.ContentState>? {
-        guard let departure = trip.departure, let due = trip.arrival else { return nil }
+        guard let departure = trip.departure, let due = trip.arrival, let attributes = attributes(for: trip) else {
+            return nil
+        }
         let arrival = max(due, departure.addingTimeInterval(60))
         let hasDeparted = now >= departure
         let next = trip.stops[hasDeparted ? trip.destinationIndex : trip.boardingIndex]
@@ -109,14 +121,36 @@ final class TripActivityController {
         if trip.source == .live, let time = next.time, let expected = next.expected {
             minutesLate = max(0, Int((expected.timeIntervalSince(time) / 60).rounded()))
         }
+        let network = RailNetwork.shared
         let state = TripActivityAttributes.ContentState(
             departure: departure,
             arrival: arrival,
             hasDeparted: hasDeparted,
             minutesLate: minutesLate,
-            platform: trip.stops[trip.boardingIndex].platform ?? trip.row.platform
+            platform: trip.stops[trip.boardingIndex].platform ?? trip.row.platform,
+            stops: trip.stops.map { stop in
+                TripActivityAttributes.Stop(name: shortName(network.station(stop.code)?.name ?? stop.code),
+                                            time: stop.expected ?? stop.time)
+            },
+            boardingIndex: trip.boardingIndex,
+            destinationIndex: trip.destinationIndex,
+            awaitsTrain: trip.hasStartingStop
         )
-        return ActivityContent(state: state, staleDate: hasDeparted ? arrival : departure)
+        let target = TripActivityTrip(attributes, state).moment(at: now).target
+        return ActivityContent(state: state, staleDate: target.flatMap { $0 > now ? $0 : nil })
+    }
+
+    /// Station names short enough for the stop strip.
+    static func shortName(_ name: String) -> String {
+        let short = [
+            "Union Station": "Union",
+            "Brampton Innovation District": "Brampton",
+            "Durham College Oshawa": "Durham College",
+            "Hamilton GO Centre": "Hamilton",
+            "Allandale Waterfront": "Allandale",
+            "Guelph Central": "Guelph",
+        ]
+        return short[name] ?? name
     }
 
     #if DEBUG

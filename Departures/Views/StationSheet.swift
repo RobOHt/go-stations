@@ -37,7 +37,7 @@ struct StationSheet: View {
                         isLoading: model.snapshot == nil && model.errorMessage == nil,
                         isScheduled: model.snapshot?.source == .schedule,
                         onSelectRow: { row in
-                            selectedTrip = TripSelection(row: row, station: station)
+                            selectedTrip = TripSelection(row: row, station: station, fromBoard: true)
                         },
                         earlierRows: earlierRows,
                         onToggleEarlier: { toggleEarlier() }
@@ -102,7 +102,7 @@ struct StationSheet: View {
             }
             guard DebugScene.current == .trip, selectedTrip == nil,
                   let row = model.snapshot?.rows.first else { return }
-            selectedTrip = TripSelection(row: row, station: station)
+            selectedTrip = TripSelection(row: row, station: station, fromBoard: true)
         }
         #endif
     }

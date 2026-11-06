@@ -18,10 +18,11 @@ final class TrainAnnotation: NSObject, MKAnnotation {
 
 /// The train marker, as in the trip sheet: a train on a disc of the line's colour
 /// in a white ring, with a white pointer on the ring showing which way it's going.
-/// While the tracked train moves, its pointer nudges forward and a fainter copy of
-/// it slides ahead and fades, so the direction catches the eye. When you're on board
-/// it also carries your location's blue halo. Ignores touches like the other
-/// markers; the map's tap handler opens the trip.
+/// While the tracked train moves, its pointer pushes forward with copies of it
+/// streaming ahead, and rings in the line's colour spread from the disc, so it
+/// catches the eye. When you're on board it carries your location's blue halo
+/// instead of the rings. Ignores touches like the other markers; the map's tap
+/// handler opens the trip.
 final class TrainAnnotationView: MKAnnotationView {
     static let reuseID = "train"
 
@@ -30,7 +31,10 @@ final class TrainAnnotationView: MKAnnotationView {
     private let halo = UIView()
     private let pointer = UIView()
     private let arrow = CAShapeLayer()
-    private let echo = CAShapeLayer()
+    /// Copies of the arrow that stream ahead of it, one after the other.
+    private let echoes = [CAShapeLayer(), CAShapeLayer()]
+    /// A ring in the line's colour that spreads from the disc and fades.
+    private let ripple = CAShapeLayer()
     private let disc = UIView()
     private let glyph = UIImageView()
 
@@ -65,17 +69,23 @@ final class TrainAnnotationView: MKAnnotationView {
         halo.isHidden = true
         content.addSubview(halo)
 
+        let center = CGPoint(x: bounds.midX, y: bounds.midY)
+        ripple.frame = bounds
+        ripple.path = UIBezierPath(arcCenter: center, radius: 16, startAngle: 0, endAngle: 2 * .pi, clockwise: true).cgPath
+        ripple.lineWidth = 2.5
+        ripple.opacity = 0
+        content.layer.addSublayer(ripple)
+
         // A small triangle above the disc, its base tucked under the ring; the view
         // turns to point the way the train goes.
         pointer.frame = bounds
         pointer.isHidden = true
-        let center = CGPoint(x: bounds.midX, y: bounds.midY)
         let shape = UIBezierPath()
         shape.move(to: CGPoint(x: center.x, y: center.y - 24.5))
         shape.addLine(to: CGPoint(x: center.x + 6.5, y: center.y - 13))
         shape.addLine(to: CGPoint(x: center.x - 6.5, y: center.y - 13))
         shape.close()
-        for layer in [echo, arrow] {
+        for layer in echoes + [arrow] {
             layer.frame = pointer.bounds
             layer.path = shape.cgPath
             layer.fillColor = UIColor.white.cgColor
@@ -88,7 +98,7 @@ final class TrainAnnotationView: MKAnnotationView {
         arrow.shadowOpacity = 0.35
         arrow.shadowRadius = 2
         arrow.shadowOffset = CGSize(width: 0, height: 1)
-        echo.opacity = 0
+        for echo in echoes { echo.opacity = 0 }
         content.addSubview(pointer)
 
         disc.frame = CGRect(x: 0, y: 0, width: 32, height: 32)
@@ -118,6 +128,8 @@ final class TrainAnnotationView: MKAnnotationView {
     /// tracked train full size, the others a little smaller.
     func configure(color: UIColor, animatesPointer: Bool, isOnBoard: Bool, scale: CGFloat = 1) {
         disc.backgroundColor = color
+        ripple.strokeColor = color.withAlphaComponent(0.9).cgColor
+        ripple.fillColor = color.withAlphaComponent(0.18).cgColor
         if content.transform.a != scale {
             content.transform = CGAffineTransform(scaleX: scale, y: scale)
         }
@@ -134,6 +146,7 @@ final class TrainAnnotationView: MKAnnotationView {
                 pulse.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
                 halo.layer.add(pulse, forKey: "pulse")
             }
+            updateMotion()
         }
         if animatesPointer != isAnimated {
             isAnimated = animatesPointer
@@ -190,36 +203,61 @@ final class TrainAnnotationView: MKAnnotationView {
         }
     }
 
-    /// The tracked train, while it moves: the pointer nudges forward and back, and
-    /// a fainter copy of it slides ahead and fades out. Still with Reduce Motion,
-    /// while the train waits, and for the other trains (so the tracked one stands out).
+    /// The tracked train, while it moves: the pointer pushes forward and back with
+    /// two copies of it streaming ahead and fading, and (unless you're on board,
+    /// where your halo pulses) rings spread from the disc. Still with Reduce
+    /// Motion, while the train stands or waits, and for the other trains (so the
+    /// tracked one stands out).
     private func updateMotion() {
-        arrow.removeAnimation(forKey: "nudge")
-        echo.removeAnimation(forKey: "wake")
-        echo.opacity = 0
-        guard isAnimated, window != nil, !pointer.isHidden, !UIAccessibility.isReduceMotionEnabled else { return }
+        arrow.removeAnimation(forKey: "push")
+        for echo in echoes {
+            echo.removeAnimation(forKey: "stream")
+            echo.opacity = 0
+        }
+        ripple.removeAnimation(forKey: "ripple")
+        ripple.opacity = 0
+        guard isAnimated, window != nil, !UIAccessibility.isReduceMotionEnabled else { return }
 
-        let nudge = CABasicAnimation(keyPath: "transform.translation.y")
-        nudge.fromValue = 0
-        nudge.toValue = -2.5
-        nudge.duration = 0.6
-        nudge.autoreverses = true
-        nudge.repeatCount = .infinity
-        nudge.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-        arrow.add(nudge, forKey: "nudge")
+        if halo.isHidden {
+            let grow = CABasicAnimation(keyPath: "transform.scale")
+            grow.fromValue = 1
+            grow.toValue = 1.9
+            let fade = CABasicAnimation(keyPath: "opacity")
+            fade.fromValue = 0.85
+            fade.toValue = 0
+            let ring = CAAnimationGroup()
+            ring.animations = [grow, fade]
+            ring.duration = 1.6
+            ring.repeatCount = .infinity
+            ring.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            ripple.add(ring, forKey: "ripple")
+        }
 
-        let slide = CABasicAnimation(keyPath: "transform.translation.y")
-        slide.fromValue = 0
-        slide.toValue = -9
-        let fade = CABasicAnimation(keyPath: "opacity")
-        fade.fromValue = 0.75
-        fade.toValue = 0
-        let wake = CAAnimationGroup()
-        wake.animations = [slide, fade]
-        wake.duration = 1.2
-        wake.repeatCount = .infinity
-        wake.timingFunction = CAMediaTimingFunction(name: .easeOut)
-        echo.add(wake, forKey: "wake")
+        guard !pointer.isHidden else { return }
+        let push = CABasicAnimation(keyPath: "transform.translation.y")
+        push.fromValue = 0
+        push.toValue = -4
+        push.duration = 0.45
+        push.autoreverses = true
+        push.repeatCount = .infinity
+        push.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+        arrow.add(push, forKey: "push")
+
+        for (index, echo) in echoes.enumerated() {
+            let slide = CABasicAnimation(keyPath: "transform.translation.y")
+            slide.fromValue = -2
+            slide.toValue = -15
+            let fade = CABasicAnimation(keyPath: "opacity")
+            fade.fromValue = 0.9
+            fade.toValue = 0
+            let stream = CAAnimationGroup()
+            stream.animations = [slide, fade]
+            stream.duration = 0.9
+            stream.beginTime = echo.convertTime(CACurrentMediaTime(), from: nil) + 0.45 * Double(index)
+            stream.repeatCount = .infinity
+            stream.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            echo.add(stream, forKey: "stream")
+        }
     }
 
     /// Core Animation drops the animations when MapKit takes the view off screen.
@@ -239,8 +277,9 @@ final class TrainAnnotationView: MKAnnotationView {
 
 // MARK: - The stretch still to travel
 
-/// The track from the train to your stop, drawn a little bolder than the line,
-/// with the same white edge (a white casing under the line's colour).
+/// The track from the last stop the train reached to your stop, drawn a little
+/// bolder than the line, with the same white edge (a white casing under the
+/// line's colour).
 final class TrainRouteOverlay: MKPolyline {
     private(set) var color: UIColor = .gray
     private(set) var isCasing = false

@@ -17,6 +17,9 @@ struct TrackGeometry: Sendable {
 
     private let position: [String: Point]
     private let paths: [String: [Path]]
+    /// Where each station sits on its line's track: the closest point on its
+    /// lines' track shapes (the station itself is beside the track).
+    private let onTrack: [String: Point]
 
     init(network: CommutePlanner.Network) {
         var position: [String: Point] = [:]
@@ -25,6 +28,7 @@ struct TrackGeometry: Sendable {
         }
         self.position = position
         var paths: [String: [Path]] = [:]
+        var linesAt: [String: Set<String>] = [:]
         for line in network.lines {
             paths[line.code] = line.paths.compactMap { coordinates -> Path? in
                 let points = coordinates.compactMap { pair -> Point? in
@@ -32,8 +36,25 @@ struct TrackGeometry: Sendable {
                 }
                 return points.count >= 2 ? Path(points) : nil
             }
+            for code in line.patterns.joined() {
+                linesAt[code, default: []].insert(line.code)
+            }
         }
         self.paths = paths
+
+        var onTrack: [String: Point] = [:]
+        for (code, point) in position {
+            let lines = linesAt[code].map { Array($0) } ?? Array(paths.keys)
+            var best: (distance: Double, point: Point)?
+            for path in lines.flatMap({ paths[$0] ?? [] }) {
+                let hit = path.project(point)
+                if hit.distance <= Self.snap, hit.distance < (best?.distance ?? .infinity) {
+                    best = (hit.distance, path.point(at: hit.arc))
+                }
+            }
+            onTrack[code] = best?.point
+        }
+        self.onTrack = onTrack
     }
 
     static func point(_ coordinate: Coordinate) -> Point {
@@ -46,6 +67,9 @@ struct TrackGeometry: Sendable {
     }
 
     func station(_ code: String) -> Point? { position[code] }
+
+    /// Where to draw a station: on its line, where the track passes it.
+    func stop(_ code: String) -> Point? { onTrack[code] ?? position[code] }
 
     // MARK: Between two stops
 

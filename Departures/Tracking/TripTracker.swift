@@ -13,6 +13,11 @@ struct TrackedTrip: Codable, Equatable, Sendable {
     var stops: [TripDetail.Stop]
     var source: BoardSnapshot.Source?
     let startedAt: Date
+    /// Tracked from your station's board: until the train gets there, its Live
+    /// Activity counts down to that. (Optional so trips saved before it still load.)
+    var startsAtStop: Bool? = nil
+
+    var hasStartingStop: Bool { startsAtStop ?? false }
 
     var lineCode: String { row.lineCode }
     var tripNumber: String { row.tripNumber }
@@ -53,19 +58,23 @@ struct TrackedTrip: Codable, Equatable, Sendable {
             && abs(other.scheduled.timeIntervalSince(row.scheduled)) < 6 * 3600
     }
 
-    /// Where the train should be now, along the track, from its stop times.
+    /// Where the train should be now, along the track, from its stop times: on
+    /// the line, at a station while it stands there.
     func position(at now: Date, on geometry: TrackGeometry) -> TrackGeometry.Point? {
         let codes = stopCodes
+        guard codes.count >= 2 else { return codes.first.flatMap { geometry.stop($0) } }
         switch state(at: now) {
         case .waiting:
-            return codes.first.flatMap { geometry.station($0) }
+            return geometry.point(line: lineCode, from: codes[0], to: codes[1], fraction: 0)
         case .moving(let from, let fraction):
             guard from + 1 < codes.count else { return nil }
             return geometry.point(line: lineCode, from: codes[from], to: codes[from + 1], fraction: fraction)
         case .stopped(let at):
-            return codes.indices.contains(at) ? geometry.station(codes[at]) : nil
+            guard at > 0, at < codes.count else { return nil }
+            return geometry.point(line: lineCode, from: codes[at - 1], to: codes[at], fraction: 1)
         case .arrived:
-            return codes.last.flatMap { geometry.station($0) }
+            return geometry.point(line: lineCode, from: codes[codes.count - 2], to: codes[codes.count - 1],
+                                  fraction: 1)
         case .unknown:
             return nil
         }
@@ -131,7 +140,7 @@ final class TripTracker {
         let destination = later.first { codes[$0] == home || codes[$0] == work } ?? later.last ?? boarding
         let trip = TrackedTrip(row: selection.row, boardingCode: codes[boarding], boardingIndex: boarding,
                                destinationIndex: destination, stops: detail.stops, source: detail.source,
-                               startedAt: Date())
+                               startedAt: Date(), startsAtStop: selection.fromBoard)
         set(trip)
         TripActivityController.shared.start(trip)
     }
@@ -173,7 +182,7 @@ final class TripTracker {
         else { return }
         let updated = TrackedTrip(row: current.row, boardingCode: current.boardingCode, boardingIndex: boarding,
                                   destinationIndex: destination, stops: detail.stops, source: detail.source,
-                                  startedAt: current.startedAt)
+                                  startedAt: current.startedAt, startsAtStop: current.startsAtStop)
         guard updated != current else { return }
         set(updated)
         TripActivityController.shared.sync(updated)

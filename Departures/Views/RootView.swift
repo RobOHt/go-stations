@@ -143,6 +143,8 @@ struct RootView: View {
             switch phase {
             case .background:
                 backgroundedAt = .now
+                // The Live Activity takes over: bring it up to date as the app goes.
+                TripTracker.shared.dropIfFinished()
                 #if DEBUG
                 if DebugScene.current == .liveActivity {
                     TripActivityController.shared.alertForScreenshot()
@@ -366,7 +368,7 @@ struct RootView: View {
             let place = TrackGeometry.coordinate(train)
             center(on: CLLocationCoordinate2D(latitude: place.latitude, longitude: place.longitude), sheetOpen: true)
         }
-        openTrip(TripSelection(row: trip.row, station: station))
+        openTrip(TripSelection(row: trip.row, station: station, fromBoard: trip.hasStartingStop))
     }
 
     /// Opens a running train's stops (Show All Trains), from the station it's heading for.
@@ -505,7 +507,7 @@ struct RootView: View {
             }
         }
         if let picked {
-            TripTracker.shared.track(TripSelection(row: picked.0, station: station), detail: picked.1,
+            TripTracker.shared.track(TripSelection(row: picked.0, station: station, fromBoard: true), detail: picked.1,
                                      home: settings.homeCode, work: settings.workCode)
         }
     }
