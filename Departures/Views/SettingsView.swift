@@ -10,8 +10,10 @@ struct SettingsView: View {
         NavigationStack {
             Form {
                 stationsSection
+                mapSection
                 aboutSection
             }
+            .scrollEdgeEffectStyle(.soft, for: .top)
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -58,6 +60,22 @@ struct SettingsView: View {
             Text("Your stations")
         } footer: {
             Text("When you open the app it shows the board for the station you're at, or whichever of these is closer to you. Synced with iCloud.")
+        }
+    }
+
+    private var mapSection: some View {
+        Section {
+            Toggle(isOn: Binding(get: { settings.showsAllTrains }, set: { settings.setShowsAllTrains($0) })) {
+                Label {
+                    Text("Show all trains")
+                } icon: {
+                    Image(systemName: "tram.fill").foregroundStyle(.green)
+                }
+            }
+        } header: {
+            Text("Map")
+        } footer: {
+            Text("Every train running now, moving along its line, placed from the timetable. Trains waiting at the end of their line aren't shown. Tap one to see its stops.")
         }
     }
 

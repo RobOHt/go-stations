@@ -13,6 +13,8 @@ struct RootView: View {
     /// The tracked trip's details, opened from the map.
     @State private var trackedSelection: TripSelection?
     @State private var backgroundedAt: Date?
+    /// With Show All Trains on: the trains running now, from the timetable.
+    @State private var runningTrips: [ScheduleStore.RunningTrip] = []
 
     @State private var search = PlaceSearchModel()
     /// The system search field is active (expanded, with its close button).
@@ -171,10 +173,23 @@ struct RootView: View {
             onTapMap: { searchFocused = false },
             trackedTrip: TripTracker.shared.trip,
             onSelectTrain: { openTrackedTrip() },
+            runningTrips: settings.showsAllTrains ? runningTrips : [],
+            onSelectRunningTrain: { trip, next in openRunningTrain(trip, at: next) },
             onSelect: { station in select(station, detent: .medium) }
         )
         .ignoresSafeArea()
         .overlay { floatingUI }
+        .task(id: settings.showsAllTrains) {
+            // Which trains are running, once a minute (the map moves them in between).
+            guard settings.showsAllTrains else {
+                runningTrips = []
+                return
+            }
+            while !Task.isCancelled {
+                runningTrips = await ScheduleStore.shared.runningTrips(at: Date()) ?? []
+                try? await Task.sleep(for: .seconds(60))
+            }
+        }
     }
 
     private var stationSheetPresented: Binding<Bool> {
@@ -344,9 +359,25 @@ struct RootView: View {
     }
 
     /// Opens the tracked trip's details (closing the station sheet or Settings first).
+    /// Opens the tracked trip's details and goes to the train on the map.
     private func openTrackedTrip() {
         guard let trip = TripTracker.shared.trip, let station = network.station(trip.boardingCode) else { return }
-        let selection = TripSelection(row: trip.row, station: station)
+        if let train = trip.position(at: Date(), on: StartupStation.geometry) {
+            let place = TrackGeometry.coordinate(train)
+            center(on: CLLocationCoordinate2D(latitude: place.latitude, longitude: place.longitude), sheetOpen: true)
+        }
+        openTrip(TripSelection(row: trip.row, station: station))
+    }
+
+    /// Opens a running train's stops (Show All Trains), from the station it's heading for.
+    private func openRunningTrain(_ trip: ScheduleStore.RunningTrip, at next: Int) {
+        guard let row = BoardService.row(for: trip, at: next),
+              let station = network.station(trip.pattern[next]) else { return }
+        openTrip(TripSelection(row: row, station: station))
+    }
+
+    /// Shows a train's stops (closing the station sheet or Settings first).
+    private func openTrip(_ selection: TripSelection) {
         searchFocused = false
         guard selected != nil || showSettings else {
             trackedSelection = selection

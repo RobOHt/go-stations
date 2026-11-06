@@ -99,6 +99,18 @@ actor BoardService {
     }
 
     /// A board row for a timetable departure.
+    /// A running train as a board row at one of its stops (the next one, say), so
+    /// its stops can be opened like any train's.
+    static func row(for trip: ScheduleStore.RunningTrip, at stopIndex: Int) -> BoardRow? {
+        guard trip.pattern.indices.contains(stopIndex), stopIndex < trip.times.count,
+              let station = RailNetwork.shared.station(trip.pattern[stopIndex])
+        else { return nil }
+        let departure = ScheduleStore.Departure(tripNumber: trip.tripNumber, lineCode: trip.lineCode,
+                                                pattern: trip.pattern, stopIndex: stopIndex,
+                                                time: trip.times[stopIndex], serviceDay: trip.serviceDay)
+        return row(for: departure, at: station)
+    }
+
     private static func row(for departure: ScheduleStore.Departure, at station: Station) -> BoardRow {
         let network = RailNetwork.shared
         let line = network.line(code: departure.lineCode)

@@ -224,6 +224,10 @@ struct NetworkMapView: UIViewRepresentable {
     var trackedTrip: TrackedTrip? = nil
     /// The tracked train was tapped.
     var onSelectTrain: () -> Void = {}
+    /// With Show All Trains on: every other train running now, from the timetable.
+    var runningTrips: [ScheduleStore.RunningTrip] = []
+    /// One of those was tapped: the trip, and the index of the stop it's heading for.
+    var onSelectRunningTrain: (ScheduleStore.RunningTrip, Int) -> Void = { _, _ in }
     let onSelect: (Station) -> Void
 
     func makeCoordinator() -> Coordinator {
@@ -295,6 +299,7 @@ struct NetworkMapView: UIViewRepresentable {
         controller.attach(mapView)
         coordinator.syncPlace(place, in: mapView)
         coordinator.syncTrip(trackedTrip, in: mapView)
+        coordinator.syncRunning(runningTrips, in: mapView)
         return mapView
     }
 
@@ -307,6 +312,7 @@ struct NetworkMapView: UIViewRepresentable {
         }
         coordinator.syncPlace(place, in: mapView)
         coordinator.syncTrip(trackedTrip, in: mapView)
+        coordinator.syncRunning(runningTrips, in: mapView)
     }
 
     // MARK: Coordinator
@@ -318,6 +324,7 @@ struct NetworkMapView: UIViewRepresentable {
         private var onSelect: (Station) -> Void = { _ in }
         private var onTapMap: () -> Void = {}
         private var onSelectTrain: () -> Void = {}
+        private var onSelectRunningTrain: (ScheduleStore.RunningTrip, Int) -> Void = { _, _ in }
         private var placePin: PlaceAnnotation?
         private var selectedCode: String?
         private var homeCode: String?
@@ -333,6 +340,7 @@ struct NetworkMapView: UIViewRepresentable {
             onSelect = view.onSelect
             onTapMap = view.onTapMap
             onSelectTrain = view.onSelectTrain
+            onSelectRunningTrain = view.onSelectRunningTrain
             let changed = selectedCode != view.selectedCode
                 || homeCode != view.homeCode
                 || workCode != view.workCode
@@ -461,6 +469,10 @@ struct NetworkMapView: UIViewRepresentable {
                     return
                 }
             }
+            if let hit = runningTrain(at: point, in: mapView) {
+                onSelectRunningTrain(hit.0, hit.1)
+                return
+            }
             for pin in rolePins {
                 guard let view = mapView.view(for: pin) else { continue }
                 let frame = view.convert(view.bounds, to: mapView).insetBy(dx: -8, dy: -8)
@@ -505,11 +517,18 @@ struct NetworkMapView: UIViewRepresentable {
             }
             if let marker = annotation as? TrainAnnotation {
                 let view = mapView.dequeueReusableAnnotationView(withIdentifier: TrainAnnotationView.reuseID, for: marker)
-                if let trainView = view as? TrainAnnotationView, let trip {
-                    let now = Date()
-                    trainView.configure(color: lineColor(trip), isMoving: trip.state(at: now).isMoving,
+                guard let trainView = view as? TrainAnnotationView else { return view }
+                let now = Date()
+                trainView.setMapHeading(mapView.camera.heading)
+                if let running = marker.running {
+                    trainView.zPriority = MKAnnotationViewZPriority(rawValue: 980)
+                    trainView.configure(color: lineColor(running.lineCode), animatesPointer: false, isOnBoard: false,
+                                        scale: runningScale)
+                    trainView.setHeading(place(running, at: now)?.heading, animated: false)
+                } else if let trip {
+                    trainView.zPriority = MKAnnotationViewZPriority(rawValue: 990)
+                    trainView.configure(color: lineColor(trip.lineCode), animatesPointer: trip.state(at: now).isMoving,
                                         isOnBoard: isOnBoard)
-                    trainView.setMapHeading(mapView.camera.heading)
                     trainView.setHeading(trainHeading(at: now), animated: false)
                 }
                 return view
@@ -580,6 +599,10 @@ struct NetworkMapView: UIViewRepresentable {
             guard newZoom != zoom else { return }
             zoom = newZoom
             refreshStations(in: mapView)
+            for marker in running.values {
+                guard let view = mapView.view(for: marker) as? TrainAnnotationView, let trip = marker.running else { continue }
+                view.configure(color: lineColor(trip.lineCode), animatesPointer: false, isOnBoard: false, scale: runningScale)
+            }
             for renderer in renderers.values {
                 guard let track = renderer.polyline as? TrackPolyline else { continue }
                 renderer.lineWidth = track.isCasing ? zoom.casingWidth : zoom.lineWidth
@@ -601,9 +624,15 @@ struct NetworkMapView: UIViewRepresentable {
         private var routeRenderers: [ObjectIdentifier: MKPolylineRenderer] = [:]
         /// The trip's track from its first stop to your stop.
         private var fullRoute: [TrackGeometry.Point] = []
+        /// Moves the trains every second; the stretch ahead of the tracked one is
+        /// redrawn every five.
         private var timer: Timer?
         private weak var trackedMap: MKMapView?
         private var ticks = 0
+        /// The other trains running now, by trip.
+        private var running: [String: TrainAnnotation] = [:]
+        /// Track between neighbouring stops, by line and stops, measured once.
+        private var segments: [String: CommutePlanner.Path] = [:]
         private var userLocation: CLLocation?
         /// Your location and speed match the train's: you're on it.
         private var isOnBoard = false
@@ -625,12 +654,16 @@ struct NetworkMapView: UIViewRepresentable {
             route = []
             routeRenderers = [:]
             fullRoute = []
-            timer?.invalidate()
-            timer = nil
             trip = newTrip
             trackedMap = mapView
             setOnBoard(false, in: mapView)
             dimLines()
+            // The tracked train isn't drawn twice.
+            if let newTrip, let twin = running.first(where: { $0.value.running?.tripNumber == newTrip.tripNumber }) {
+                mapView.removeAnnotation(twin.value)
+                running[twin.key] = nil
+            }
+            updateTimer()
             guard let newTrip else { return }
 
             fullRoute = geometry.route(line: newTrip.lineCode, stops: newTrip.stopCodes,
@@ -638,21 +671,147 @@ struct NetworkMapView: UIViewRepresentable {
             let now = Date()
             moveTrain(in: mapView, now: now)
             updateRoute(in: mapView, now: now)
-            ticks = 0
-            // The train moves every second; the stretch ahead of it is redrawn every five.
-            let timer = Timer(timeInterval: 1, target: self, selector: #selector(tick), userInfo: nil, repeats: true)
-            RunLoop.main.add(timer, forMode: .common)
-            self.timer = timer
+        }
+
+        /// Shows every other train running now (Show All Trains), or none.
+        func syncRunning(_ trips: [ScheduleStore.RunningTrip], in mapView: MKMapView) {
+            trackedMap = mapView
+            let wanted = trips.filter { $0.tripNumber != trip?.tripNumber }
+            let ids = Set(wanted.map(\.id))
+            let gone = running.filter { !ids.contains($0.key) }
+            if !gone.isEmpty {
+                mapView.removeAnnotations(Array(gone.values))
+                for key in gone.keys { running[key] = nil }
+            }
+            let now = Date()
+            var added: [TrainAnnotation] = []
+            for trip in wanted where running[trip.id] == nil {
+                guard let spot = place(trip, at: now) else { continue }
+                let marker = TrainAnnotation(coordinate: Self.coordinate(spot.point), running: trip)
+                running[trip.id] = marker
+                added.append(marker)
+            }
+            if !added.isEmpty { mapView.addAnnotations(added) }
+            updateTimer()
+        }
+
+        /// The timer runs while any train is on the map.
+        private func updateTimer() {
+            let needed = trip != nil || !running.isEmpty
+            if needed, timer == nil {
+                ticks = 0
+                let timer = Timer(timeInterval: 1, target: self, selector: #selector(tick), userInfo: nil, repeats: true)
+                RunLoop.main.add(timer, forMode: .common)
+                self.timer = timer
+            } else if !needed {
+                timer?.invalidate()
+                timer = nil
+            }
         }
 
         @objc private func tick() {
-            guard let mapView = trackedMap, trip != nil else { return }
+            guard let mapView = trackedMap else { return }
             let now = Date()
             ticks += 1
-            moveTrain(in: mapView, now: now)
-            if ticks % 5 == 0 {
-                updateRoute(in: mapView, now: now)
+            moveRunning(in: mapView, now: now)
+            if trip != nil {
+                moveTrain(in: mapView, now: now)
+                if ticks % 5 == 0 {
+                    updateRoute(in: mapView, now: now)
+                }
             }
+            keepTrainsOnTop(in: mapView)
+        }
+
+        /// The other trains: where the timetable puts them now. A train that has
+        /// reached its last stop leaves the map (the list is refreshed each minute).
+        private func moveRunning(in mapView: MKMapView, now: Date) {
+            var finished: [String] = []
+            for (key, marker) in running {
+                guard let trip = marker.running, let spot = place(trip, at: now) else {
+                    finished.append(key)
+                    continue
+                }
+                let coordinate = Self.coordinate(spot.point)
+                UIView.animate(withDuration: 1, delay: 0,
+                               options: [.curveLinear, .beginFromCurrentState, .allowUserInteraction]) {
+                    marker.coordinate = coordinate
+                }
+                (mapView.view(for: marker) as? TrainAnnotationView)?.setHeading(spot.heading, animated: true)
+            }
+            for key in finished {
+                if let marker = running.removeValue(forKey: key) { mapView.removeAnnotation(marker) }
+            }
+        }
+
+        /// Where the timetable puts a running train now, along the track between the
+        /// stops either side, and which way it's going. Nil once it's at its last stop.
+        private func place(_ trip: ScheduleStore.RunningTrip, at now: Date)
+            -> (point: TrackGeometry.Point, heading: Double?, next: Int)? {
+            let times = trip.times
+            guard times.count >= 2, times.count == trip.pattern.count,
+                  let index = (0..<(times.count - 1)).last(where: { times[$0] <= now }),
+                  now < times[times.count - 1]
+            else { return nil }
+            let span = times[index + 1].timeIntervalSince(times[index])
+            let fraction = span > 0 ? min(max(now.timeIntervalSince(times[index]) / span, 0), 1) : 0
+            let line = RailNetwork.shared.line(code: trip.lineCode)?.code ?? trip.lineCode
+            let key = "\(line)|\(trip.pattern[index])|\(trip.pattern[index + 1])"
+            let path: CommutePlanner.Path
+            if let cached = segments[key] {
+                path = cached
+            } else {
+                let points = geometry.segment(line: line, from: trip.pattern[index], to: trip.pattern[index + 1])
+                guard points.count >= 2 else { return nil }
+                path = CommutePlanner.Path(points)
+                segments[key] = path
+            }
+            let length = path.cumulative[path.cumulative.count - 1]
+            let along = length * fraction
+            // Direction: across 50 m of track around the train.
+            let a = path.point(at: max(0, min(along, length - 25)))
+            let b = path.point(at: min(length, max(along, 25) + 25))
+            var heading: Double?
+            if a.x != b.x || a.y != b.y {
+                let degrees = atan2(b.x - a.x, b.y - a.y) * 180 / .pi
+                heading = degrees < 0 ? degrees + 360 : degrees
+            }
+            return (path.point(at: along), heading, index + 1)
+        }
+
+        /// The other trains shrink as the map zooms out, so the lines stay readable.
+        private var runningScale: CGFloat {
+            switch zoom {
+            case .street, .city: return 0.85
+            case .region: return 0.75
+            case .network, .province: return 0.62
+            }
+        }
+
+        /// The running train under a tap, and the stop it's heading for.
+        private func runningTrain(at point: CGPoint, in mapView: MKMapView) -> (ScheduleStore.RunningTrip, Int)? {
+            var best: (trip: ScheduleStore.RunningTrip, distance: CGFloat)?
+            for marker in running.values {
+                guard let trip = marker.running, let view = mapView.view(for: marker), !view.isHidden else { continue }
+                let center = view.convert(CGPoint(x: view.bounds.midX, y: view.bounds.midY), to: mapView)
+                let distance = hypot(center.x - point.x, center.y - point.y)
+                if distance <= 22 * runningScale + 6, distance < (best?.distance ?? .greatestFiniteMagnitude) {
+                    best = (trip, distance)
+                }
+            }
+            guard let best, let spot = place(best.trip, at: Date()) else { return nil }
+            return (best.trip, spot.next)
+        }
+
+        /// Trains above the station dots (MapKit doesn't always keep annotation
+        /// views in z-priority order), the tracked one above the others, and your
+        /// location above them all.
+        private func keepTrainsOnTop(in mapView: MKMapView) {
+            for marker in running.values {
+                if let view = mapView.view(for: marker) { view.superview?.bringSubviewToFront(view) }
+            }
+            if let train, let view = mapView.view(for: train) { view.superview?.bringSubviewToFront(view) }
+            if let view = mapView.view(for: mapView.userLocation) { view.superview?.bringSubviewToFront(view) }
         }
 
         /// The stretch still to travel is a little bolder than the line, with the
@@ -674,8 +833,9 @@ struct NetworkMapView: UIViewRepresentable {
             return CLLocationCoordinate2D(latitude: coordinate.latitude, longitude: coordinate.longitude)
         }
 
-        private func lineColor(_ trip: TrackedTrip) -> UIColor {
-            RailNetwork.shared.trackPaths.first { $0.lineCode == trip.lineCode }?.uiColor ?? .systemGray
+        private func lineColor(_ code: String) -> UIColor {
+            let line = RailNetwork.shared.line(code: code)?.code ?? code
+            return RailNetwork.shared.trackPaths.first { $0.lineCode == line }?.uiColor ?? .systemGray
         }
 
         /// While a trip is tracked, its line stands out: the others fade.
@@ -725,7 +885,7 @@ struct NetworkMapView: UIViewRepresentable {
                 mapView.addAnnotation(marker)
             }
             if let train, let view = mapView.view(for: train) as? TrainAnnotationView {
-                view.configure(color: lineColor(trip), isMoving: trip.state(at: now).isMoving, isOnBoard: isOnBoard)
+                view.configure(color: lineColor(trip.lineCode), animatesPointer: trip.state(at: now).isMoving, isOnBoard: isOnBoard)
                 view.setHeading(trainHeading(at: now), animated: true)
             }
         }
@@ -742,7 +902,7 @@ struct NetworkMapView: UIViewRepresentable {
             let old = route
             if remaining.count >= 2 {
                 let coordinates = remaining.map { Self.coordinate($0) }
-                route = [true, false].map { TrainRouteOverlay.make(coordinates, color: lineColor(trip), casing: $0) }
+                route = [true, false].map { TrainRouteOverlay.make(coordinates, color: lineColor(trip.lineCode), casing: $0) }
                 mapView.addOverlays(route, level: .aboveRoads)
             } else {
                 route = []
@@ -788,7 +948,7 @@ struct NetworkMapView: UIViewRepresentable {
             if value != isOnBoard {
                 isOnBoard = value
                 if let train, let trip, let view = mapView.view(for: train) as? TrainAnnotationView {
-                    view.configure(color: lineColor(trip), isMoving: trip.state(at: Date()).isMoving, isOnBoard: value)
+                    view.configure(color: lineColor(trip.lineCode), animatesPointer: trip.state(at: Date()).isMoving, isOnBoard: value)
                 }
             }
             mapView.view(for: mapView.userLocation)?.isHidden = isOnBoard

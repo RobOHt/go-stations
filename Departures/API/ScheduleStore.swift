@@ -149,6 +149,63 @@ actor ScheduleStore {
         return result
     }
 
+    /// A train in service: it has left its first stop and isn't at its last yet.
+    struct RunningTrip: Sendable, Equatable, Identifiable {
+        let tripNumber: String
+        let lineCode: String
+        /// Its stops, and the scheduled time at each.
+        let pattern: [String]
+        let times: [Date]
+        let serviceDay: String
+
+        var id: String { "\(serviceDay)-\(tripNumber)" }
+    }
+
+    /// Every train in service at `now`, from the timetable: trains still waiting at
+    /// their first stop, or done at their last, aren't. Nil when the timetable
+    /// doesn't cover today.
+    func runningTrips(at now: Date) -> [RunningTrip]? {
+        loadIfNeeded()
+        guard let file else { return nil }
+
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TorontoTime.zone
+        let today = calendar.startOfDay(for: now)
+
+        var result: [RunningTrip] = []
+        var coversToday = false
+        // Yesterday's service day still runs after midnight.
+        for offset in -1...0 {
+            guard let day = calendar.date(byAdding: .day, value: offset, to: today),
+                  let noon = calendar.date(bySettingHour: 12, minute: 0, second: 0, of: day)
+            else { continue }
+            let dayKey = TorontoTime.dateWire(day)
+            guard let indices = file.days[dayKey] else { continue }
+            if offset == 0 { coversToday = true }
+            let base = noon.addingTimeInterval(-12 * 3600)
+
+            for index in indices where index < file.trips.count {
+                let trip = file.trips[index]
+                guard trip.pattern < file.patterns.count, let first = trip.times.first, let last = trip.times.last,
+                      base.addingTimeInterval(TimeInterval(first * 60)) <= now,
+                      now < base.addingTimeInterval(TimeInterval(last * 60))
+                else { continue }
+                let pattern = file.patterns[trip.pattern]
+                let count = min(pattern.count, trip.times.count)
+                guard count >= 2 else { continue }
+                result.append(RunningTrip(
+                    tripNumber: trip.number,
+                    lineCode: trip.line,
+                    pattern: Array(pattern.prefix(count)),
+                    times: trip.times.prefix(count).map { base.addingTimeInterval(TimeInterval($0 * 60)) },
+                    serviceDay: dayKey
+                ))
+            }
+        }
+        guard coversToday else { return nil }
+        return result
+    }
+
     /// The whole timetable, for the start-up planner. Nil when there's none.
     func commuteTimetable() -> CommutePlanner.Timetable? {
         loadIfNeeded()

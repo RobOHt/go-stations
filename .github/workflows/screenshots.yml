@@ -105,6 +105,8 @@ jobs:
           # The first launch also warms up map tiles.
           shoot 1-map 20 map
           shoot 1b-tracked-trip 25 trackedTrip
+          # Settings > Show all trains: every train running now, from the timetable.
+          shoot 1c-all-trains 20 map -showsAllTrains YES
           shoot 2-search-focused 8 searchFocused
           shoot 2b-search-tap-away 10 searchTapAway
           shoot 3-search-typing 10 searchTyping

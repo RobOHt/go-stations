@@ -1,16 +1,20 @@
 import Foundation
 import Observation
 
-/// Home/work stations, synced through iCloud key-value storage. No accounts, no database.
+/// Home/work stations, synced through iCloud key-value storage, and the map's
+/// options (on this device only). No accounts, no database.
 @MainActor
 @Observable
 final class AppSettings {
     private(set) var homeCode: String?
     private(set) var workCode: String?
+    /// Every train running now on the map, not just the tracked one.
+    private(set) var showsAllTrains = false
 
     private enum Key {
         static let home = "homeStation"
         static let work = "workStation"
+        static let allTrains = "showsAllTrains"
     }
 
     private let cloud = NSUbiquitousKeyValueStore.default
@@ -21,6 +25,7 @@ final class AppSettings {
         cloud.synchronize()
         homeCode = Self.stored(Key.home, cloud: cloud, local: local)
         workCode = Self.stored(Key.work, cloud: cloud, local: local)
+        showsAllTrains = local.bool(forKey: Key.allTrains)
 
         // Home/work changed on another device.
         cloudObserver = NotificationCenter.default.addObserver(
@@ -49,6 +54,11 @@ final class AppSettings {
     func setWork(_ code: String?) {
         workCode = code
         store(code, forKey: Key.work)
+    }
+
+    func setShowsAllTrains(_ value: Bool) {
+        showsAllTrains = value
+        local.set(value, forKey: Key.allTrains)
     }
 
     /// Picks up changes made on another device (call when the app becomes active).

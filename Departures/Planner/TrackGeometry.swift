@@ -88,6 +88,12 @@ struct TrackGeometry: Sendable {
         return Point(x: pa.x + (pb.x - pa.x) * f, y: pa.y + (pb.y - pa.y) * f)
     }
 
+    /// The track between two neighbouring stops, in travel order (a straight line
+    /// where no track shape joins them).
+    func segment(line: String, from a: String, to b: String) -> [Point] {
+        track(line, from: a, to: b)
+    }
+
     /// The direction of travel `fraction` of the way between stops a and b, in
     /// degrees clockwise from north.
     func heading(line: String, from a: String, to b: String, fraction: Double) -> Double? {

@@ -1,7 +1,8 @@
 import SwiftUI
 
-/// Bottom left of the map while a trip is tracked: the line, and how long until
-/// the train leaves your station (or reaches your stop). Opens the trip.
+/// Bottom left of the map while a trip is tracked: the line's pill and
+/// "Tracking". Opens the trip and goes to the train on the map. (VoiceOver also
+/// hears when the train leaves your station or reaches your stop.)
 struct TrackedTripButton: View {
     let trip: TrackedTrip
     let action: () -> Void
@@ -10,46 +11,37 @@ struct TrackedTripButton: View {
 
     var body: some View {
         Button(action: action) {
-            TimelineView(.periodic(from: .now, by: 10)) { context in
-                let text = lines(at: context.date)
-                HStack(spacing: 9) {
-                    LinePill(code: trip.lineCode)
-                    VStack(alignment: .leading, spacing: 0) {
-                        Text(text.caption)
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.secondary)
-                        Text(text.value)
-                            .font(.subheadline.weight(.bold).monospacedDigit())
-                            .foregroundStyle(.primary)
-                    }
+            HStack(spacing: 8) {
+                LinePill(code: trip.lineCode)
+                Text("Tracking")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
                     .lineLimit(1)
-                }
-                .padding(.leading, LinePill.inset)
-                .padding(.trailing, 16)
-                .frame(height: LinePill.height + 2 * LinePill.inset)
-                .frame(maxWidth: 240, alignment: .leading)
-                .contentShape(Capsule())
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel("Tracked train, line \(trip.lineCode). \(text.caption) \(text.value)")
             }
+            .padding(.leading, LinePill.inset)
+            .padding(.trailing, 16)
+            .frame(height: LinePill.height + 2 * LinePill.inset)
+            .contentShape(Capsule())
         }
         .buttonStyle(.plain)
         .glassEffect(.regular.interactive(), in: Capsule())
-        .accessibilityHint("Shows the train's stops")
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Tracking line \(trip.lineCode). \(status(at: Date()))")
+        .accessibilityHint("Shows the train's stops and where it is")
     }
 
     private func name(_ code: String) -> String {
         network.station(code)?.name ?? code
     }
 
-    private func lines(at now: Date) -> (caption: String, value: String) {
+    private func status(at now: Date) -> String {
         switch trip.phase(at: now) {
         case .departs(let time):
-            return ("Leaves \(name(trip.boardingCode))", Self.remaining(until: time, from: now))
+            return "Leaves \(name(trip.boardingCode)) \(Self.remaining(until: time, from: now))"
         case .arrives(let time):
-            return ("Arrives \(name(trip.destinationCode))", Self.remaining(until: time, from: now))
+            return "Arrives at \(name(trip.destinationCode)) \(Self.remaining(until: time, from: now))"
         case .arrived:
-            return ("Arrived", name(trip.destinationCode))
+            return "Arrived at \(name(trip.destinationCode))"
         }
     }
 
