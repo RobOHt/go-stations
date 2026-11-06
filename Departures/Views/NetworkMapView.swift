@@ -744,39 +744,53 @@ struct NetworkMapView: UIViewRepresentable {
             }
         }
 
-        /// Where the timetable puts a running train now, along the track between the
-        /// stops either side, and which way it's going. Nil once it's at its last stop.
+        /// Where the timetable puts a running train now (along the track between the
+        /// stops either side, or standing at a station for its minute there), which
+        /// way it's going, and the stop it's at or heading for. Nil once it's done.
         private func place(_ trip: ScheduleStore.RunningTrip, at now: Date)
             -> (point: TrackGeometry.Point, heading: Double?, next: Int)? {
-            let times = trip.times
-            guard times.count >= 2, times.count == trip.pattern.count,
-                  let index = (0..<(times.count - 1)).last(where: { times[$0] <= now }),
-                  now < times[times.count - 1]
-            else { return nil }
-            let span = times[index + 1].timeIntervalSince(times[index])
-            let fraction = span > 0 ? min(max(now.timeIntervalSince(times[index]) / span, 0), 1) : 0
+            let stops = trip.pattern
+            guard trip.times.count == stops.count, stops.count >= 2 else { return nil }
             let line = RailNetwork.shared.line(code: trip.lineCode)?.code ?? trip.lineCode
-            let key = "\(line)|\(trip.pattern[index])|\(trip.pattern[index + 1])"
-            let path: CommutePlanner.Path
-            if let cached = segments[key] {
-                path = cached
-            } else {
-                let points = geometry.segment(line: line, from: trip.pattern[index], to: trip.pattern[index + 1])
-                guard points.count >= 2 else { return nil }
-                path = CommutePlanner.Path(points)
-                segments[key] = path
+            switch TrainState.locate(times: trip.times.map { Optional($0) }, now: now) {
+            case .moving(let from, let fraction):
+                guard from + 1 < stops.count, let path = segment(line, stops[from], stops[from + 1]) else { return nil }
+                let along = path.cumulative[path.cumulative.count - 1] * fraction
+                return (path.point(at: along), Self.heading(on: path, at: along), from + 1)
+            case .stopped(let at):
+                guard at > 0, at < stops.count, let inbound = segment(line, stops[at - 1], stops[at]) else { return nil }
+                let end = inbound.cumulative[inbound.cumulative.count - 1]
+                // Pointing the way it will carry on.
+                var heading = Self.heading(on: inbound, at: end)
+                if at + 1 < stops.count, let onward = segment(line, stops[at], stops[at + 1]) {
+                    heading = Self.heading(on: onward, at: 0) ?? heading
+                }
+                return (inbound.point(at: end), heading, at)
+            case .waiting, .arrived, .unknown:
+                return nil
             }
+        }
+
+        /// The track between two neighbouring stops, measured once.
+        private func segment(_ line: String, _ a: String, _ b: String) -> CommutePlanner.Path? {
+            let key = "\(line)|\(a)|\(b)"
+            if let cached = segments[key] { return cached }
+            let points = geometry.segment(line: line, from: a, to: b)
+            guard points.count >= 2 else { return nil }
+            let path = CommutePlanner.Path(points)
+            segments[key] = path
+            return path
+        }
+
+        /// The direction of travel at `along` metres into a stretch of track, across
+        /// 50 m of it, in degrees clockwise from north.
+        private static func heading(on path: CommutePlanner.Path, at along: Double) -> Double? {
             let length = path.cumulative[path.cumulative.count - 1]
-            let along = length * fraction
-            // Direction: across 50 m of track around the train.
             let a = path.point(at: max(0, min(along, length - 25)))
             let b = path.point(at: min(length, max(along, 25) + 25))
-            var heading: Double?
-            if a.x != b.x || a.y != b.y {
-                let degrees = atan2(b.x - a.x, b.y - a.y) * 180 / .pi
-                heading = degrees < 0 ? degrees + 360 : degrees
-            }
-            return (path.point(at: along), heading, index + 1)
+            guard a.x != b.x || a.y != b.y else { return nil }
+            let degrees = atan2(b.x - a.x, b.y - a.y) * 180 / .pi
+            return degrees < 0 ? degrees + 360 : degrees
         }
 
         /// The other trains shrink as the map zooms out, so the lines stay readable.

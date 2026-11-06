@@ -57,8 +57,8 @@ enum PinnedHeaderMetrics {
     /// Room below the header, so the soft scroll edge under the bar covers all
     /// of the header before it fades out.
     static let bottom: CGFloat = 20
-    /// The trip sheet's header is taller, so its soft edge needs more room.
-    static let tripBottom: CGFloat = 44
+    /// The trip sheet keeps its Track button close under the header.
+    static let tripBottom: CGFloat = 12
 }
 
 extension View {

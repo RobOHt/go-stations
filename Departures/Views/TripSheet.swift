@@ -144,19 +144,23 @@ struct TripSheet: View {
                     .font(.title2.bold())
                     .lineLimit(2)
                     .minimumScaleFactor(0.7)
-                if let direction {
-                    Label(direction.label, systemImage: direction.symbol)
-                        .font(.subheadline.weight(.bold))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
-                        .background(lineColor, in: Capsule())
-                        .accessibilityLabel(direction.label)
+                // The direction, and beside it (or under it, when there's no room)
+                // when and where the train starts.
+                FlowLayout(spacing: 10, lineSpacing: 6) {
+                    if let direction {
+                        Label(direction.label, systemImage: direction.symbol)
+                            .font(.subheadline.weight(.bold))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background(lineColor, in: Capsule())
+                            .accessibilityLabel(direction.label)
+                    }
+                    Text(origin.text)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .redacted(reason: origin.isKnown ? [] : .placeholder)
                 }
-                Text(origin.text)
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .redacted(reason: origin.isKnown ? [] : .placeholder)
                 if row.isCancelled {
                     Label("Cancelled | Annulé", systemImage: "xmark.circle.fill")
                         .font(.footnote.weight(.bold))
@@ -284,32 +288,37 @@ enum TrainState {
     case waiting(departs: Date)
     /// Between two stops; `fraction` of the way from `from` to `from + 1`.
     case moving(from: Int, fraction: Double)
+    /// Standing at a station along the way.
+    case stopped(at: Int)
     /// Reached its last stop.
     case arrived(at: Date)
     /// Not enough times to tell.
     case unknown
 
+    /// How long a train stands at each station along the way. GO's times are one
+    /// per stop (when it leaves), with nothing on how long it stops, so take a
+    /// minute: it pulls in a minute before it leaves (or halfway, on a short hop).
+    static let dwell: TimeInterval = 60
+
     init(stops: [TripDetail.Stop], now: Date) {
-        let times = stops.map { $0.expected ?? $0.time }
-        guard let first = times.first ?? nil, let last = times.last ?? nil else {
-            self = .unknown
-            return
-        }
-        if now < first {
-            self = .waiting(departs: first)
-            return
-        }
-        if now >= last {
-            self = .arrived(at: last)
-            return
-        }
+        self = Self.locate(times: stops.map { $0.expected ?? $0.time }, now: now)
+    }
+
+    /// Where a train is at `now`, from when it leaves each of its stops (nil where
+    /// that isn't known; the last stop's time is when it gets there).
+    static func locate(times: [Date?], now: Date) -> TrainState {
+        guard let first = times.first ?? nil, let last = times.last ?? nil else { return .unknown }
+        if now < first { return .waiting(departs: first) }
+        if now >= last { return .arrived(at: last) }
         for index in 0..<(times.count - 1) {
             guard let start = times[index], let end = times[index + 1], now >= start, now < end else { continue }
-            let fraction = end > start ? now.timeIntervalSince(start) / end.timeIntervalSince(start) : 0
-            self = .moving(from: index, fraction: fraction)
-            return
+            let stand = index + 1 == times.count - 1 ? 0 : min(dwell, end.timeIntervalSince(start) / 2)
+            let arrives = end.addingTimeInterval(-stand)
+            if now >= arrives { return .stopped(at: index + 1) }
+            let run = arrives.timeIntervalSince(start)
+            return .moving(from: index, fraction: run > 0 ? now.timeIntervalSince(start) / run : 0)
         }
-        self = .unknown
+        return .unknown
     }
 
     /// Position along the list, in stops (0 = first stop).
@@ -317,6 +326,7 @@ enum TrainState {
         switch self {
         case .waiting: return 0
         case .moving(let from, let fraction): return Double(from) + fraction
+        case .stopped(let at): return Double(at)
         case .arrived: return Double(max(stopCount - 1, 0))
         case .unknown: return nil
         }
@@ -327,6 +337,7 @@ enum TrainState {
         switch self {
         case .waiting, .unknown: return false
         case .moving(let from, _): return index <= from
+        case .stopped(let at): return index < at
         case .arrived: return index < stopCount - 1
         }
     }
@@ -334,6 +345,14 @@ enum TrainState {
     var isMoving: Bool {
         if case .moving = self { return true }
         return false
+    }
+
+    /// Waiting to start, or done: not in service.
+    var isIdle: Bool {
+        switch self {
+        case .waiting, .arrived, .unknown: return true
+        case .moving, .stopped: return false
+        }
     }
 }
 
@@ -412,7 +431,7 @@ private struct TrainMarkerLayer: View {
         ZStack(alignment: .topLeading) {
             Color.clear
             if let progress = state.progress(stopCount: stopCount) {
-                TrainMarker(color: color, isSleeping: !state.isMoving)
+                TrainMarker(color: color, isSleeping: state.isIdle, isMoving: state.isMoving)
                     .position(x: TripSheet.lineX, y: CGFloat(progress) * rowHeight + rowHeight / 2)
                     .animation(.linear(duration: 10), value: progress)
             }
@@ -427,6 +446,8 @@ private struct TrainMarker: View {
     let color: Color
     /// Waiting to depart, or done for the trip.
     let isSleeping: Bool
+    /// Between stations (it pulses), not standing at one.
+    let isMoving: Bool
 
     var body: some View {
         Image(systemName: "tram.fill")
@@ -446,7 +467,7 @@ private struct TrainMarker: View {
                 }
             }
             .shadow(color: .black.opacity(0.35), radius: 3, y: 1)
-            .symbolEffect(.pulse, options: .repeating, isActive: !isSleeping)
+            .symbolEffect(.pulse, options: .repeating, isActive: isMoving)
     }
 }
 

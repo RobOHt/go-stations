@@ -62,6 +62,8 @@ struct TrackedTrip: Codable, Equatable, Sendable {
         case .moving(let from, let fraction):
             guard from + 1 < codes.count else { return nil }
             return geometry.point(line: lineCode, from: codes[from], to: codes[from + 1], fraction: fraction)
+        case .stopped(let at):
+            return codes.indices.contains(at) ? geometry.station(codes[at]) : nil
         case .arrived:
             return codes.last.flatMap { geometry.station($0) }
         case .unknown:
@@ -80,6 +82,12 @@ struct TrackedTrip: Codable, Equatable, Sendable {
         case .moving(let from, let fraction):
             guard from + 1 < codes.count else { return nil }
             return geometry.heading(line: lineCode, from: codes[from], to: codes[from + 1], fraction: fraction)
+        case .stopped(let at):
+            // The way it will carry on.
+            guard at > 0, at < codes.count else { return nil }
+            return at + 1 < codes.count
+                ? geometry.heading(line: lineCode, from: codes[at], to: codes[at + 1], fraction: 0)
+                : geometry.heading(line: lineCode, from: codes[at - 1], to: codes[at], fraction: 1)
         case .arrived:
             return geometry.heading(line: lineCode, from: codes[codes.count - 2], to: codes[codes.count - 1],
                                     fraction: 1)
