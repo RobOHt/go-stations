@@ -1,0 +1,28 @@
+name: Probe live feeds
+
+# Prints what Metrolinx's live train feeds return right now (tools/probe_live.py),
+# for working on the app's live train positions and stop times. Run by hand.
+# Uses the METROLINX_API_KEY repository secret, which it never prints.
+
+on:
+  workflow_dispatch:
+    inputs:
+      polls:
+        description: How many times to poll each feed
+        default: "4"
+      gap:
+        description: Seconds between polls
+        default: "15"
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      METROLINX_API_KEY: ${{ secrets.METROLINX_API_KEY }}
+      POLLS: ${{ inputs.polls }}
+      GAP: ${{ inputs.gap }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Probe
+        run: python3 tools/probe_live.py --polls "${POLLS:-4}" --gap "${GAP:-15}"
