@@ -154,6 +154,7 @@ struct RootView: View {
                 settings.reloadFromCloud()
                 TripTracker.shared.dropIfFinished()
                 Task { await TripTracker.shared.refresh() }
+                if wantsLiveTrains { Task { await LiveTrains.shared.refresh() } }
                 refreshTimetable()
                 if backgroundedAt != nil, TripTracker.shared.trip != nil {
                     // Tracking a train: back on it every time you come back.
@@ -193,11 +194,26 @@ struct RootView: View {
                 return
             }
             while !Task.isCancelled {
+                // Trains that got in a while ago too: live reports say when a late
+                // one really gets in.
                 runningTrips = await ScheduleStore.shared.runningTrips(
-                    at: Date(), ahead: 120, behind: TrainState.lingerAtEnd) ?? []
+                    at: Date(), ahead: 120, behind: 45 * 60) ?? []
                 try? await Task.sleep(for: .seconds(60))
             }
         }
+        .task(id: wantsLiveTrains) {
+            // Where the trains really are, every 15 seconds while the map shows any.
+            guard wantsLiveTrains else { return }
+            while !Task.isCancelled {
+                if scenePhase == .active { await LiveTrains.shared.refresh() }
+                try? await Task.sleep(for: .seconds(15))
+            }
+        }
+    }
+
+    /// The map shows the tracked train or all trains: worth knowing where they are.
+    private var wantsLiveTrains: Bool {
+        TripTracker.shared.trip != nil || settings.showsAllTrains
     }
 
     private var stationSheetPresented: Binding<Bool> {

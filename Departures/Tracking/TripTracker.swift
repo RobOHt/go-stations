@@ -16,6 +16,11 @@ struct TrackedTrip: Codable, Equatable, Sendable {
     /// Tracked from your station's board: until the train gets there, its Live
     /// Activity counts down to that. (Optional so trips saved before it still load.)
     var startsAtStop: Bool? = nil
+    /// Where the train is among the stops, by its latest live report (nil before
+    /// the first, or without live data).
+    var live: LiveFix? = nil
+    /// How late it runs, by its live reports, in seconds (negative: early).
+    var liveDelay: Double? = nil
 
     var hasStartingStop: Bool { startsAtStop ?? false }
 
@@ -33,13 +38,25 @@ struct TrackedTrip: Codable, Equatable, Sendable {
         return stops[index].expected ?? stops[index].time
     }
 
-    /// When it leaves your station.
-    var departure: Date? { time(boardingIndex) }
-    /// When it reaches your stop.
-    var arrival: Date? { time(destinationIndex) }
+    /// When it leaves your station (when it was seen leaving, once it has).
+    var departure: Date? {
+        guard stops.indices.contains(boardingIndex) else { return nil }
+        return stops[boardingIndex].departed ?? time(boardingIndex)
+    }
+    /// When it reaches your stop (when it was seen getting there, once it has).
+    var arrival: Date? {
+        guard stops.indices.contains(destinationIndex) else { return nil }
+        return stops[destinationIndex].arrived ?? time(destinationIndex)
+    }
 
     func state(at now: Date) -> TrainState {
-        TrainState(stops: stops, now: now)
+        TrainState(stops: stops, now: now, live: live)
+    }
+
+    /// Its train has been seen at your stop, or past it.
+    var isSeenIn: Bool {
+        guard let live else { return false }
+        return live.index > destinationIndex || (live.isAt && live.index == destinationIndex)
     }
 
     /// When tracking stops and the train leaves the map: a minute after it gets to
@@ -60,8 +77,13 @@ struct TrackedTrip: Codable, Equatable, Sendable {
     }
 
     func phase(at now: Date) -> Phase {
-        if let departure, now < departure { return .departs(departure) }
-        if let arrival, now < arrival { return .arrives(arrival) }
+        if isSeenIn { return .arrived }
+        // A fresh live report outranks the times: a train still at (or on its way
+        // to) your station hasn't left it, one not yet at your stop isn't in.
+        let fresh = live.map { $0.isFresh(at: now) } ?? false
+        let notLeft = fresh && (live?.index ?? 0) <= boardingIndex
+        if let departure, now < departure || notLeft { return .departs(max(departure, now)) }
+        if let arrival, now < arrival || fresh { return .arrives(max(arrival, now)) }
         return .arrived
     }
 
@@ -69,6 +91,67 @@ struct TrackedTrip: Codable, Equatable, Sendable {
     func matches(_ other: BoardRow) -> Bool {
         other.tripNumber == row.tripNumber
             && abs(other.scheduled.timeIntervalSince(row.scheduled)) < 6 * 3600
+    }
+
+    /// The trip as its train's latest live report has it: where the train is among
+    /// its stops (standing at one, or on its way to one), when it was seen pulling
+    /// in at each and leaving, and its times ahead as late as it's running (it
+    /// never leaves a station early, whatever its delay says).
+    func following(_ train: LiveTrain, now: Date) -> TrackedTrip {
+        guard train.isFresh(at: now), var fix = train.fix(in: stopCodes, from: live?.index ?? 0) else { return self }
+        var stops = self.stops
+        let before = live
+        if let before, before.isAt, before.index == fix.index, !fix.isAt {
+            // Creeping along the platform it's at: still there.
+            fix = LiveFix(index: fix.index, isAt: true, time: fix.time)
+        }
+        if let before, before.isAt, before.index < fix.index, stops.indices.contains(before.index),
+           stops[before.index].departed == nil {
+            stops[before.index].departed = train.time
+        }
+        let pulledIn = fix.isAt && !(before?.isAt == true && before?.index == fix.index)
+        if pulledIn, fix.index > 0, stops.indices.contains(fix.index), stops[fix.index].arrived == nil {
+            stops[fix.index].arrived = train.time
+        }
+        // How late it runs, ignoring small wobbles.
+        var delay = liveDelay
+        if let reported = train.delay, delay.map({ abs(reported - $0) >= 30 }) ?? true { delay = reported }
+        let late = max(0, delay ?? 0)
+        // Seen leaving the stop before later than that: the stops ahead are that late too.
+        var extra: TimeInterval = 0
+        if fix.index > 0, let left = stops[fix.index - 1].departed, let planned = stops[fix.index - 1].time {
+            extra = max(0, left.timeIntervalSince(planned) - late)
+        }
+        for index in stops.indices where index >= fix.index {
+            let stop = stops[index]
+            guard let planned = stop.time else { continue }
+            stops[index] = TripDetail.Stop(index: stop.index, code: stop.code, time: stop.time,
+                                           expected: planned.addingTimeInterval(late + extra), platform: stop.platform,
+                                           arrived: stop.arrived, departed: stop.departed)
+        }
+        var next = self
+        next.stops = stops
+        next.source = .live
+        next.live = fix
+        next.liveDelay = delay
+        return next
+    }
+
+    /// New stops and times for the same trip (from a refresh), keeping what was
+    /// seen of its train.
+    func carrying(_ seen: TrackedTrip) -> TrackedTrip {
+        var next = self
+        for (index, stop) in next.stops.enumerated() {
+            guard let old = seen.stops.first(where: { $0.code == stop.code }) else { continue }
+            next.stops[index].arrived = old.arrived
+            next.stops[index].departed = old.departed
+        }
+        if let fix = seen.live, seen.stops.indices.contains(fix.index),
+           let index = next.stopCodes.firstIndex(of: seen.stops[fix.index].code) {
+            next.live = LiveFix(index: index, isAt: fix.isAt, time: fix.time)
+        }
+        next.liveDelay = seen.liveDelay
+        return next
     }
 
     /// Where the train should be now, along the track, from its stop times: on
@@ -169,13 +252,24 @@ final class TripTracker {
     }
 
     /// Keeps the Live Activity in step (the train reaching each stop, then your
-    /// stop), and stops tracking once the trip ends (see `TrackedTrip.endsAt`).
+    /// stop), and stops tracking once the trip ends (see `TrackedTrip.endsAt`),
+    /// unless live reports say the train is still on its way to your stop.
     func dropIfFinished(now: Date = Date()) {
         TripActivityController.shared.sync(trip, now: now)
         guard let trip else { return }
-        if now >= trip.endsAt ?? trip.startedAt.addingTimeInterval(4 * 3600) {
+        let running = (trip.live?.isFresh(at: now) ?? false) && !trip.isSeenIn
+        if now >= trip.endsAt ?? trip.startedAt.addingTimeInterval(4 * 3600), !running {
             set(nil)
         }
+    }
+
+    /// Takes in the tracked train's latest live report (see `TrackedTrip.following`).
+    func follow(_ live: LiveTrains) {
+        guard let trip, let train = live.train(trip.tripNumber) else { return }
+        let updated = trip.following(train, now: Date())
+        guard updated != trip else { return }
+        set(updated)
+        TripActivityController.shared.sync(updated)
     }
 
     /// Fetches the tracked train's latest times (live ones when there are any),
@@ -193,9 +287,14 @@ final class TripTracker {
         guard let boarding = codes.firstIndex(of: current.boardingCode),
               let destination = codes.indices.first(where: { $0 > boarding && codes[$0] == current.destinationCode })
         else { return }
-        let updated = TrackedTrip(row: current.row, boardingCode: current.boardingCode, boardingIndex: boarding,
+        var updated = TrackedTrip(row: current.row, boardingCode: current.boardingCode, boardingIndex: boarding,
                                   destinationIndex: destination, stops: detail.stops, source: detail.source,
                                   startedAt: current.startedAt, startsAtStop: current.startsAtStop)
+            .carrying(current)
+        // Live times from its train's position outrank the board's.
+        if let train = LiveTrains.shared.train(current.tripNumber) {
+            updated = updated.following(train, now: Date())
+        }
         guard updated != current else { return }
         set(updated)
         TripActivityController.shared.sync(updated)

@@ -8,8 +8,8 @@ A tiny native iOS app that puts the GO Transit station departure board in your p
   - near home or work, that station;
   - on a train of your commute (judged from where the timetable puts the trains), the next station where you change;
   - anywhere else, the station you'd get home from soonest (on weekday mornings, to work), on foot if one is within a 10-minute walk, otherwise by car.
-- **Track a train.** Tap *Track this train* on a train's stops. It moves along its line on the map with a pointer showing which way it's going (one pin with your location when you're on it), a button bottom left opens it again, and a Live Activity on the Lock Screen and in the Dynamic Island counts down to its next stop, with the stops either side of it. Tracked from your station's board, it first counts down to the train getting to you ("Your Lakeshore East line 08:12 westbound train to Union Station will arrive in 6 minutes"). With push set up (step 5 below), the Worker pushes it an update at every stop, so it keeps up with the app closed.
-- **Every train at once.** Turn on *Show all trains* in Settings to see every train running now move along its line, placed from the timetable. Trains fade in as they set off and fade out a minute after their last stop. Tap one for its stops.
+- **Track a train.** Tap *Track this train* on a train's stops. It moves along its line on the map where it really is, with a pointer showing which way it's going (one pin with your location when you're on it), a button bottom left opens it again, and a Live Activity on the Lock Screen and in the Dynamic Island counts down to its next stop, with the stops either side of it. Tracked from your station's board, it first counts down to the train getting to you ("Your Lakeshore East line 08:12 westbound train to Union Station will arrive in 6 minutes"). "Arrived" shows while the train actually stands at a station, from when it's seen pulling in to when it's seen leaving, and the stops ahead are as late as the train runs. With push set up (step 5 below), the Worker follows the train while it runs and pushes the Live Activity an update when it pulls in at a stop or leaves one, so it keeps up with the app closed.
+- **Every train at once.** Turn on *Show all trains* in Settings to see every train running now move along its line, from GO's live train positions (the timetable when those aren't available). Trains fade in as they set off and fade out a minute after their last stop. Tap one for its stops.
 - **No accounts, no ads.** Home/work sync through iCloud key-value storage. Live data comes from Metrolinx through a tiny Cloudflare Worker that holds the API key, so nothing secret ships in the app.
 
 Trains only for now.
@@ -34,6 +34,7 @@ To build locally instead, open `Departures.xcodeproj` in Xcode 26 or later, pick
 | --- | --- |
 | Lines, colours, track shapes, stations | `Departures/Resources/network.json`, generated from the official GO GTFS feed |
 | Live data | the Worker in `worker/`, which forwards to Metrolinx Open Data with the key and caches answers for 20 s to 10 min |
+| Live train positions | GO's GTFS vehicle positions (every ~20 s: where each train is, and whether it's standing at a station) with Service at a Glance's delays, merged by the Worker (`/v1/live/trains`, cached 10 s). Between reports a train carries on along the track at its pace, never past the station it's heading for |
 | Union Station board | `ServiceUpdate/UnionDepartures/All` (platforms, "Express To" stop lists) |
 | Other stations | `Stop/NextService/{station}` plus `Schedule/Trip/{date}/{trip}` for the stop list (cached per day) |
 | Delays | `ComputedDepartureTime` vs `ScheduledDepartureTime` from NextService |
@@ -41,7 +42,7 @@ To build locally instead, open `Departures.xcodeproj` in Xcode 26 or later, pick
 | Station alerts under the board | `ServiceUpdate/ServiceAlert/All`, filtered to the station's lines |
 | Fallback when live data is unavailable | `schedule.json`: the next 14 days of trains from GO's GTFS, rebuilt daily on the `schedule-data` branch and bundled into each build (`tools/build_schedule.py`) |
 
-The board refreshes every 20 seconds while it's open (matching the Worker's cache) and right away when you come back to the app. It stops when you close it, so the app makes no requests in the background (apart from one check, a while after a tracked train is due at your stop, to end its Live Activity). Metrolinx has no push feed, so polling is as fresh as it gets.
+The board refreshes every 20 seconds while it's open (matching the Worker's cache) and right away when you come back to the app. Live train positions refresh every 15 seconds while the map shows the tracked train or all trains, or a train's stops are open. It stops when you close it, so the app makes no requests in the background (apart from one check, a while after a tracked train is due at your stop, to end its Live Activity). Metrolinx has no push feed, so polling is as fresh as it gets.
 
 Express trips are detected from the trip's stop list: if it skips two or more stations in a row that the line's all-stops pattern serves, it gets the ⚡. At Union the feed marks them directly.
 

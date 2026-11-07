@@ -37,6 +37,10 @@ struct TripDetail: Sendable {
         /// Live estimate, when known.
         let expected: Date?
         let platform: String?
+        /// When the train was seen pulling in here and leaving, from its live
+        /// position (the tracked train only).
+        var arrived: Date? = nil
+        var departed: Date? = nil
 
         var id: String { "\(index)-\(code)" }
     }

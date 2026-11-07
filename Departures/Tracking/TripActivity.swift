@@ -16,7 +16,7 @@ import WidgetKit
 // MARK: - Where a train is
 
 /// Where the train should be right now, worked out from its stop times
-/// (live estimates when there are any, otherwise the timetable).
+/// (when it was seen arriving and leaving, live estimates, otherwise the timetable).
 enum TrainState {
     /// Hasn't left its first stop yet.
     case waiting(departs: Date)
@@ -29,18 +29,23 @@ enum TrainState {
     /// Not enough times to tell.
     case unknown
 
-    /// How long a train stands at each station along the way. GO's times are one
-    /// per stop (when it leaves), with nothing on how long it stops, so take a
-    /// minute: it pulls in a minute before it leaves (or halfway, on a short hop).
+    /// How long a train stands at each station along the way, when nothing says
+    /// otherwise. GO's times are one per stop (when it leaves), so take a minute:
+    /// it pulls in a minute before it leaves (or halfway, on a short hop).
     static let dwell: TimeInterval = 60
 
     /// How long a train stays on the map at the end of its run before it fades away.
     static let lingerAtEnd: TimeInterval = 60
 
-    /// When the train pulls in at stop `index`: a minute before it leaves (or
-    /// halfway from the stop before, on a short hop). At its first stop, when it
-    /// leaves; at its last, its time there.
-    static func arrival(at index: Int, times: [Date?]) -> Date? {
+    /// When the train pulls in at stop `index`: when it was seen there (or, from
+    /// live data, is due there), otherwise a minute before it leaves (or halfway
+    /// from the stop before, on a short hop). At its first stop, when it leaves;
+    /// at its last, its time there.
+    static func arrival(at index: Int, times: [Date?], arrivals: [Date?] = []) -> Date? {
+        if arrivals.indices.contains(index), let seen = arrivals[index] {
+            if times.indices.contains(index), let leaves = times[index] { return min(seen, leaves) }
+            return seen
+        }
         guard times.indices.contains(index), let time = times[index] else { return nil }
         guard index > 0, index < times.count - 1 else { return time }
         let previous = times[index - 1] ?? time
@@ -48,15 +53,17 @@ enum TrainState {
     }
 
     /// Where a train is at `now`, from when it leaves each of its stops (nil where
-    /// that isn't known; the last stop's time is when it gets there).
-    static func locate(times: [Date?], now: Date) -> TrainState {
-        guard let first = times.first ?? nil, let last = times.last ?? nil else { return .unknown }
+    /// that isn't known; the last stop's time is when it gets there) and, where
+    /// known, when it pulls in at them.
+    static func locate(times: [Date?], arrivals: [Date?] = [], now: Date) -> TrainState {
+        guard let first = times.first ?? nil,
+              let last = arrival(at: times.count - 1, times: times, arrivals: arrivals)
+        else { return .unknown }
         if now < first { return .waiting(departs: first) }
         if now >= last { return .arrived(at: last) }
         for index in 0..<(times.count - 1) {
             guard let start = times[index], let end = times[index + 1], now >= start, now < end else { continue }
-            let stand = index + 1 == times.count - 1 ? 0 : min(dwell, end.timeIntervalSince(start) / 2)
-            let arrives = end.addingTimeInterval(-stand)
+            let arrives = max(arrival(at: index + 1, times: times, arrivals: arrivals) ?? end, start)
             if now >= arrives { return .stopped(at: index + 1) }
             let run = arrives.timeIntervalSince(start)
             return .moving(from: index, fraction: run > 0 ? now.timeIntervalSince(start) / run : 0)
@@ -126,8 +133,8 @@ struct TripActivityAttributes: ActivityAttributes {
         /// The platform at your station, when known.
         var platform: String?
         /// The train's stops in order, with when it leaves each (at the last, when
-        /// it gets in). Nil from builds before the stop strip, which carried only
-        /// the two times above.
+        /// it gets in) and, where known, when it pulls in. Nil from builds before
+        /// the stop strip, which carried only the two times above.
         var stops: [Stop]? = nil
         /// Where you get on and where you get off, in `stops`.
         var boardingIndex: Int? = nil
@@ -147,6 +154,9 @@ struct TripActivityAttributes: ActivityAttributes {
         /// When the train leaves it (at its last stop, when it gets in); nil when
         /// that isn't known.
         var time: Date?
+        /// When it pulls in: when it was seen there, or (from live data) when it's
+        /// due; nil to take a minute before it leaves.
+        var arrives: Date? = nil
     }
 
     /// The tracked train: its trip number and scheduled time.
@@ -232,19 +242,21 @@ extension TripActivityAttributes.ContentState {
 
 extension TripActivityAttributes.Stop {
     private enum CodingKeys: String, CodingKey {
-        case name, time
+        case name, time, arrives
     }
 
     init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
         name = try values.decode(String.self, forKey: .name)
         time = try TripActivityTime.decodeIfPresent(values, .time)
+        arrives = try TripActivityTime.decodeIfPresent(values, .arrives)
     }
 
     func encode(to encoder: Encoder) throws {
         var values = encoder.container(keyedBy: CodingKeys.self)
         try values.encode(name, forKey: .name)
         try values.encodeIfPresent(time.map(TripActivityTime.number), forKey: .time)
+        try values.encodeIfPresent(arrives.map(TripActivityTime.number), forKey: .arrives)
     }
 }
 
@@ -323,10 +335,11 @@ struct TripActivityTrip {
     }
 
     var times: [Date?] { stops.map(\.time) }
+    var arrivals: [Date?] { stops.map(\.arrives) }
 
     /// When the train pulls in at a stop.
     func arrival(at index: Int) -> Date? {
-        TrainState.arrival(at: index, times: times)
+        TrainState.arrival(at: index, times: times, arrivals: arrivals)
     }
 
     /// What's happening at `now`, and what the countdown runs to. Once the activity
@@ -334,7 +347,7 @@ struct TripActivityTrip {
     /// the next stop), a train standing at a station already counts down to the
     /// next one: "Arrived" would stay up after it left.
     func moment(at now: Date, isStale: Bool = false) -> TripMoment {
-        let train = TrainState.locate(times: times, now: now)
+        let train = TrainState.locate(times: times, arrivals: arrivals, now: now)
         let reached = train.reached(stopCount: stops.count)
         if let end = arrival(at: destination), now >= end {
             return TripMoment(kind: .arrived, train: train, next: destination, target: end, reached: destination)

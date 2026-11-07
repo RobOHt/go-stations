@@ -55,6 +55,10 @@ jobs:
         with:
           node-version: 22
 
+      - name: Test
+        if: steps.config.outputs.ready == 'true'
+        run: node --test worker/test/*.test.js
+
       - name: Deploy
         if: steps.config.outputs.ready == 'true'
         working-directory: worker
@@ -111,7 +115,7 @@ jobs:
         run: |
           # A brand-new workers.dev hostname can take a minute to start answering.
           for i in $(seq 1 12); do
-            if body=$(curl -fsS "$WORKER_URL/health?check=push,metrolinx" 2>/dev/null); then
+            if body=$(curl -fsS "$WORKER_URL/health?check=push,metrolinx,live" 2>/dev/null); then
               echo "::notice title=Worker health::$body"
               exit 0
             fi

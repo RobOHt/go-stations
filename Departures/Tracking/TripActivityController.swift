@@ -25,6 +25,8 @@ final class TripActivityController {
     /// Each running activity's push token, by activity, once iOS hands it over.
     private var pushTokens: [String: Data] = [:]
     private var tokenWatchers: [String: Task<Void, Never>] = [:]
+    /// What the worker was last told for each activity, so it's told only what's new.
+    private var registered: [String: String] = [:]
 
     private init() {}
 
@@ -72,7 +74,7 @@ final class TripActivityController {
             if activity.content.state != state || activity.content.staleDate != content.staleDate {
                 Task { await activity.update(ActivityContent(state: state, staleDate: content.staleDate)) }
                 if let token = pushTokens[activity.id] {
-                    registerPushes(token, trip: trip, attributes: activity.attributes, now: now)
+                    registerPushes(token, trip: trip, attributes: activity.attributes, now: now, activityID: activity.id)
                 }
             }
             // After a relaunch: pick its push token up again.
@@ -115,7 +117,8 @@ final class TripActivityController {
                 guard let self else { return }
                 self.pushTokens[activity.id] = token
                 if let trip = TripTracker.shared.trip, activity.attributes.tripID == trip.row.id {
-                    self.registerPushes(token, trip: trip, attributes: activity.attributes, now: Date())
+                    self.registerPushes(token, trip: trip, attributes: activity.attributes, now: Date(),
+                                        activityID: activity.id)
                 }
             }
         }
@@ -124,8 +127,12 @@ final class TripActivityController {
     /// Tells the worker what the activity shows and when to push it an update: as
     /// the train reaches each stop on the way to yours and as it leaves it, and once
     /// it's at yours, the end (which stays on the Lock Screen until `dismissal(of:now:)`).
-    private func registerPushes(_ token: Data, trip: TrackedTrip, attributes: TripActivityAttributes, now: Date) {
-        guard let content = Self.content(for: trip, now: now) else { return }
+    /// With the trip's stops and train, it follows the train itself while it runs,
+    /// and pushes when it pulls in at a stop or leaves one. Only when something in
+    /// that has changed since the worker was last told.
+    private func registerPushes(_ token: Data, trip: TrackedTrip, attributes: TripActivityAttributes, now: Date,
+                                activityID: String) {
+        guard let content = Self.content(for: trip, now: now, followingLive: false) else { return }
         let schedule = TripActivityTrip(attributes, content.state)
         guard let end = schedule.arrival(at: schedule.destination), end > now else { return }
         var moments: Set<Date> = []
@@ -134,18 +141,28 @@ final class TripActivityController {
             if let leaves = schedule.stops[index].time { moments.insert(leaves) }
         }
         let times = moments.filter { $0 > now && $0 < end }.sorted()
+        let dismissal = Self.dismissal(of: trip, now: now)
         let job = TripActivityPush.Job(
             token: TripActivityPush.hex(token),
             environment: TripActivityPush.environment,
             state: content.state,
             times: times.map(TripActivityTime.number),
             end: TripActivityTime.number(end),
-            dismissal: TripActivityTime.number(Self.dismissal(of: trip, now: now))
+            dismissal: TripActivityTime.number(dismissal),
+            live: TripActivityPush.Live(trip: trip.tripNumber, codes: trip.stopCodes,
+                                        scheduled: trip.stops.map { $0.time.map(TripActivityTime.number) })
         )
+        // To the minute: the worker follows the train itself in between.
+        func minute(_ date: Date) -> Int { Int(date.timeIntervalSince1970 / 60) }
+        let key = ([job.token, trip.tripNumber, "\(trip.boardingIndex)-\(trip.destinationIndex)", trip.stopCodes.joined()]
+                   + (times + [end, dismissal]).map { "\(minute($0))" }).joined(separator: "|")
+        guard registered[activityID] != key else { return }
+        registered[activityID] = key
         Task { await TripActivityPush.send(job) }
     }
 
     private func stopPushes(to activity: Activity<TripActivityAttributes>) {
+        registered[activity.id] = nil
         tokenWatchers.removeValue(forKey: activity.id)?.cancel()
         if let token = pushTokens.removeValue(forKey: activity.id) {
             Task { await TripActivityPush.forget(token) }
@@ -177,19 +194,29 @@ final class TripActivityController {
         )
     }
 
-    /// The times, delay and platform as of `now`, and every stop with its time,
+    /// The times, delay and platform as of `now`, and every stop with its times,
     /// so the Live Activity can show where the train is whenever it's drawn. Goes
     /// stale when the train reaches the stop its countdown runs to, so iOS draws
-    /// it again then (with the next one) even if the app isn't running.
-    static func content(for trip: TrackedTrip, now: Date) -> ActivityContent<TripActivityAttributes.ContentState>? {
-        guard let departure = trip.departure, let due = trip.arrival, let attributes = attributes(for: trip) else {
-            return nil
-        }
+    /// it again then (with the next one) even if the app isn't running. Following
+    /// the train's live reports (see `stopTimes(for:now:)`) unless told not to.
+    static func content(for trip: TrackedTrip, now: Date,
+                        followingLive: Bool = true) -> ActivityContent<TripActivityAttributes.ContentState>? {
+        guard let attributes = attributes(for: trip) else { return nil }
+        let seen: (times: [Date?], arrivals: [Date?]) = followingLive
+            ? stopTimes(for: trip, now: now)
+            : (times: trip.stops.map { $0.departed ?? $0.expected ?? $0.time }, arrivals: trip.stops.map(\.arrived))
+        let times = seen.times
+        let arrivals = seen.arrivals
+        guard let departure = times[trip.boardingIndex] ?? trip.departure,
+              let due = arrivals[trip.destinationIndex] ?? times[trip.destinationIndex] ?? trip.arrival
+        else { return nil }
         let arrival = max(due, departure.addingTimeInterval(60))
-        let hasDeparted = now >= departure
+        let hasDeparted = now >= departure || (trip.live?.index ?? 0) > trip.boardingIndex
         let next = trip.stops[hasDeparted ? trip.destinationIndex : trip.boardingIndex]
         var minutesLate: Int?
-        if trip.source == .live, let time = next.time, let expected = next.expected {
+        if let delay = trip.liveDelay, trip.live?.isFresh(at: now) == true {
+            minutesLate = max(0, Int((delay / 60).rounded()))
+        } else if trip.source == .live, let time = next.time, let expected = next.expected {
             minutesLate = max(0, Int((expected.timeIntervalSince(time) / 60).rounded()))
         }
         let network = RailNetwork.shared
@@ -199,9 +226,9 @@ final class TripActivityController {
             hasDeparted: hasDeparted,
             minutesLate: minutesLate,
             platform: trip.stops[trip.boardingIndex].platform ?? trip.row.platform,
-            stops: trip.stops.map { stop in
+            stops: trip.stops.enumerated().map { index, stop in
                 TripActivityAttributes.Stop(name: shortName(network.station(stop.code)?.name ?? stop.code),
-                                            time: stop.expected ?? stop.time)
+                                            time: times[index], arrives: arrivals[index])
             },
             boardingIndex: trip.boardingIndex,
             destinationIndex: trip.destinationIndex,
@@ -209,6 +236,42 @@ final class TripActivityController {
         )
         let target = TripActivityTrip(attributes, state).moment(at: now).target
         return ActivityContent(state: state, staleDate: target.flatMap { $0 > now ? $0 : nil })
+    }
+
+    /// Each stop's times for the Live Activity: when the train leaves it and,
+    /// where known, pulls in, from what tracking has seen and its live times. With
+    /// a fresh live report, a train standing at a station is taken to stay a little
+    /// longer than its time says (until the next report, or iOS draws it as gone),
+    /// and one late for its next stop is due there any moment; the stops after
+    /// are as late. (The worker does the same in its push updates.)
+    static func stopTimes(for trip: TrackedTrip, now: Date) -> (times: [Date?], arrivals: [Date?]) {
+        var times = trip.stops.map { $0.departed ?? $0.expected ?? $0.time }
+        var arrivals = trip.stops.map(\.arrived)
+        guard let fix = trip.live, fix.isFresh(at: now), times.indices.contains(fix.index) else { return (times, arrivals) }
+        let k = fix.index
+        // Behind it: gone by when it was seen.
+        for index in 0..<k {
+            if let time = times[index], time > fix.time { times[index] = fix.time }
+            if let time = arrivals[index], time > fix.time { arrivals[index] = fix.time }
+        }
+        func delay(from index: Int, by seconds: TimeInterval) {
+            guard seconds > 0 else { return }
+            for later in index..<times.count {
+                times[later] = times[later]?.addingTimeInterval(seconds)
+                if later > index { arrivals[later] = arrivals[later]?.addingTimeInterval(seconds) }
+            }
+        }
+        if fix.isAt {
+            guard k < times.count - 1 else { return (times, arrivals) }
+            let hold = max(fix.time.addingTimeInterval(60), now.addingTimeInterval(15))
+            if let leaves = times[k], leaves < hold { delay(from: k, by: hold.timeIntervalSince(leaves)) }
+        } else if k > 0, arrivals[k] == nil, let due = TrainState.arrival(at: k, times: times),
+                  due < now.addingTimeInterval(10) {
+            let comes = max(fix.time.addingTimeInterval(50), now.addingTimeInterval(15))
+            delay(from: k, by: comes.timeIntervalSince(due))
+            arrivals[k] = comes
+        }
+        return (times, arrivals)
     }
 
     /// Station names short enough for the stop strip.
@@ -258,6 +321,15 @@ enum TripActivityPush {
         /// When to end the activity, and when it then leaves the Lock Screen.
         let end: Double
         let dismissal: Double
+        /// The trip's train and stops, for the worker to follow it live.
+        let live: Live?
+    }
+
+    /// The trip's number, and each of `state.stops`' code and planned departure.
+    struct Live: Encodable {
+        let trip: String
+        let codes: [String]
+        let scheduled: [Double?]
     }
 
     /// Which of Apple's push servers the app's tokens belong to.

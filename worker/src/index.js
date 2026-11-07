@@ -1,4 +1,5 @@
-// GO Stations API proxy, and push updates for the tracked train's Live Activity.
+// GO Stations API proxy, live train positions, and push updates for the tracked
+// train's Live Activity.
 //
 // The app calls https://go-stations.<subdomain>.workers.dev/v1/<path>. This Worker
 // adds the Metrolinx Open Data API key (a Worker secret that never ships in the app),
@@ -6,14 +7,21 @@
 // everyone looking at the same board shares one Metrolinx request. Only the
 // read-only endpoints the app uses are allowed.
 //
+// GET /v1/live/trains: where every GO train is right now, and whether it's
+// standing at a station (src/live.js), cached a few seconds.
+//
 // POST /v1/activity takes a Live Activity's push token, what it shows, and when
 // the train reaches each stop; at each of those times the LiveActivities Durable
 // Object has Apple's push service hand the activity an update (so iOS draws it
-// again while the app isn't running), and at the end, ends it. POST
-// /v1/activity/end forgets one early. Nothing is kept once the trip is over.
-// The Apple push key is a Worker secret too (APNS_KEY_P8, APNS_KEY_ID, APPLE_TEAM_ID).
+// again while the app isn't running), and at the end, ends it. With the trip's
+// stops (`live`), it instead follows the train itself while it runs: every 20
+// seconds it looks where the train is, and pushes an update when it pulls in at
+// a stop or leaves one. POST /v1/activity/end forgets one early. Nothing is kept
+// once the trip is over. The Apple push key is a Worker secret too (APNS_KEY_P8,
+// APNS_KEY_ID, APPLE_TEAM_ID).
 
 import { DurableObject } from "cloudflare:workers";
+import { follow, mergeTrains } from "./live.js";
 
 const UPSTREAM = "https://api.openmetrolinx.com/OpenDataAPI/api/V1";
 
@@ -42,6 +50,8 @@ export default {
       return error(405, "Method not allowed", { Allow: "GET, HEAD" });
     }
 
+    if (url.pathname === "/v1/live/trains") return trainsNow(request, env);
+
     if (url.pathname === "/health") {
       const body = { ok: true, configured: Boolean(env.METROLINX_API_KEY), push: pushConfigured(env) };
       // ?check=push,metrolinx: also ask Apple and Metrolinx whether they accept the keys.
@@ -56,6 +66,7 @@ export default {
           };
         }
         if (checks.includes("metrolinx") && body.configured) body.metrolinx = await checkMetrolinx(env);
+        if (checks.includes("live") && body.configured) body.live = await checkLive(env);
       }
       return new Response(JSON.stringify(body), {
         headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
@@ -103,6 +114,80 @@ export default {
     });
   },
 };
+
+// --- Live train positions ---------------------------------------------------
+
+// How long one look at GO's live feeds is reused (they change about every 20 s).
+const LIVE_TTL = 10;
+// How often a tracked train is looked at while it runs.
+const FOLLOW_EVERY = 20;
+
+let liveMemo = null;
+
+/** GO's two live feeds, merged (see mergeTrains), at most LIVE_TTL seconds old. */
+async function liveTrains(env) {
+  const now = Date.now();
+  if (liveMemo && now >= liveMemo.fetched && now - liveMemo.fetched < LIVE_TTL * 1000) return liveMemo.value;
+  const value = Promise.all([
+    upstreamJSON(env, "/Gtfs/Feed/VehiclePosition"),
+    upstreamJSON(env, "/ServiceataGlance/Trains/All"),
+  ]).then(([vehicles, glance]) => {
+    if (!vehicles && !glance) throw new Error("No live data");
+    return mergeTrains(vehicles, glance, Date.now() / 1000);
+  });
+  liveMemo = { fetched: now, value };
+  value.catch(() => {
+    if (liveMemo?.value === value) liveMemo = null;
+  });
+  return value;
+}
+
+async function upstreamJSON(env, path) {
+  try {
+    const response = await fetch(`${UPSTREAM}${path}?key=${encodeURIComponent(env.METROLINX_API_KEY)}`, {
+      headers: { Accept: "application/json" },
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!response.ok) return null;
+    const body = await response.json();
+    const code = String(body?.Metadata?.ErrorCode ?? "200");
+    return code === "200" || code === "204" ? body : null;
+  } catch {
+    return null;
+  }
+}
+
+async function trainsNow(request, env) {
+  if (request.method !== "GET" && request.method !== "HEAD") {
+    return error(405, "Method not allowed", { Allow: "GET, HEAD" });
+  }
+  if (!env.METROLINX_API_KEY) return error(503, "Live data isn't set up yet");
+  if (env.LIMITER) {
+    const ip = request.headers.get("CF-Connecting-IP") ?? "unknown";
+    const { success } = await env.LIMITER.limit({ key: ip });
+    if (!success) return error(429, "Too many requests", { "Retry-After": "30" });
+  }
+  try {
+    const body = await liveTrains(env);
+    return new Response(JSON.stringify(body), {
+      headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": `public, max-age=${LIVE_TTL}` },
+    });
+  } catch {
+    return error(502, "Live train positions are unavailable right now");
+  }
+}
+
+/** How many trains the live feeds have, and how fresh the freshest is. */
+async function checkLive(env) {
+  try {
+    const { at, trains } = await liveTrains(env);
+    const newest = Math.max(...trains.map((train) => train.time));
+    const standing = trains.filter((train) => train.status === "at").length;
+    return `${trains.length} trains, ${standing} at a station, newest ${Number.isFinite(newest) ? at - newest : "?"} s old`;
+  } catch (e) {
+    return `failed: ${e?.message ?? e}`;
+  }
+}
 
 /** Errors use the same envelope as Metrolinx, so the app handles them the same way. */
 function error(status, message, extraHeaders = {}) {
@@ -169,18 +254,50 @@ async function activity(request, env, ending) {
     times: times.filter((t) => t > now && t < body.end).sort((a, b) => a - b),
     end: body.end,
     dismissal: Math.max(body.dismissal, body.end),
+    live: followable(body.live, state, now),
   });
   return accepted ? new Response(null, { status: 204 }) : error(503, "Too many trips tracked");
 }
 
+/**
+ * The trip's train and stops, for following it live: { trip, codes, scheduled }
+ * with one code and planned departure (or null) per stop in `state.stops`. Null
+ * when they're missing or don't add up.
+ */
+function followable(live, state, now) {
+  if (!live || typeof live !== "object") return null;
+  const { trip, codes, scheduled } = live;
+  const stops = Array.isArray(state.stops) ? state.stops : [];
+  const planned = (t) => t === null || (typeof t === "number" && Number.isFinite(t) && t > now - 8 * 3600 && t < now + MAX_AHEAD);
+  if (
+    typeof trip !== "string" || !/^[A-Za-z0-9]{1,12}$/.test(trip) ||
+    !Array.isArray(codes) || codes.length < 2 || codes.length > 60 || codes.length !== stops.length ||
+    !codes.every((code) => typeof code === "string" && /^[A-Za-z0-9]{1,8}$/.test(code)) ||
+    !Array.isArray(scheduled) || scheduled.length !== codes.length || !scheduled.every(planned)
+  ) {
+    return null;
+  }
+  return { trip, codes, scheduled };
+}
+
+// What a followed trip keeps between looks at its train.
+const FOLLOWED = ["obs", "arr", "dep", "delay", "leave", "eta", "followed", "seen", "pushed"];
+
 // One object holds every tracked trip's schedule (there are only ever a few) and
-// wakes at the next time any of them is due.
+// wakes at the next time any of them is due, or every FOLLOW_EVERY seconds while
+// one it follows is running.
 export class LiveActivities extends DurableObject {
   async track(job) {
     const key = `job:${job.token}`;
     const jobs = await this.ctx.storage.list({ prefix: "job:" });
     if (!jobs.has(key) && jobs.size >= 200) return false;
-    await this.ctx.storage.put(key, { ...job, revision: 0 });
+    const before = jobs.get(key);
+    const kept = { revision: before?.revision ?? 0 };
+    // The same train again (new times from the app): what's been seen of it stays.
+    if (before?.live && job.live && before.live.trip === job.live.trip) {
+      for (const field of FOLLOWED) if (before[field] !== undefined) kept[field] = before[field];
+    }
+    await this.ctx.storage.put(key, { ...job, ...kept, ...watchWindow(job) });
     await this.wake();
     return true;
   }
@@ -198,18 +315,50 @@ export class LiveActivities extends DurableObject {
   async alarm() {
     const now = Date.now() / 1000;
     const jobs = await this.ctx.storage.list({ prefix: "job:" });
+    let live;
     for (const [key, job] of jobs) {
+      if (watching(job, now)) {
+        // Where its train is (one look at the feeds for every trip followed).
+        if (live === undefined) live = await liveTrains(this.env).catch(() => null);
+        const result = live ? follow(job, live.trains.find((train) => train.trip === job.live.trip), now) : null;
+        if (result) {
+          const next = result.job;
+          if (result.push) {
+            next.revision = (next.revision ?? 0) + 1;
+            const state = { ...result.push.state, revision: next.revision };
+            const { gone, result: said } = await sendPush(this.env, next, { ...result.push, state });
+            await this.note(`${result.push.event} live`, said);
+            if (gone || result.push.event === "end") {
+              await this.ctx.storage.delete(key);
+              continue;
+            }
+          }
+          if (result.changed || result.push) await this.ctx.storage.put(key, next);
+          continue;
+        }
+        // Following it, but nothing new to go on: wait for the next look.
+        if (job.followed) continue;
+      } else if (job.followed && now >= job.watchUntil) {
+        // Followed, but never seen getting in: end it.
+        job.revision = (job.revision ?? 0) + 1;
+        const { result: said } = await sendPush(this.env, job, {
+          event: "end", state: { ...job.state, revision: job.revision }, dismissal: now + 60,
+        });
+        await this.note("end live", said);
+        await this.ctx.storage.delete(key);
+        continue;
+      }
+
+      // Not followed: an update at each of the times the app gave, then the end.
       if (due(job) > now + 1) continue;
-      job.revision += 1;
+      job.revision = (job.revision ?? 0) + 1;
       const state = { ...job.state, revision: job.revision };
       const later = job.times.filter((t) => t > now + 1);
       const ending = now >= job.end - 1;
       const { gone, result } = ending
         ? await sendPush(this.env, job, { event: "end", state, dismissal: job.dismissal })
         : await sendPush(this.env, job, { event: "update", state, stale: later[0] ?? job.end });
-      const log = (await this.ctx.storage.get("log")) ?? [];
-      log.push(`${new Date().toISOString().slice(0, 16)} ${ending ? "end" : "update"} ${result}`);
-      await this.ctx.storage.put("log", log.slice(-12));
+      await this.note(ending ? "end" : "update", result);
       if (ending || gone) {
         await this.ctx.storage.delete(key);
       } else {
@@ -219,10 +368,25 @@ export class LiveActivities extends DurableObject {
     await this.wake();
   }
 
+  /** Keeps what Apple said to the last few pushes (no tokens), for the health check. */
+  async note(what, result) {
+    const log = (await this.ctx.storage.get("log")) ?? [];
+    log.push(`${new Date().toISOString().slice(0, 16)} ${what} ${result}`);
+    await this.ctx.storage.put("log", log.slice(-12));
+  }
+
   async wake() {
+    const now = Date.now() / 1000;
     const jobs = await this.ctx.storage.list({ prefix: "job:" });
     let next = Infinity;
-    for (const job of jobs.values()) next = Math.min(next, due(job));
+    for (const job of jobs.values()) {
+      if (!job.followed) next = Math.min(next, due(job));
+      if (job.live) {
+        if (now < job.watchFrom) next = Math.min(next, job.watchFrom);
+        else if (now < job.watchUntil) next = Math.min(next, now + FOLLOW_EVERY);
+        else if (job.followed) next = Math.min(next, now + 1);
+      }
+    }
     if (next === Infinity) {
       await this.ctx.storage.deleteAlarm();
     } else {
@@ -233,6 +397,26 @@ export class LiveActivities extends DurableObject {
 
 function due(job) {
   return Math.min(job.times[0] ?? Infinity, job.end);
+}
+
+/**
+ * When to follow a trip's train: from 20 minutes before it's due at your
+ * station (in case you're waiting for it) until well after it should have got
+ * to your stop.
+ */
+function watchWindow(job) {
+  if (!job.live) return {};
+  const boarding = Math.max(0, job.state.boardingIndex ?? 0);
+  const start = job.live.scheduled[boarding] ?? job.state.departure;
+  return {
+    watchFrom: start - 20 * 60,
+    watchUntil: Math.max(job.end, start) + 45 * 60,
+    summary: Math.max(60, job.dismissal - job.end),
+  };
+}
+
+function watching(job, now) {
+  return Boolean(job.live) && now >= job.watchFrom && now < job.watchUntil;
 }
 
 // Sends one update (or the end) to a Live Activity through Apple's push service.

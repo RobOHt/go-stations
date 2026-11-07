@@ -99,6 +99,13 @@ struct TripSheet: View {
         .task {
             detail = await BoardService.shared.tripDetail(for: row, from: selection.station)
         }
+        .task {
+            // Where the train really is, while its stops are open.
+            while !Task.isCancelled {
+                await LiveTrains.shared.refresh()
+                try? await Task.sleep(for: .seconds(15))
+            }
+        }
         .sheet(item: $openStation) { station in
             StationSheet(station: station)
                 .environment(settings)
@@ -212,8 +219,18 @@ struct TripSheet: View {
     /// Only a train with times that hasn't finished its run.
     private func canTrack(_ detail: TripDetail, at now: Date) -> Bool {
         guard detail.source != nil else { return false }
-        if case .arrived = TrainState(stops: detail.stops, now: now) { return false }
+        if case .arrived = trainState(detail, at: now) { return false }
         return true
+    }
+
+    /// Where the train is: the tracked one as tracking follows it, any other by
+    /// its times and latest live report.
+    private func trainState(_ detail: TripDetail, at now: Date) -> TrainState {
+        let codes = detail.stops.map(\.code)
+        if let tracked = tracker.trip, tracked.matches(row), tracked.stopCodes == codes {
+            return tracked.state(at: now)
+        }
+        return TrainState(stops: detail.stops, now: now, live: LiveTrains.shared.train(row.tripNumber)?.fix(in: codes))
     }
 
     // MARK: Stops
@@ -221,7 +238,7 @@ struct TripSheet: View {
     private func stopList(_ detail: TripDetail) -> some View {
         let originIndex = detail.stops.firstIndex { $0.code == selection.station.code } ?? 0
         return TimelineView(.periodic(from: .now, by: 10)) { context in
-            let state = TrainState(stops: detail.stops, now: context.date)
+            let state = trainState(detail, at: context.date)
             VStack(alignment: .leading, spacing: 12) {
                 if tracker.isTracking(row) || canTrack(detail, at: context.date) {
                     trackButton
@@ -285,10 +302,49 @@ struct TripSheet: View {
 // MARK: - Where the train is
 
 extension TrainState {
-    /// Where the train is, from its stops' times (live estimates when there are any,
-    /// otherwise the timetable).
-    init(stops: [TripDetail.Stop], now: Date) {
-        self = Self.locate(times: stops.map { $0.expected ?? $0.time }, now: now)
+    /// Where the train is, from its stops' times (when it was seen leaving and
+    /// pulling in, live estimates, otherwise the timetable), and by its latest
+    /// live report when there's a fresh one (see `adjusted(by:stopCount:now:)`).
+    init(stops: [TripDetail.Stop], now: Date, live: LiveFix? = nil) {
+        let timed = Self.locate(times: stops.map { $0.departed ?? $0.expected ?? $0.time },
+                                arrivals: stops.map(\.arrived), now: now)
+        self = timed.adjusted(by: live, stopCount: stops.count, now: now)
+    }
+
+    /// Where the train is when a fresh live report says otherwise than its times:
+    /// standing at a station it was due to have left, or still on its way to one
+    /// it was due at (most of the way there), or already away from one it was due
+    /// to stand at.
+    func adjusted(by fix: LiveFix?, stopCount: Int, now: Date) -> TrainState {
+        guard let fix, fix.isFresh(at: now), stopCount >= 2, fix.index < stopCount else { return self }
+        let last = stopCount - 1
+        if fix.isAt {
+            if fix.index == 0 {
+                if case .waiting = self { return self }
+                return .waiting(departs: now)
+            }
+            if fix.index == last {
+                if case .arrived = self { return self }
+                return .arrived(at: fix.time)
+            }
+            return .stopped(at: fix.index)
+        }
+        // On its way to stop `fix.index`, from the one before.
+        guard fix.index > 0 else { return self }
+        let from = fix.index - 1
+        switch self {
+        case .moving(let at, let fraction) where at == from:
+            return .moving(from: from, fraction: min(max(fraction, 0.02), 0.97))
+        case .moving(let at, _) where at > from:
+            return .moving(from: from, fraction: 0.97)
+        case .stopped(let at) where at > from:
+            return .moving(from: from, fraction: 0.97)
+        case .arrived:
+            return .moving(from: from, fraction: 0.97)
+        default:
+            // Its times have it still back at (or before) the stop it has left.
+            return .moving(from: from, fraction: 0.02)
+        }
     }
 }
 
