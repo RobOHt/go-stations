@@ -146,7 +146,7 @@ actor BoardService {
         for day in days {
             let response: TripStatusResponse? = try? await client.fetch("/Schedule/Trip/\(day)/\(row.tripNumber)")
             if let stops = response?.trips?.first?.stops,
-               let detail = Self.liveDetail(stops, row: row, station: station) {
+               let detail = Self.liveDetail(Self.inCallingOrder(stops), row: row, station: station) {
                 return detail
             }
         }
@@ -177,6 +177,30 @@ actor BoardService {
             return [TorontoTime.dateWire(row.scheduled.addingTimeInterval(-86_400)), day]
         }
         return [day]
+    }
+
+    /// Schedule/Trip lists a trip's stops by time of day, so a train that runs past
+    /// midnight comes back with its stops after midnight first. Puts them back in
+    /// the order the train calls at them: from just after the longest wait between
+    /// one stop's time and the next, round the clock (the night between its last
+    /// stop and its first). Left as they are when a stop has no time.
+    static func inCallingOrder(_ stops: [TripStatusResponse.Stop]) -> [TripStatusResponse.Stop] {
+        let minutes = stops.map { stop -> Int? in
+            let text = stop.departureTime?.scheduled?.nonEmpty ?? stop.arrivalTime?.scheduled?.nonEmpty
+            guard let parts = text?.split(separator: ":"), parts.count >= 2,
+                  let hours = Int(parts[0].trimmingCharacters(in: .whitespaces)),
+                  let mins = Int(parts[1].prefix(2)) else { return nil }
+            return (hours * 60 + mins) % 1440
+        }
+        guard stops.count >= 2, minutes.allSatisfy({ $0 != nil }) else { return stops }
+        let times = minutes.map { $0 ?? 0 }
+        var longest = (index: stops.count - 1, gap: -1)
+        for index in times.indices {
+            let gap = (times[(index + 1) % times.count] - times[index] + 1440) % 1440
+            if gap > longest.gap { longest = (index, gap) }
+        }
+        let start = (longest.index + 1) % stops.count
+        return Array(stops[start...] + stops[..<start])
     }
 
     /// Schedule/Trip gives bare "HH:MM" times, so place every stop relative to the
@@ -415,7 +439,7 @@ actor BoardService {
 
     private static func fetchTrip(client: MetrolinxClient, trip: String, day: String) async -> [TripStop]? {
         let response: TripStatusResponse? = try? await client.fetch("/Schedule/Trip/\(day)/\(trip)")
-        guard let stops = response?.trips?.first?.stops, !stops.isEmpty else { return nil }
+        guard let stops = response?.trips?.first?.stops.map(inCallingOrder), !stops.isEmpty else { return nil }
         let mapped = stops.compactMap { stop -> TripStop? in
             guard let code = stop.code?.nonEmpty else { return nil }
             return TripStop(code: code, track: stop.track?.actual?.nonEmpty ?? stop.track?.scheduled?.nonEmpty)
