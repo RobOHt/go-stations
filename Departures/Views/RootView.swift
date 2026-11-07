@@ -322,15 +322,18 @@ struct RootView: View {
             if showsControls {
                 // The tracked trip bottom left; the map buttons bottom right.
                 HStack(alignment: .bottom, spacing: 12) {
-                    if let trip = TripTracker.shared.trip {
-                        TrackedTripButton(trip: trip) { openTrackedTrip() }
-                            .padding(.leading, BottomBarMetrics.controlsTrailingInset)
-                            .transition(.scale(scale: 0.85, anchor: .bottomLeading).combined(with: .opacity))
-                    } else if showsMapHint {
-                        MapHint()
-                            .padding(.leading, BottomBarMetrics.controlsTrailingInset)
-                            .transition(.opacity)
+                    // Above Apple's Maps logo and Legal link (behind the sheet when one's open).
+                    Group {
+                        if let trip = TripTracker.shared.trip {
+                            TrackedTripButton(trip: trip) { openTrackedTrip() }
+                                .transition(.scale(scale: 0.85, anchor: .bottomLeading).combined(with: .opacity))
+                        } else if showsMapHint {
+                            MapHint()
+                                .transition(.opacity)
+                        }
                     }
+                    .padding(.leading, BottomBarMetrics.controlsTrailingInset)
+                    .padding(.bottom, selected == nil ? BottomBarMetrics.legalRoom : 0)
                     Spacer(minLength: 0)
                     controls
                         .padding(.trailing, BottomBarMetrics.controlsTrailingInset)

@@ -263,6 +263,9 @@ enum BottomBarMetrics {
     static let controlsTrailingInset: CGFloat = 16
     /// Gap between the search field (or the sheet) and the results or buttons above it.
     static let gapAbove: CGFloat = 10
+    /// Apple's Maps logo and Legal link sit bottom left just above the search field,
+    /// and must stay visible: what's bottom left of the map keeps this far above.
+    static let legalRoom: CGFloat = 28
     static let typicalRoom: CGFloat = 28 + 48 + 12
     static let maximumRoom: CGFloat = 28 + 48 + 8
 }
