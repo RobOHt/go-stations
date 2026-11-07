@@ -313,13 +313,47 @@ def timeline(polls, gap):
                       "dep", fmt(stop.get("departure")), stop.get("schedule_relationship"))
 
 
+def worker(polls, gap):
+    """The app's view: the Worker's /v1/live/trains, poll by poll, with the cache's
+    headers, and whether each train's report moved on."""
+    section(f"Worker /v1/live/trains: {polls} polls, {gap:.0f} s apart")
+    url = "https://go-stations.robinzhongsh2.workers.dev/v1/live/trains"
+    before = {}
+    for poll in range(polls):
+        started = time.time()
+        request = Request(url, headers={"Accept": "application/json", "User-Agent": "go-stations-probe"})
+        try:
+            with urlopen(request, timeout=20) as response:
+                headers = {k.lower(): v for k, v in response.headers.items()}
+                body = json.loads(response.read())
+        except Exception as error:  # report and carry on
+            print(f"{datetime.now(TORONTO).strftime('%H:%M:%S')} failed: {error}")
+            time.sleep(gap)
+            continue
+        trains = {t["trip"]: t for t in body.get("trains", [])}
+        now = time.time()
+        ages = sorted(now - t["time"] for t in trains.values())
+        moved = sum(1 for k, t in trains.items() if k in before and t["time"] != before[k]["time"])
+        print(f"{datetime.now(TORONTO).strftime('%H:%M:%S')} {time.time() - started:.1f}s "
+              f"cache {headers.get('cf-cache-status', '-')} age {headers.get('age', '-')} "
+              f"cache-control {headers.get('cache-control', '-')} at {now - body.get('at', 0):.0f}s ago; "
+              f"{len(trains)} trains, newer report than last poll for {moved}; report ages "
+              f"min {ages[0]:.0f} median {ages[len(ages) // 2]:.0f} max {ages[-1]:.0f}" if ages else "no trains")
+        before = trains
+        time.sleep(max(0, gap - (time.time() - started)))
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--polls", type=int, default=4)
     parser.add_argument("--gap", type=float, default=15)
     parser.add_argument("--timeline", action="store_true", help="trains only, side by side over time")
+    parser.add_argument("--worker", action="store_true", help="the Worker's /v1/live/trains, as the app sees it")
     args = parser.parse_args()
     print("Now:", datetime.now(TORONTO).isoformat(timespec="seconds"))
+    if args.worker:
+        worker(args.polls, args.gap)
+        return
     if args.timeline:
         timeline(args.polls, args.gap)
         return

@@ -14,7 +14,7 @@ on:
         description: Seconds between polls
         default: "15"
       mode:
-        description: "overview, or timeline (trains only, the feeds side by side over time)"
+        description: "overview, timeline (trains only, the feeds side by side over time), or worker (the app's /v1/live/trains, as the app sees it)"
         default: overview
 
 jobs:
@@ -30,6 +30,10 @@ jobs:
       - uses: actions/checkout@v5
       - name: Probe
         run: |
+          if [ "$MODE" = "worker" ]; then
+            python3 tools/probe_live.py --worker --polls "${POLLS:-4}" --gap "${GAP:-15}"
+            exit 0
+          fi
           extra=""
           if [ "$MODE" = "timeline" ]; then extra="--timeline"; fi
           python3 tools/probe_live.py --polls "${POLLS:-4}" --gap "${GAP:-15}" $extra
