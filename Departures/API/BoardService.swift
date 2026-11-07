@@ -179,38 +179,46 @@ actor BoardService {
         return [day]
     }
 
-    /// Schedule/Trip lists a trip's stops by time of day, so a train that runs past
-    /// midnight comes back with its stops after midnight first. Puts them back in
-    /// the order the train calls at them: from just after the longest wait between
-    /// one stop's time and the next, round the clock (the night between its last
-    /// stop and its first). Left as they are when a stop has no time.
+    /// The trip's stops in the order the train calls at them. Schedule/Trip's own
+    /// order can't be trusted past midnight: it has listed stops by time of day,
+    /// after-midnight ones first, and has written the same night both as "24:05"
+    /// and "00:05" (a stop with a live time) in one list. So: by time of day, then
+    /// from just after the longest wait round the clock (the night between the last
+    /// stop and the first). Left as they are when a stop has no time.
     static func inCallingOrder(_ stops: [TripStatusResponse.Stop]) -> [TripStatusResponse.Stop] {
-        let minutes = stops.map { stop -> Int? in
-            let text = stop.departureTime?.scheduled?.nonEmpty ?? stop.arrivalTime?.scheduled?.nonEmpty
-            guard let parts = text?.split(separator: ":"), parts.count >= 2,
-                  let hours = Int(parts[0].trimmingCharacters(in: .whitespaces)),
-                  let mins = Int(parts[1].prefix(2)) else { return nil }
-            return (hours * 60 + mins) % 1440
-        }
+        let minutes = stops.map { clockMinutes($0.departureTime?.scheduled?.nonEmpty ?? $0.arrivalTime?.scheduled?.nonEmpty) }
         guard stops.count >= 2, minutes.allSatisfy({ $0 != nil }) else { return stops }
         let times = minutes.map { $0 ?? 0 }
-        var longest = (index: stops.count - 1, gap: -1)
-        for index in times.indices {
-            let gap = (times[(index + 1) % times.count] - times[index] + 1440) % 1440
-            if gap > longest.gap { longest = (index, gap) }
+        // By time of day (stops at the same minute keep Metrolinx's order)...
+        let order = stops.indices.sorted { a, b in times[a] != times[b] ? times[a] < times[b] : a < b }
+        // ...from just after the longest wait round the clock.
+        var longest = -1
+        var start = 0
+        for position in order.indices {
+            var gap = (times[order[(position + 1) % order.count]] - times[order[position]] + 1440) % 1440
+            if position == order.count - 1, gap == 0 { gap = 1440 }
+            if gap > longest {
+                longest = gap
+                start = (position + 1) % order.count
+            }
         }
-        let start = (longest.index + 1) % stops.count
-        return Array(stops[start...] + stops[..<start])
+        return (order[start...] + order[..<start]).map { stops[$0] }
+    }
+
+    /// Minutes past midnight of a bare "HH:MM" time, 0 to 1439 ("24:05", 00:05 the
+    /// next morning, is 5, as "00:05" is).
+    static func clockMinutes(_ text: String?) -> Int? {
+        guard let parts = text?.trimmed.split(separator: ":"), parts.count >= 2,
+              let hours = Int(parts[0]), let mins = Int(parts[1].prefix(2)) else { return nil }
+        return (hours * 60 + mins) % 1440
     }
 
     /// Schedule/Trip gives bare "HH:MM" times, so place every stop relative to the
     /// board row's own departure time at `station`.
     private static func liveDetail(_ stops: [TripStatusResponse.Stop], row: BoardRow, station: Station) -> TripDetail? {
-        func minutes(_ text: String?) -> Int? {
-            guard let parts = text?.trimmed.split(separator: ":"), parts.count >= 2,
-                  let hours = Int(parts[0]), let mins = Int(parts[1]) else { return nil }
-            return hours * 60 + mins
-        }
+        // Past midnight, Metrolinx writes "24:05" or "00:05" for the same time: count
+        // from midnight either way, and on into the next day below.
+        let minutes = clockMinutes
 
         let network = RailNetwork.shared
         let kept = stops.filter { $0.code.flatMap { network.station($0) } != nil }
@@ -221,7 +229,7 @@ actor BoardService {
         var dayOffset = 0
         var last: Int?
         for stop in kept {
-            guard var value = minutes(stop.departureTime?.scheduled ?? stop.arrivalTime?.scheduled) else {
+            guard var value = minutes(stop.departureTime?.scheduled?.nonEmpty ?? stop.arrivalTime?.scheduled?.nonEmpty) else {
                 scheduled.append(nil)
                 continue
             }
@@ -239,8 +247,8 @@ actor BoardService {
             let time = scheduled[index].map { row.scheduled.addingTimeInterval(TimeInterval(($0 - anchorMinutes) * 60)) }
             var expected: Date?
             if let time,
-               let planned = minutes(stop.departureTime?.scheduled ?? stop.arrivalTime?.scheduled),
-               let computed = minutes(stop.departureTime?.computed ?? stop.arrivalTime?.computed) {
+               let planned = minutes(stop.departureTime?.scheduled?.nonEmpty ?? stop.arrivalTime?.scheduled?.nonEmpty),
+               let computed = minutes(stop.departureTime?.computed?.nonEmpty ?? stop.arrivalTime?.computed?.nonEmpty) {
                 var delta = computed - planned
                 if delta < -720 { delta += 1440 }
                 if delta > 720 { delta -= 1440 }
