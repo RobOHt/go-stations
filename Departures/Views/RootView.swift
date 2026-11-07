@@ -201,13 +201,15 @@ struct RootView: View {
                 try? await Task.sleep(for: .seconds(60))
             }
         }
-        .task(id: wantsLiveTrains) {
-            // Where the trains really are, every 5 seconds while the map shows any:
-            // each new report soon after it's out, so the map's guesses from the
-            // latest one stay short (see NetworkMapView.Coordinator.replayDelay).
-            guard wantsLiveTrains else { return }
+        .task(id: wantsLiveTrains && scenePhase == .active) {
+            // Where the trains really are, every 5 seconds while the map shows any
+            // and the app is open: each new report soon after it's out, so the map's
+            // guesses from the latest one stay short (see
+            // NetworkMapView.Coordinator.replayDelay). (Restarted when either
+            // changes: a running task only ever sees them as they were when it began.)
+            guard wantsLiveTrains, scenePhase == .active else { return }
             while !Task.isCancelled {
-                if scenePhase == .active { await LiveTrains.shared.refresh(maxAge: 4) }
+                await LiveTrains.shared.refresh(maxAge: 4)
                 try? await Task.sleep(for: .seconds(5))
             }
         }
