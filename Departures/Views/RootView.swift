@@ -543,6 +543,12 @@ struct RootView: View {
             TripTracker.shared.track(TripSelection(row: picked.0, station: station, fromBoard: true), detail: picked.1,
                                      home: settings.homeCode, work: settings.workCode)
         }
+        // `-openTripAfter <seconds>`: then its stops, for a screenshot of them on the move.
+        let wait = UserDefaults.standard.double(forKey: "openTripAfter")
+        if wait > 0 {
+            try? await Task.sleep(for: .seconds(wait))
+            openTrackedTrip()
+        }
     }
     #endif
 

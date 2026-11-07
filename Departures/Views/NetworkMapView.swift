@@ -940,11 +940,13 @@ struct NetworkMapView: UIViewRepresentable {
                     let coasting = last.distance + last.speed * dt
                     let gap = target.distance - coasting
                     let correction = min(0.5 * abs(gap), (2 * abs(gap)).squareRoot())
-                    // (Catching up no more than about a third faster than it's going, and
+                    // (Catching up no more than about a third faster than it's going, or
+                    // braking gently to where it is when that's a stop just ahead; and
                     // no faster than GO's trains go, about 150 km/h, unless it really is:
                     // the trip's stops show this speed.)
+                    let catchUp = max(target.speed + max(4, target.speed * 0.3), max(gap, 0).squareRoot())
                     let wanted = min(max(0, target.speed + (gap < 0 ? -correction : correction)),
-                                     target.speed + max(4, target.speed * 0.3), max(42, target.speed))
+                                     catchUp, max(42, target.speed))
                     var speed = max(0, last.speed + min(max(wanted - last.speed, -1.5 * dt), 1.5 * dt))
                     var distance = last.distance + (last.speed + speed) / 2 * dt
                     if distance >= limit {
