@@ -209,12 +209,120 @@ def others():
         report(path, body, status, seconds, size)
 
 
+TRAIN_LINES = {"LW", "LE", "KI", "MI", "BR", "RH", "ST", "GT", "UP"}
+
+
+def is_train(entity):
+    part = entity.get("vehicle") or entity.get("trip_update") or {}
+    trip_id = str((part.get("trip") or {}).get("trip_id") or "")
+    pieces = trip_id.split("-")
+    return len(pieces) >= 3 and pieces[1] in TRAIN_LINES
+
+
+def number_of(entity):
+    part = entity.get("vehicle") or entity.get("trip_update") or {}
+    return str((part.get("trip") or {}).get("trip_id") or "").rsplit("-", 1)[-1]
+
+
+def timeline(polls, gap):
+    """Trains only: Trains/All next to GTFS VehiclePosition, poll by poll, and how
+    GTFS TripUpdates' stop times for one train change."""
+    section(f"Train timeline: {polls} polls, {gap:.0f} s apart")
+    history = []
+    updates = []
+    for poll in range(polls):
+        stamp = time.time()
+        _, _, glance, _ = get("/ServiceataGlance/Trains/All")
+        _, _, vehicles, _ = get("/Gtfs/Feed/VehiclePosition")
+        trips = {str(t.get("TripNumber")): t for t in find_list(glance or {}, "Trips.Trip") if isinstance(t, dict)}
+        entities = find_list(vehicles or {}, "entity")
+        trains = {number_of(e): e for e in entities if is_train(e) or number_of(e) in trips}
+        history.append((stamp, trips, trains))
+        if poll in (0, polls // 2, polls - 1):
+            _, _, feed, _ = get("/Gtfs/Feed/TripUpdates")
+            updates.append((stamp, {number_of(e): e for e in find_list(feed or {}, "entity")
+                                    if is_train(e) or number_of(e) in trips}))
+        if poll == 0:
+            print(f"Trains/All: {len(trips)} trains; VehiclePosition: {len(trains)} trains "
+                  f"of {len(find_list(vehicles or {}, 'entity'))} vehicles")
+            kinds = {}
+            for e in entities:
+                part = e.get("vehicle") or {}
+                trip_id = str((part.get("trip") or {}).get("trip_id") or "")
+                kinds.setdefault(trip_id.split("-")[1] if trip_id.count("-") >= 2 else trip_id[:12], trip_id)
+            print("trip_id kinds (middle part: example):", json.dumps(dict(sorted(kinds.items())[:60])))
+            both = sorted(set(trips) & set(trains))
+            print("in both:", len(both), "only Trains/All:", sorted(set(trips) - set(trains))[:10],
+                  "only VehiclePosition:", sorted(set(trains) - set(trips))[:10])
+            for key in both[:2]:
+                print(json.dumps(trains[key], indent=1)[:2500])
+        if poll + 1 < polls:
+            time.sleep(gap)
+
+    # How often each feed changes, per train.
+    changes = {"glance": [], "vehicle": []}
+    for key in history[0][1]:
+        last_g = last_v = None
+        count_g = count_v = 0
+        for _, trips, trains in history:
+            g = trips.get(key, {}).get("ModifiedDate")
+            v = ((trains.get(key) or {}).get("vehicle") or {}).get("timestamp")
+            if last_g is not None and g != last_g:
+                count_g += 1
+            if last_v is not None and v != last_v:
+                count_v += 1
+            last_g, last_v = g, v
+        changes["glance"].append(count_g)
+        changes["vehicle"].append(count_v)
+    span = history[-1][0] - history[0][0]
+    for name, counts in changes.items():
+        if counts:
+            print(f"{name}: changes per train over {span:.0f} s: {sorted(counts)}")
+
+    picks = [k for k in history[0][1] if str(history[0][1][k].get("IsInMotion")).lower() == "true"][:3]
+    picks += [k for k in history[0][1] if history[0][1][k].get("AtStationCode")][:1]
+    for key in picks:
+        print(f"\ntrain {key} ({history[0][1][key].get('Display')}):")
+        for stamp, trips, trains in history:
+            g = trips.get(key, {})
+            v = (trains.get(key) or {}).get("vehicle") or {}
+            pos = v.get("position") or {}
+            print("  ", datetime.fromtimestamp(stamp, TORONTO).strftime("%H:%M:%S"),
+                  "| glance", g.get("ModifiedDate", "")[11:], g.get("Latitude"), g.get("Longitude"),
+                  "moving" if g.get("IsInMotion") else "still", "at", g.get("AtStationCode"),
+                  g.get("PrevStopCode"), "->", g.get("NextStopCode"), "delay", g.get("DelaySeconds"),
+                  "| gtfs", datetime.fromtimestamp(v["timestamp"], TORONTO).strftime("%H:%M:%S") if v.get("timestamp") else None,
+                  pos.get("latitude"), pos.get("longitude"), "brg", pos.get("bearing"), "spd", pos.get("speed"),
+                  v.get("current_status"), v.get("stop_id"))
+        for stamp, feed in updates:
+            entity = feed.get(key)
+            if not entity:
+                print("   TripUpdates", datetime.fromtimestamp(stamp, TORONTO).strftime("%H:%M:%S"), "missing")
+                continue
+            update = entity.get("trip_update") or {}
+            print("   TripUpdates", datetime.fromtimestamp(stamp, TORONTO).strftime("%H:%M:%S"),
+                  "timestamp", update.get("timestamp"), "delay", update.get("delay"))
+            for stop in update.get("stop_time_update") or []:
+                def fmt(event):
+                    if not event:
+                        return "-"
+                    when = event.get("time")
+                    clock = datetime.fromtimestamp(when, TORONTO).strftime("%H:%M:%S") if when else "?"
+                    return f"{clock} ({event.get('delay')})"
+                print("     ", stop.get("stop_sequence"), stop.get("stop_id"), "arr", fmt(stop.get("arrival")),
+                      "dep", fmt(stop.get("departure")), stop.get("schedule_relationship"))
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--polls", type=int, default=4)
     parser.add_argument("--gap", type=float, default=15)
+    parser.add_argument("--timeline", action="store_true", help="trains only, side by side over time")
     args = parser.parse_args()
     print("Now:", datetime.now(TORONTO).isoformat(timespec="seconds"))
+    if args.timeline:
+        timeline(args.polls, args.gap)
+        return
     trains = trains_all(args.polls, args.gap)
     gtfs("VehiclePosition", args.polls, args.gap)
     gtfs("TripUpdates", 2, args.gap)

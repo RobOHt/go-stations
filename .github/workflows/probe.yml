@@ -13,6 +13,9 @@ on:
       gap:
         description: Seconds between polls
         default: "15"
+      mode:
+        description: "overview, or timeline (trains only, the feeds side by side over time)"
+        default: overview
 
 jobs:
   probe:
@@ -22,7 +25,11 @@ jobs:
       METROLINX_API_KEY: ${{ secrets.METROLINX_API_KEY }}
       POLLS: ${{ inputs.polls }}
       GAP: ${{ inputs.gap }}
+      MODE: ${{ inputs.mode }}
     steps:
       - uses: actions/checkout@v5
       - name: Probe
-        run: python3 tools/probe_live.py --polls "${POLLS:-4}" --gap "${GAP:-15}"
+        run: |
+          extra=""
+          if [ "$MODE" = "timeline" ]; then extra="--timeline"; fi
+          python3 tools/probe_live.py --polls "${POLLS:-4}" --gap "${GAP:-15}" $extra
