@@ -537,7 +537,6 @@ struct NetworkMapView: UIViewRepresentable {
                     trainView.configure(color: lineColor(trip.lineCode), animatesPointer: trainIsMoving(at: now),
                                         isOnBoard: isOnBoard)
                     trainView.setHeading(trainHeading(at: now), animated: false)
-                    trainView.setSpeed(trainSpeed())
                 }
                 return view
             }
@@ -695,6 +694,7 @@ struct NetworkMapView: UIViewRepresentable {
         /// trains taken off the list fade away.
         func syncRunning(_ trips: [ScheduleStore.RunningTrip], in mapView: MKMapView) {
             trackedMap = mapView
+            updateTimer()
             let listed = Dictionary(trips.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
             guard Set(listed.keys) != Set(schedule.keys) else { return }
             for (key, marker) in running where listed[key] == nil {
@@ -702,7 +702,7 @@ struct NetworkMapView: UIViewRepresentable {
                 remove(marker, from: mapView)
             }
             schedule = listed
-            drawn = drawn.filter { $0.key == "tracked" || listed[$0.key] != nil }
+            drawn = drawn.filter { $0.key == "tracked" || $0.key.hasPrefix("watch-") || listed[$0.key] != nil }
             spots = spots.filter { listed[$0.key] != nil }
             endedAt = endedAt.filter { listed[$0.key] != nil }
             moveRunning(in: mapView, now: Date())
@@ -739,17 +739,13 @@ struct NetworkMapView: UIViewRepresentable {
             }
         }
 
-        /// The timer runs while any train is on the map.
+        /// The timer runs once there's a map: it moves the trains on it, and works
+        /// out how fast a train whose stops are open is going even when it isn't drawn.
         private func updateTimer() {
-            let needed = trip != nil || !running.isEmpty || !schedule.isEmpty
-            if needed, timer == nil {
-                let timer = Timer(timeInterval: 1, target: self, selector: #selector(tick), userInfo: nil, repeats: true)
-                RunLoop.main.add(timer, forMode: .common)
-                self.timer = timer
-            } else if !needed {
-                timer?.invalidate()
-                timer = nil
-            }
+            guard timer == nil else { return }
+            let timer = Timer(timeInterval: 1, target: self, selector: #selector(tick), userInfo: nil, repeats: true)
+            RunLoop.main.add(timer, forMode: .common)
+            self.timer = timer
         }
 
         @objc private func tick() {
@@ -760,7 +756,39 @@ struct NetworkMapView: UIViewRepresentable {
                 moveTrain(in: mapView, now: now)
                 updateRoute(in: mapView, now: now)
             }
+            moveWatched(now: now)
             keepTrainsOnTop(in: mapView)
+        }
+
+        /// The trains drawn this tick, by trip number (the tracked one too).
+        private var drawnNumbers: Set<String> = []
+
+        /// Trains whose stops are open but which the map doesn't draw: how fast
+        /// they're going, worked out the same way as for those it does.
+        private func moveWatched(now: Date) {
+            let motion = TrainMotion.shared
+            for (number, watched) in motion.watched where !drawnNumbers.contains(number) {
+                let key = "watch-\(number)"
+                guard let run = self.run(line: watched.line, codes: watched.codes) else { continue }
+                let then = now.addingTimeInterval(-Self.replayDelay)
+                let state = TrainState.locate(times: watched.times, now: then)
+                let replay = replayed(number, on: run, at: now, times: watched.times)
+                // In service: between its first stop and its last.
+                let inService: Bool
+                switch state {
+                case .moving, .stopped:
+                    inService = true
+                case .waiting, .arrived, .unknown:
+                    inService = replay.map { !($0.isAt && ($0.stop == 0 || $0.stop == run.codes.count - 1)) } ?? false
+                }
+                guard inService, let target = replay ?? run.position(of: state, times: watched.times) else {
+                    drawn[key] = nil
+                    motion.note(number, speed: nil, at: now)
+                    continue
+                }
+                motion.note(number, speed: ease(key, toward: target, on: run, now: now).speed, at: now)
+            }
+            drawn = drawn.filter { !$0.key.hasPrefix("watch-") || motion.watched[String($0.key.dropFirst(6))] != nil }
         }
 
         /// The other trains: each one shows up (fading in) as it sets off, moves
@@ -768,9 +796,14 @@ struct NetworkMapView: UIViewRepresentable {
         /// to its last stop.
         private func moveRunning(in mapView: MKMapView, now: Date) {
             var added: [TrainAnnotation] = []
+            drawnNumbers = Set(trip.map { [$0.tripNumber] } ?? [])
             for (key, scheduled) in schedule where scheduled.tripNumber != trip?.tripNumber {
                 let spot = self.spot(for: scheduled, at: now)
                 spots[key] = spot
+                if let spot {
+                    drawnNumbers.insert(scheduled.tripNumber)
+                    TrainMotion.shared.note(scheduled.tripNumber, speed: spot.speed, at: now)
+                }
                 guard let marker = running[key] else {
                     if let spot {
                         let fresh = TrainAnnotation(coordinate: Self.coordinate(spot.point), running: scheduled)
@@ -1009,7 +1042,8 @@ struct NetworkMapView: UIViewRepresentable {
         }
 
         /// How fast the tracked train goes, as it's drawn moving (as you go, when
-        /// you're on it and the train is drawn with you), in metres per second.
+        /// you're on it and the train is drawn with you), in metres per second. The
+        /// trip's stops show it (TrainMotion).
         private func trainSpeed() -> Double? {
             if isOnBoard, let speed = userLocation?.speed, speed >= 0 { return speed }
             return trackedSpot?.speed
@@ -1048,6 +1082,15 @@ struct NetworkMapView: UIViewRepresentable {
             }
             let shown = ease("tracked", toward: target, on: run, now: now)
             trackedSpot = spot(on: run, at: shown)
+            // How fast it's drawn going, for its stops to show (yours, when it's drawn
+            // with you), while it's in service.
+            let state = trip.state(at: now.addingTimeInterval(-Self.replayDelay))
+            let inService: Bool
+            switch state {
+            case .moving, .stopped: inService = true
+            case .waiting, .arrived, .unknown: inService = replay != nil && !shown.isAt
+            }
+            TrainMotion.shared.note(trip.tripNumber, speed: inService ? trainSpeed() : nil, at: now)
             #if DEBUG
             trace(trip.tripNumber, now: now, replayed: replay != nil, target: target, shown: shown)
             #endif
@@ -1143,7 +1186,6 @@ struct NetworkMapView: UIViewRepresentable {
             if let train, let view = mapView.view(for: train) as? TrainAnnotationView {
                 view.configure(color: lineColor(trip.lineCode), animatesPointer: trainIsMoving(at: now), isOnBoard: isOnBoard)
                 view.setHeading(trainHeading(at: now), animated: true)
-                view.setSpeed(trainSpeed())
             }
         }
 

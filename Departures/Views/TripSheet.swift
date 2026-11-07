@@ -106,6 +106,19 @@ struct TripSheet: View {
                 try? await Task.sleep(for: .seconds(15))
             }
         }
+        .task(id: detail?.stops.map(\.code)) {
+            // How fast it's going, as the map draws it (which works it out even when it
+            // doesn't draw it), while its stops are open.
+            guard let detail else { return }
+            let number = row.tripNumber
+            TrainMotion.shared.watch(number, line: network.line(code: row.lineCode)?.code ?? row.lineCode,
+                                     codes: detail.stops.map(\.code),
+                                     times: detail.stops.map { $0.expected ?? $0.time })
+            defer { TrainMotion.shared.unwatch(number) }
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(3600))
+            }
+        }
         .sheet(item: $openStation) { station in
             StationSheet(station: station)
                 .environment(settings)
@@ -170,6 +183,9 @@ struct TripSheet: View {
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                         .redacted(reason: origin.isKnown ? [] : .placeholder)
+                    if detail != nil {
+                        TrainSpeedLabel(number: row.tripNumber)
+                    }
                 }
                 if row.isCancelled {
                     Label("Cancelled | Annulé", systemImage: "xmark.circle.fill")
@@ -296,6 +312,34 @@ struct TripSheet: View {
         .font(.footnote)
         .foregroundStyle(.secondary)
         .padding(.horizontal, 6)
+    }
+}
+
+// MARK: - How fast
+
+/// How fast the train is going, as the map draws it moving ("82 km/h"); nothing
+/// while it isn't in service, or nothing says.
+private struct TrainSpeedLabel: View {
+    let number: String
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 1)) { context in
+            if let speed = TrainMotion.shared.speed(of: number, at: context.date) {
+                let kmh = Int((speed * 3.6).rounded())
+                Label {
+                    Text("\(kmh) km/h")
+                        .monospacedDigit()
+                        .contentTransition(.numericText(value: Double(kmh)))
+                } icon: {
+                    Image(systemName: "speedometer")
+                }
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .animation(.smooth(duration: 0.4), value: kmh)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Speed \(kmh) kilometres per hour")
+            }
+        }
     }
 }
 

@@ -1,4 +1,5 @@
 import Foundation
+import Observation
 
 /// A trip's run along its stops, measured along the track: where each stop is, in
 /// metres from the first, and the track between them.
@@ -240,5 +241,67 @@ enum TrainReplay {
         }
         for index in samples.indices where samples[index].isAt { m[index] = 0 }
         return m
+    }
+}
+
+/// How fast each train is going, as the map draws it moving: the map notes it as it
+/// draws each train (see NetworkMapView), and works it out too for a train whose
+/// stops are open but which it doesn't draw; the trip's stops show it. So the
+/// speed shown is always the one the map's train moves at.
+@MainActor
+@Observable
+final class TrainMotion {
+    static let shared = TrainMotion()
+
+    private init() {}
+
+    /// Metres per second, by trip number, to the nearest km/h (so it only changes
+    /// when the figure shown does).
+    private(set) var speeds: [String: Double] = [:]
+    @ObservationIgnored private var noted: [String: Date] = [:]
+
+    /// A train whose stops are open: what the map needs to work out its speed.
+    struct Watched {
+        let line: String
+        let codes: [String]
+        let times: [Date?]
+        var count: Int
+    }
+
+    /// The trains whose stops are open, by trip number.
+    @ObservationIgnored private(set) var watched: [String: Watched] = [:]
+
+    func watch(_ number: String, line: String, codes: [String], times: [Date?]) {
+        let count = (watched[number]?.count ?? 0) + 1
+        watched[number] = Watched(line: line, codes: codes, times: times, count: count)
+    }
+
+    func unwatch(_ number: String) {
+        guard let current = watched[number] else { return }
+        if current.count > 1 {
+            watched[number]?.count = current.count - 1
+        } else {
+            watched[number] = nil
+        }
+    }
+
+    /// The map drew a train going this fast (nil: it isn't in service).
+    func note(_ number: String, speed: Double?, at now: Date) {
+        guard let speed else {
+            if speeds[number] != nil { speeds[number] = nil }
+            noted[number] = nil
+            return
+        }
+        noted[number] = now
+        let rounded = (max(speed, 0) * 3.6).rounded() / 3.6
+        if speeds[number] != rounded { speeds[number] = rounded }
+    }
+
+    /// How fast a train is going, as the map last drew it (in the last few seconds).
+    func speed(of number: String, at now: Date = Date()) -> Double? {
+        guard let speed = speeds[number], let noted = noted[number], now.timeIntervalSince(noted) < 4 else {
+            return nil
+        }
+        return speed
     }
 }
