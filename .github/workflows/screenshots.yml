@@ -156,6 +156,10 @@ jobs:
             -homeStation OA -workStation UN > /dev/null < /dev/null
           sleep 150
           xcrun simctl io "$UDID" screenshot --type=png shots/14-traced-trip.png > /dev/null 2>&1 || true
+          # Its stops (as tapping the Live Activity opens them), with how fast it's going.
+          xcrun simctl openurl "$UDID" gostations://trip > /dev/null 2>&1 || true
+          sleep 5
+          xcrun simctl io "$UDID" screenshot --type=png shots/14b-traced-trip-stops.png > /dev/null 2>&1 || true
           if cp "$container/Documents/train-trace.tsv" shots/ 2> /dev/null; then
             python3 tools/trace_summary.py shots/train-trace.tsv | tee trace-summary.txt
             echo "::notice title=Train motion::$(head -4 trace-summary.txt | tr '\n' ' ')"
