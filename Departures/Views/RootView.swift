@@ -22,6 +22,9 @@ struct RootView: View {
     @FocusState private var searchFocused: Bool
     /// Top edge of the station sheet on screen, so the buttons can sit just above it.
     @State private var sheetTop: CGFloat?
+    /// A board has been open at some point (opened at launch or by a tap): no more
+    /// hint on how to get one.
+    @AppStorage("openedABoard") private var openedABoard = false
     /// Bottom edge of the area the floating UI lives in: just above the search
     /// field (which itself rides above the keyboard while typing).
     @State private var floatingBottom: CGFloat = 0
@@ -99,7 +102,7 @@ struct RootView: View {
             SettingsView()
         }
         .onChange(of: selected == nil) { _, closed in
-            if closed { sheetTop = nil }
+            if closed { sheetTop = nil } else { openedABoard = true }
         }
         .onChange(of: search.place) { _, place in
             guard let place else { return }
@@ -271,6 +274,12 @@ struct RootView: View {
         }
     }
 
+    /// Someone new (no home or work, and no board opened yet, say with location off or
+    /// far from GO): a hint on what to tap.
+    private var showsMapHint: Bool {
+        !openedABoard && settings.homeCode == nil && settings.workCode == nil
+    }
+
     /// The map shows the tracked train or all trains: worth knowing where they are.
     private var wantsLiveTrains: Bool {
         TripTracker.shared.trip != nil || settings.showsAllTrains
@@ -317,6 +326,10 @@ struct RootView: View {
                         TrackedTripButton(trip: trip) { openTrackedTrip() }
                             .padding(.leading, BottomBarMetrics.controlsTrailingInset)
                             .transition(.scale(scale: 0.85, anchor: .bottomLeading).combined(with: .opacity))
+                    } else if showsMapHint {
+                        MapHint()
+                            .padding(.leading, BottomBarMetrics.controlsTrailingInset)
+                            .transition(.opacity)
                     }
                     Spacer(minLength: 0)
                     controls
@@ -628,9 +641,29 @@ struct RootView: View {
         if let best = saved.min(by: { $0.location.distance(from: here) < $1.location.distance(from: here) }) {
             return best
         }
-        if let nearest = network.nearestStation(to: here), nearest.distance < 3_000 {
+        // No home or work yet: the nearest station, so a new user starts on a board.
+        if let nearest = network.nearestStation(to: here), nearest.distance < CommutePlanner.nearestMax {
             return nearest.station
         }
         return nil
+    }
+}
+
+/// Bottom left of the map for someone new, until they first open a board.
+private struct MapHint: View {
+    var body: some View {
+        Label {
+            Text("Tap a station for its departures")
+        } icon: {
+            Image(systemName: "hand.tap.fill")
+        }
+        .font(.subheadline.weight(.semibold))
+        .foregroundStyle(.primary)
+        .lineLimit(2)
+        .fixedSize(horizontal: false, vertical: true)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+        .frame(minHeight: 48)
+        .glass(.plain, in: Capsule())
     }
 }

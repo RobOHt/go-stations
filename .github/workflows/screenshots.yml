@@ -177,6 +177,13 @@ jobs:
           shoot 1b-tracked-trip 25 trackedTrip
           # Settings > Show all trains: every train running now, from the timetable.
           shoot 1c-all-trains 20 allTrains -showsAllTrains YES
+          # Someone new: no home or work, no board opened yet (the hint bottom left).
+          xcrun simctl terminate "$UDID" "$BUNDLE_ID" > /dev/null 2>&1 || true
+          sleep 1
+          xcrun simctl launch "$UDID" "$BUNDLE_ID" -debugScene map -openedABoard NO > /dev/null
+          sleep 12
+          xcrun simctl io "$UDID" screenshot --type=png shots/1d-new-user.png > /dev/null 2>&1
+          echo 1d-new-user
           shoot 2-search-focused 8 searchFocused
           shoot 2b-search-tap-away 10 searchTapAway
           shoot 3-search-typing 10 searchTyping

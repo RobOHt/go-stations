@@ -65,6 +65,7 @@ ACCURACY_CAP = 1000.0     # metres: the most location uncertainty that widens th
 LATE = 4                  # minutes a train may be running late
 EARLY = 1                 # minutes a train may be running early
 GUARD_MAX = 3000.0        # metres: near a leg's first station, you're waiting, not riding
+NEAREST_MAX = 25000.0     # metres: with no home or work set, the nearest station opens this far
 SNAP = 600.0              # metres: a station this close to a track path is on it
 WORK_UNTIL = 12 * 60      # minute of the day (inclusive) until which weekdays are work-bound
 ROUTE_TIMES_TO_WORK = [360, 390, 420, 450, 480, 510]
@@ -533,7 +534,7 @@ class Planner:
         saved = [(dist(user, net.pos[c]), i, c) for i, c in enumerate((home, work)) if c is not None]
         if saved:
             return min(saved)[2]
-        if ranked[0][0] < 3000:
+        if ranked[0][0] < NEAREST_MAX:
             return ranked[0][1]
         return None
 

@@ -153,6 +153,19 @@ struct StationSheet: View {
     // MARK: Header
 
     private var header: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            headerRow
+            if settings.homeCode == nil && settings.workCode == nil {
+                // Nobody's set up yet: what the two buttons are for.
+                Text("Tap \(Image(systemName: "house")) or \(Image(systemName: "briefcase")) to make this your home or work station.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private var headerRow: some View {
         HStack(alignment: .top, spacing: 12) {
             VStack(alignment: .leading, spacing: 6) {
                 Text(station.name)

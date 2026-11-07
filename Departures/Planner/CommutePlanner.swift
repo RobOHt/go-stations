@@ -54,6 +54,7 @@ struct CommutePlanner: Sendable {
     static let late = 4                 // minutes a train may be running late
     static let early = 1                // minutes a train may be running early
     static let guardMax = 3000.0        // metres: near a leg's first station, you're waiting, not riding
+    static let nearestMax = 25000.0     // metres: with no home or work set, the nearest station opens this far
     static let snap = 600.0             // metres: a station this close to a track path is on it
     static let workUntil = 12 * 60      // minute of the day (inclusive) until which weekdays are work-bound
     static let routeTimesToWork = [360, 390, 420, 450, 480, 510]
@@ -401,7 +402,7 @@ struct CommutePlanner: Sendable {
             if saved == nil || candidate < saved! { saved = candidate }
         }
         if let saved { return saved.code }
-        if ranked[0].distance < 3000 { return ranked[0].code }
+        if ranked[0].distance < Self.nearestMax { return ranked[0].code }
         return nil
     }
 
