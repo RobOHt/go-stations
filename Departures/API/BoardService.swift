@@ -132,7 +132,8 @@ actor BoardService {
             isCancelled: false,
             reasonEnglish: nil,
             reasonFrench: nil,
-            serviceDay: departure.serviceDay
+            serviceDay: departure.serviceDay,
+            stopCodes: onward
         )
     }
 
@@ -308,7 +309,8 @@ actor BoardService {
                 isExpress: isExpress,
                 isCancelled: live?.departureStatus?.trimmed == "C",
                 reasonEnglish: nil,
-                reasonFrench: nil
+                reasonFrench: nil,
+                stopCodes: stops.compactMap { network.station(named: $0)?.code }
             ))
         }
         rows.sort { $0.scheduled < $1.scheduled }
@@ -376,7 +378,8 @@ actor BoardService {
                 isExpress: network.isExpress(lineCode: code, stops: stopCodes),
                 isCancelled: draft.line.departureStatus?.trimmed == "C",
                 reasonEnglish: nil,
-                reasonFrench: nil
+                reasonFrench: nil,
+                stopCodes: afterStations.map(\.code)
             )
         }
     }

@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// The departure screen, rebuilt for a portrait phone: same title bar, same
 /// bilingual column headers, same colours and symbols. The Stops column moves
@@ -17,11 +18,18 @@ struct BoardView: View {
     var earlierRows: [BoardRow]? = nil
     /// Shows or hides the earlier trains; no button without it.
     var onToggleEarlier: (() -> Void)? = nil
+    /// On your home or work station's board: which way the trains go, and the switch
+    /// for all of them; no switch without it.
+    var direction: BoardDirection? = nil
 
     var body: some View {
         VStack(spacing: 0) {
             BoardTitleBar(now: now)
             DottedRule()
+            if let direction {
+                DirectionSwitch(direction: direction)
+                DottedRule()
+            }
             BoardColumnHeader()
 
             if let onToggleEarlier {
@@ -78,6 +86,74 @@ struct BoardView: View {
         } else {
             rowView
         }
+    }
+}
+
+/// Which way the trains on your home or work station's board go: toward the other
+/// one, or every way.
+struct BoardDirection {
+    /// Home or work: the trains shown go toward it, unless `showsAll`.
+    let toward: StationRole
+    let showsAll: Bool
+    let toggle: () -> Void
+
+    var english: String { toward == .work ? "Toward work" : "Toward home" }
+    var french: String { toward == .work ? "Vers le travail" : "Vers la maison" }
+}
+
+/// Two choices side by side, bilingual like the column headers: the trains toward
+/// home (or work), or all of them.
+private struct DirectionSwitch: View {
+    let direction: BoardDirection
+
+    var body: some View {
+        HStack(spacing: 8) {
+            choice(english: direction.english, french: direction.french,
+                   symbol: direction.toward.symbolName, tint: Color(uiColor: direction.toward.uiColor),
+                   isOn: !direction.showsAll)
+            choice(english: "All directions", french: "Toutes directions",
+                   symbol: "arrow.left.arrow.right", tint: BoardTheme.white,
+                   isOn: direction.showsAll)
+        }
+        .padding(.horizontal, BoardTheme.horizontalPadding)
+        .padding(.vertical, 8)
+    }
+
+    private func choice(english: String, french: String, symbol: String, tint: Color, isOn: Bool) -> some View {
+        Button {
+            if !isOn { direction.toggle() }
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: symbol)
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(isOn ? tint : BoardTheme.dimGrey)
+                    .frame(width: 18)
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(english)
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(isOn ? BoardTheme.white : BoardTheme.dimGrey)
+                    Text(french)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(isOn ? BoardTheme.frenchGrey : BoardTheme.dots)
+                }
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .frame(maxWidth: .infinity)
+            .background(isOn ? BoardTheme.headerStrip : Color.clear,
+                        in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .strokeBorder(isOn ? Color.white.opacity(0.22) : BoardTheme.dots.opacity(0.6), lineWidth: 1)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(english)
+        .accessibilityAddTraits(isOn ? .isSelected : [])
     }
 }
 

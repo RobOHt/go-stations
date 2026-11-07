@@ -17,6 +17,9 @@ struct BoardRow: Identifiable, Equatable, Codable, Sendable {
     var reasonFrench: String?
     /// GTFS service day (yyyyMMdd) when known; trips after midnight belong to the day before.
     var serviceDay: String? = nil
+    /// The stops after this station as station codes, as far as they're known (for
+    /// which way the train goes; `stops` are the names shown).
+    var stopCodes: [String]? = nil
 
     var id: String { "\(tripNumber)-\(Int(scheduled.timeIntervalSince1970))" }
 

@@ -13,6 +13,8 @@ struct StationSheet: View {
     @State private var selectedTrip: TripSelection?
     /// Trains that already left, when asked for (nil while hidden).
     @State private var earlierRows: [BoardRow]?
+    /// On your home or work board: every train, not just the ones toward the other.
+    @State private var showsAllDirections = false
     /// What the home or work button is about to do, asked first. Worked out when the
     /// button is tapped, so the words don't change while the dialog closes.
     @State private var roleDialog = RoleDialog()
@@ -26,21 +28,36 @@ struct StationSheet: View {
     #endif
 
     var body: some View {
+        // On your home board only the trains toward work, on your work board only the
+        // ones toward home, unless you ask for them all.
+        let commute = self.commute
+        let filter = showsAllDirections ? nil : commute?.direction
+        let allRows = model.snapshot?.rows ?? []
+        let rows = filter.map { allRows.filter($0.includes) } ?? allRows
+        let earlier = earlierRows.map { list in filter.map { list.filter($0.includes) } ?? list }
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
                 TimelineView(.periodic(from: .now, by: 1)) { context in
                     BoardView(
-                        rows: model.snapshot?.rows ?? [],
+                        rows: rows,
                         station: station,
                         now: context.date,
-                        message: boardMessage,
+                        message: boardMessage ?? (rows.isEmpty && !allRows.isEmpty
+                            ? commute.map { $0.toward == .work ? "No trains toward work | Aucun train vers le travail"
+                                                               : "No trains toward home | Aucun train vers la maison" }
+                            : nil),
                         isLoading: model.snapshot == nil && model.errorMessage == nil,
                         isScheduled: model.snapshot?.source == .schedule,
                         onSelectRow: { row in
                             selectedTrip = TripSelection(row: row, station: station, fromBoard: true)
                         },
-                        earlierRows: earlierRows,
-                        onToggleEarlier: { toggleEarlier() }
+                        earlierRows: earlier,
+                        onToggleEarlier: { toggleEarlier() },
+                        direction: commute.map { commute in
+                            BoardDirection(toward: commute.toward, showsAll: showsAllDirections) {
+                                withAnimation(.snappy) { showsAllDirections.toggle() }
+                            }
+                        }
                     )
                 }
                 statusLine
@@ -72,6 +89,12 @@ struct StationSheet: View {
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { wake += 1 }
         }
+        // Another station in the same sheet starts out filtered again.
+        .onChange(of: station.code) { _, _ in showsAllDirections = false }
+        #if DEBUG
+        // Screenshots: `-showAllDirections YES` opens home and work boards unfiltered.
+        .onAppear { if UserDefaults.standard.bool(forKey: "showAllDirections") { showsAllDirections = true } }
+        #endif
         // Trains that just left move into the earlier list while it's open.
         .onChange(of: model.snapshot?.fetchedAt) { _, _ in
             guard earlierRows != nil else { return }
@@ -195,6 +218,14 @@ struct StationSheet: View {
                 }
             }
         }
+    }
+
+    /// With home and work both set, on either one's board: the way to the other.
+    private var commute: (direction: CommuteDirection, toward: StationRole)? {
+        guard let home = settings.homeCode, let work = settings.workCode, home != work else { return nil }
+        if station.code == home { return CommuteDirection(from: home, toward: work).map { ($0, .work) } }
+        if station.code == work { return CommuteDirection(from: work, toward: home).map { ($0, .home) } }
+        return nil
     }
 
     private var isHome: Bool { settings.homeCode == station.code }

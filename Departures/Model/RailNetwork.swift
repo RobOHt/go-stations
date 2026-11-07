@@ -81,19 +81,35 @@ final class RailNetwork {
 
     private let stationByCode: [String: Station]
     private let lineByCode: [String: RailLine]
+    /// Each station's neighbours along the lines (consecutive stops of any stop
+    /// pattern), with the distance between them in metres.
+    private let neighbours: [String: [(code: String, metres: Double)]]
 
     init(lines: [RailLine], stations: [Station], trackPaths: [TrackPath], feedVersion: String) {
         self.lines = lines
         self.stations = stations
         self.trackPaths = trackPaths
         self.feedVersion = feedVersion
-        self.stationByCode = Dictionary(stations.map { ($0.code, $0) }, uniquingKeysWith: { first, _ in first })
+        let stationByCode = Dictionary(stations.map { ($0.code, $0) }, uniquingKeysWith: { first, _ in first })
+        self.stationByCode = stationByCode
         var byCode: [String: RailLine] = [:]
         for line in lines {
             byCode[line.code] = line
             if byCode[line.apiCode] == nil { byCode[line.apiCode] = line }
         }
         self.lineByCode = byCode
+        var neighbours: [String: [(code: String, metres: Double)]] = [:]
+        for line in lines {
+            for pattern in line.patterns {
+                for (a, b) in zip(pattern, pattern.dropFirst()) {
+                    guard let first = stationByCode[a], let second = stationByCode[b] else { continue }
+                    let metres = first.location.distance(from: second.location)
+                    if !(neighbours[a] ?? []).contains(where: { $0.code == b }) { neighbours[a, default: []].append((b, metres)) }
+                    if !(neighbours[b] ?? []).contains(where: { $0.code == a }) { neighbours[b, default: []].append((a, metres)) }
+                }
+            }
+        }
+        self.neighbours = neighbours
     }
 
     // MARK: Lookups
@@ -114,6 +130,40 @@ final class RailNetwork {
 
     func displayLineCode(apiCode: String) -> String {
         line(code: apiCode)?.code ?? apiCode.trimmingCharacters(in: .whitespaces)
+    }
+
+    /// The station a feed names: "Union Station", "Brampton Innovation District GO",
+    /// "Guelph" for Guelph Central and so on.
+    func station(named name: String) -> Station? {
+        func plain(_ text: String) -> String {
+            text.lowercased()
+                .replacingOccurrences(of: ".", with: "")
+                .split(separator: " ")
+                .filter { $0 != "go" && $0 != "station" }
+                .joined(separator: " ")
+        }
+        let wanted = plain(name)
+        guard !wanted.isEmpty else { return nil }
+        if let exact = stations.first(where: { plain($0.name) == wanted }) { return exact }
+        let starting = stations.filter { plain($0.name).hasPrefix(wanted + " ") || wanted.hasPrefix(plain($0.name) + " ") }
+        if starting.count == 1 { return starting[0] }
+        let containing = stations.filter { plain($0.name).contains(wanted) }
+        return containing.count == 1 ? containing[0] : nil
+    }
+
+    /// How far each station is from `code` along the lines, in metres (stop to stop),
+    /// changing trains wherever lines share a station (Union, mostly).
+    func distances(to code: String) -> [String: Double] {
+        var distance: [String: Double] = [code: 0]
+        var done: Set<String> = []
+        while let nearest = distance.filter({ !done.contains($0.key) }).min(by: { $0.value < $1.value }) {
+            done.insert(nearest.key)
+            for next in neighbours[nearest.key] ?? [] where !done.contains(next.code) {
+                let through = nearest.value + next.metres
+                if through < distance[next.code] ?? .infinity { distance[next.code] = through }
+            }
+        }
+        return distance
     }
 
     func nearestStation(to location: CLLocation) -> (station: Station, distance: CLLocationDistance)? {
@@ -197,6 +247,35 @@ final class RailNetwork {
                     lineCodes: $0.lines, accessible: $0.accessible)
         }
         return RailNetwork(lines: lines, stations: stations, trackPaths: paths, feedVersion: file.feedVersion)
+    }
+}
+
+/// On your home or work station's board: the trains that take you toward the other
+/// one, whether straight there or to where you change (Union, say).
+struct CommuteDirection {
+    /// The board's station.
+    let from: String
+    /// Your other station, where the trains shown head.
+    let toward: String
+    private let distances: [String: Double]
+
+    init?(from: String, toward: String, network: RailNetwork = .shared) {
+        let distances = network.distances(to: toward)
+        guard from != toward, distances[from] != nil else { return nil }
+        self.from = from
+        self.toward = toward
+        self.distances = distances
+    }
+
+    /// Whether this train takes you that way: it stops there, or the first of its
+    /// stops the network knows is closer to it along the lines than this station.
+    /// A train whose stops aren't known is kept, so none is hidden on a guess.
+    func includes(_ row: BoardRow) -> Bool {
+        guard let codes = row.stopCodes, !codes.isEmpty else { return true }
+        if codes.contains(toward) { return true }
+        guard let here = distances[from], let next = codes.lazy.compactMap({ distances[$0] }).first
+        else { return true }
+        return next < here
     }
 }
 

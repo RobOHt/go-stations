@@ -182,6 +182,8 @@ jobs:
           shoot 3-search-typing 10 searchTyping
           shoot 4-place 15 place
           shoot 5-station 12 station
+          # Union is the made-up work station: its board shows trains toward home, or all of them.
+          shoot 5b-station-all-directions 12 station -showAllDirections YES
           shoot 6-station-large 10 stationLarge
           shoot 7-trip 15 trip
           # Control: a board scrolled under its pinned header (does the simulator draw edge effects?).
