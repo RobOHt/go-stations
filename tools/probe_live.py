@@ -349,10 +349,19 @@ def main():
     parser.add_argument("--gap", type=float, default=15)
     parser.add_argument("--timeline", action="store_true", help="trains only, side by side over time")
     parser.add_argument("--worker", action="store_true", help="the Worker's /v1/live/trains, as the app sees it")
+    parser.add_argument("--trip", help="DAY/NUMBER: one trip's Schedule/Trip stops, in the order Metrolinx gives them")
     args = parser.parse_args()
     print("Now:", datetime.now(TORONTO).isoformat(timespec="seconds"))
     if args.worker:
         worker(args.polls, args.gap)
+        return
+    if args.trip:
+        status, seconds, body, size = get(f"/Schedule/Trip/{args.trip}")
+        report(f"/Schedule/Trip/{args.trip}", body, status, seconds, size)
+        for trip in find_list(body or {}, "Trips"):
+            print({k: v for k, v in trip.items() if not isinstance(v, (list, dict))})
+            for stop in trip.get("Stops") or []:
+                print("  ", json.dumps(stop))
         return
     if args.timeline:
         timeline(args.polls, args.gap)
