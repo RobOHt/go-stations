@@ -34,7 +34,7 @@ To build locally instead, open `Departures.xcodeproj` in Xcode 26 or later, pick
 | --- | --- |
 | Lines, colours, track shapes, stations | `Departures/Resources/network.json`, generated from the official GO GTFS feed |
 | Live data | the Worker in `worker/`, which forwards to Metrolinx Open Data with the key and caches answers for 20 s to 10 min |
-| Live train positions | GO's GTFS vehicle positions (every ~20 s: where each train is, and whether it's standing at a station) with Service at a Glance's delays, merged by the Worker (`/v1/live/trains`, cached 10 s). Between reports a train carries on along the track at its pace, never past the station it's heading for |
+| Live train positions | GO's GTFS vehicle positions (every ~20 s: where each train is, and whether it's standing at a station) with Service at a Glance's delays, merged by the Worker (`/v1/live/trains`, cached 5 s). The map draws each train half a minute behind GO's reports, on a smooth curve through every place it was reported along the track (it eases out of stations and slows into them, and never jumps or goes back); "Arrived", the countdowns and the Live Activity go by the latest report |
 | Union Station board | `ServiceUpdate/UnionDepartures/All` (platforms, "Express To" stop lists) |
 | Other stations | `Stop/NextService/{station}` plus `Schedule/Trip/{date}/{trip}` for the stop list (cached per day) |
 | Delays | `ComputedDepartureTime` vs `ScheduledDepartureTime` from NextService |
@@ -42,7 +42,7 @@ To build locally instead, open `Departures.xcodeproj` in Xcode 26 or later, pick
 | Station alerts under the board | `ServiceUpdate/ServiceAlert/All`, filtered to the station's lines |
 | Fallback when live data is unavailable | `schedule.json`: the next 14 days of trains from GO's GTFS, rebuilt daily on the `schedule-data` branch and bundled into each build (`tools/build_schedule.py`) |
 
-The board refreshes every 20 seconds while it's open (matching the Worker's cache) and right away when you come back to the app. Live train positions refresh every 15 seconds while the map shows the tracked train or all trains, or a train's stops are open. It stops when you close it, so the app makes no requests in the background (apart from one check, a while after a tracked train is due at your stop, to end its Live Activity). Metrolinx has no push feed, so polling is as fresh as it gets.
+The board refreshes every 20 seconds while it's open (matching the Worker's cache) and right away when you come back to the app. Live train positions refresh every 5 seconds while the map shows the tracked train or all trains (every 15 seconds while a train's stops are open), so each report is in soon after GO has it. It stops when you close it, so the app makes no requests in the background (apart from one check, a while after a tracked train is due at your stop, to end its Live Activity). Metrolinx has no push feed, so polling is as fresh as it gets.
 
 Express trips are detected from the trip's stop list: if it skips two or more stations in a row that the line's all-stops pattern serves, it gets the ⚡. At Union the feed marks them directly.
 

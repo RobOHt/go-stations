@@ -117,8 +117,9 @@ export default {
 
 // --- Live train positions ---------------------------------------------------
 
-// How long one look at GO's live feeds is reused (they change about every 20 s).
-const LIVE_TTL = 10;
+// How long one look at GO's live feeds is reused (each train's position changes
+// about every 20 s; the app looks every 5 s while its map shows trains).
+const LIVE_TTL = 5;
 // How often a tracked train is looked at while it runs.
 const FOLLOW_EVERY = 20;
 

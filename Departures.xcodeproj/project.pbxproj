@@ -35,6 +35,7 @@
 		989E9B8E29A47B603985F044 /* BoardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26FA8B31A1F2728E021C5B6A /* BoardView.swift */; };
 		A29E9D60A166B42FD5174F50 /* GlassControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = F59BE7F9EC5EA81504DA78A5 /* GlassControls.swift */; };
 		B450E7F44E55F87E5F4E0E73 /* TrainOnMap.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A487C12E27216F9FEC37C51 /* TrainOnMap.swift */; };
+		CE70EDC808067237D9D9A7F2 /* TrainReplay.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB7643620730E0C36B367EB0 /* TrainReplay.swift */; };
 		BF4FAF1018F15829F06FF536 /* ScheduleStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEECCC300CF5D0431410FAAE /* ScheduleStore.swift */; };
 		BA527F6CC1BB40CAD6C5B5BC /* LiveTrains.swift in Sources */ = {isa = PBXBuildFile; fileRef = C781E6E6E97C95A48D30EA53 /* LiveTrains.swift */; };
 		C72CEF65C6D4FA826441D360 /* LocationProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9948AB743F7973496F01FC60 /* LocationProvider.swift */; };
@@ -85,6 +86,7 @@
 		55E96A0A4A812C9938B0E829 /* RootView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		58F912FB19F268A83449830E /* DebugScene.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DebugScene.swift; sourceTree = "<group>"; };
 		5A487C12E27216F9FEC37C51 /* TrainOnMap.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TrainOnMap.swift; sourceTree = "<group>"; };
+		EB7643620730E0C36B367EB0 /* TrainReplay.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TrainReplay.swift; sourceTree = "<group>"; };
 		74808329CCF6884C750FCF09 /* DeparturesApp.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DeparturesApp.swift; sourceTree = "<group>"; };
 		7FD5031FC1E48B028D172FC8 /* TripTracker.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TripTracker.swift; sourceTree = "<group>"; };
 		8E57EFAEAFE85C933766BB3A /* TrackedTripButton.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TrackedTripButton.swift; sourceTree = "<group>"; };
@@ -234,6 +236,7 @@
 				4E4A5E2C07E880206D354461 /* SearchPanel.swift */,
 				F59BE7F9EC5EA81504DA78A5 /* GlassControls.swift */,
 				5A487C12E27216F9FEC37C51 /* TrainOnMap.swift */,
+				EB7643620730E0C36B367EB0 /* TrainReplay.swift */,
 			);
 			name = Views;
 			path = Views;
@@ -447,6 +450,7 @@
 				8BD20D26B90F1F086D2F5655 /* TripTracker.swift in Sources */,
 				8863CED99CC0AF8D28AD66CD /* TrackedTripButton.swift in Sources */,
 				B450E7F44E55F87E5F4E0E73 /* TrainOnMap.swift in Sources */,
+				CE70EDC808067237D9D9A7F2 /* TrainReplay.swift in Sources */,
 				44F11FF0FECB6BB72A2BA386 /* TripActivity.swift in Sources */,
 				2FF9ECE8C3B3D422FCED32DC /* TripActivityController.swift in Sources */,
 				7A2A3A23AA604E05BCFB318D /* TripActivityGallery.swift in Sources */,

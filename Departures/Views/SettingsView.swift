@@ -75,7 +75,7 @@ struct SettingsView: View {
         } header: {
             Text("Map")
         } footer: {
-            Text("Every train running now, moving along its line, placed from the timetable. Trains waiting at the end of their line aren't shown. Tap one to see its stops.")
+            Text("Every train running now, moving along its line where GO's live data puts it (the timetable when that isn't available). Trains waiting at the end of their line aren't shown. Tap one to see its stops.")
         }
     }
 

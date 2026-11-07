@@ -531,10 +531,10 @@ struct NetworkMapView: UIViewRepresentable {
                     trainView.zPriority = MKAnnotationViewZPriority(rawValue: 980)
                     trainView.configure(color: lineColor(running.lineCode), animatesPointer: false, isOnBoard: false,
                                         scale: runningScale)
-                    trainView.setHeading(spot(for: running, at: now)?.heading, animated: false)
+                    trainView.setHeading(spots[running.id]?.heading, animated: false)
                 } else if let trip {
                     trainView.zPriority = MKAnnotationViewZPriority(rawValue: 990)
-                    trainView.configure(color: lineColor(trip.lineCode), animatesPointer: trip.state(at: now).isMoving,
+                    trainView.configure(color: lineColor(trip.lineCode), animatesPointer: trainIsMoving(at: now),
                                         isOnBoard: isOnBoard)
                     trainView.setHeading(trainHeading(at: now), animated: false)
                 }
@@ -647,12 +647,6 @@ struct NetworkMapView: UIViewRepresentable {
         private var appearing: [ObjectIdentifier: Date] = [:]
         /// Track between neighbouring stops, by line and stops, measured once.
         private var segments: [String: CommutePlanner.Path] = [:]
-        /// How far along its stretch of track each train was last drawn from its
-        /// live reports (by trip; "tracked" for the tracked one), so it never slides
-        /// back between reports.
-        private var liveAlong: [String: (stop: Int, along: Double)] = [:]
-        /// When each of the other trains was first seen at the end of its run.
-        private var endedAt: [String: Date] = [:]
         private var userLocation: CLLocation?
         /// Your location and speed match the train's: you're on it.
         private var isOnBoard = false
@@ -670,7 +664,8 @@ struct NetworkMapView: UIViewRepresentable {
             }
             if let train { remove(train, from: mapView) }
             mapView.removeOverlays(route)
-            liveAlong["tracked"] = nil
+            drawn["tracked"] = nil
+            trackedSpot = nil
             train = nil
             route = []
             routeStart = nil
@@ -706,7 +701,8 @@ struct NetworkMapView: UIViewRepresentable {
                 remove(marker, from: mapView)
             }
             schedule = listed
-            liveAlong = liveAlong.filter { $0.key == "tracked" || listed[$0.key] != nil }
+            drawn = drawn.filter { $0.key == "tracked" || listed[$0.key] != nil }
+            spots = spots.filter { listed[$0.key] != nil }
             endedAt = endedAt.filter { listed[$0.key] != nil }
             moveRunning(in: mapView, now: Date())
             updateTimer()
@@ -767,12 +763,13 @@ struct NetworkMapView: UIViewRepresentable {
         }
 
         /// The other trains: each one shows up (fading in) as it sets off, moves
-        /// to where the timetable puts it, and fades away a minute after it gets to
-        /// its last stop.
+        /// along its line (see `spot(for:at:)`), and fades away a minute after it gets
+        /// to its last stop.
         private func moveRunning(in mapView: MKMapView, now: Date) {
             var added: [TrainAnnotation] = []
             for (key, scheduled) in schedule where scheduled.tripNumber != trip?.tripNumber {
                 let spot = self.spot(for: scheduled, at: now)
+                spots[key] = spot
                 guard let marker = running[key] else {
                     if let spot {
                         let fresh = TrainAnnotation(coordinate: Self.coordinate(spot.point), running: scheduled)
@@ -796,129 +793,137 @@ struct NetworkMapView: UIViewRepresentable {
             if !added.isEmpty { appear(added, in: mapView) }
         }
 
-        typealias Spot = (point: TrackGeometry.Point, heading: Double?, next: Int)
+        /// A train's place on the map: where it is, which way it's going, the last
+        /// stop it reached and the one it's at or heading for, and how fast it's going.
+        struct Spot {
+            let point: TrackGeometry.Point
+            let heading: Double?
+            let reached: Int
+            let next: Int
+            /// Metres per second.
+            let speed: Double
+        }
 
-        /// Where one of the other trains is now, which way it's going, and the stop
-        /// it's at or heading for: by its live reports while there are any, otherwise
-        /// by the timetable. Nil when it isn't running.
+        /// How far behind GO's live reports the trains are drawn. GO reports each
+        /// train about every 20 seconds, 5 to 15 seconds after the fact; half a
+        /// minute behind, the next report is nearly always in by the time it's
+        /// needed, so each train moves smoothly through every place it was reported
+        /// (see TrainReplay) rather than guessing ahead and jumping.
+        static let replayDelay: TimeInterval = 30
+
+        /// The other trains as last drawn, by trip (for their markers and taps).
+        private var spots: [String: Spot] = [:]
+        /// Each trip's run along its stops, measured once.
+        private var runs: [String: TrainRun] = [:]
+        /// Each train as last drawn along its run, by trip ("tracked" for the
+        /// tracked one): how far along, how fast, and when.
+        private var drawn: [String: (distance: Double, speed: Double, at: Date)] = [:]
+        /// When each of the other trains was first drawn at the end of its run.
+        private var endedAt: [String: Date] = [:]
+
+        private func run(line: String, codes: [String]) -> TrainRun? {
+            let key = "\(line)|" + codes.joined(separator: ",")
+            if let cached = runs[key] { return cached }
+            guard codes.count >= 2 else { return nil }
+            let run = TrainRun(codes: codes) { a, b in self.segment(line, a, b) }
+            runs[key] = run
+            return run
+        }
+
+        /// Where a train should be drawn now along its run: half a minute behind
+        /// its live reports when it has recent ones (nil when they don't fit the
+        /// run). The live list's other trains have none, so they aren't running.
+        private func replayed(_ number: String, on run: TrainRun, at now: Date) -> TrainReplay.Position? {
+            let reports = LiveTrains.shared.history[number] ?? []
+            guard let newest = reports.last,
+                  now.timeIntervalSince(newest.time) < LiveFix.freshFor + Self.replayDelay
+            else { return nil }
+            return TrainReplay.position(of: reports, on: run, at: now.addingTimeInterval(-Self.replayDelay))
+        }
+
+        /// Where one of the other trains is now: half a minute behind its live
+        /// reports when it has any, otherwise where the timetable puts it; moved
+        /// there smoothly from where it was last drawn. On the map from a minute
+        /// before it's due to set off until a minute after it gets in; nil otherwise.
         private func spot(for trip: ScheduleStore.RunningTrip, at now: Date) -> Spot? {
-            switch liveSpot(trip, at: now) {
-            case .shown(let spot): return spot
-            case .hidden: return nil
-            case .unknown: return place(trip, at: now)
+            let line = RailNetwork.shared.line(code: trip.lineCode)?.code ?? trip.lineCode
+            guard trip.times.count == trip.pattern.count, let run = self.run(line: line, codes: trip.pattern) else {
+                return forget(trip.id)
             }
-        }
-
-        private enum LiveSpot {
-            case shown(Spot)
-            /// Live reports say it isn't running: not in them, waiting to set off, or in.
-            case hidden
-            /// Nothing live to go on.
-            case unknown
-        }
-
-        /// Where one of the other trains' live reports put it: on the map from a
-        /// minute before it's due to set off until a minute after it gets in.
-        private func liveSpot(_ trip: ScheduleStore.RunningTrip, at now: Date) -> LiveSpot {
-            let live = LiveTrains.shared
-            guard let train = live.train(trip.tripNumber, at: now) else {
-                // Missing from an up-to-date list: not running.
-                return live.isCurrent(at: now) ? .hidden : .unknown
+            let times = trip.times.map { Optional($0) }
+            var target = replayed(trip.tripNumber, on: run, at: now)
+            if target == nil {
+                // Missing from an up-to-date list of live trains: not running.
+                if LiveTrains.shared.isCurrent(at: now), LiveTrains.shared.history[trip.tripNumber] == nil {
+                    return forget(trip.id)
+                }
+                let state = TrainState.locate(times: times, now: now)
+                switch state {
+                case .waiting, .unknown:
+                    return forget(trip.id)
+                case .arrived(let time) where now >= time.addingTimeInterval(TrainState.lingerAtEnd):
+                    return forget(trip.id)
+                default:
+                    target = run.position(of: state, times: times)
+                }
             }
-            let codes = trip.pattern
-            guard let fix = train.fix(in: codes, from: liveAlong[trip.id]?.stop ?? 0) else { return .unknown }
-            if fix.isAt, fix.index == 0, let leaves = trip.times.first, now < leaves.addingTimeInterval(-60) {
-                return .hidden
+            guard let target else { return forget(trip.id) }
+            // Waiting at its first stop: on the map from a minute before it's due to leave.
+            if target.isAt, target.stop == 0, let leaves = trip.times.first, now < leaves.addingTimeInterval(-60) {
+                return forget(trip.id)
             }
-            if fix.isAt, fix.index == codes.count - 1 {
+            let shown = ease(trip.id, toward: target, on: run, now: now)
+            // In at its last stop: there a minute, then gone.
+            if shown.isAt, shown.stop == run.codes.count - 1 {
                 let since = endedAt[trip.id] ?? now
                 endedAt[trip.id] = since
-                if now.timeIntervalSince(since) > TrainState.lingerAtEnd { return .hidden }
+                if now.timeIntervalSince(since) > TrainState.lingerAtEnd { return nil }
             }
-            let line = RailNetwork.shared.line(code: trip.lineCode)?.code ?? trip.lineCode
-            guard let spot = livePlace(train, fix: fix, codes: codes, line: line, key: trip.id,
-                                       times: trip.times.map { Optional($0) }, now: now)
-            else { return .unknown }
-            return .shown(spot)
+            return spot(on: run, at: shown)
         }
 
-        /// Where a train is now by its latest live report: at the station it's
-        /// standing at, or along the track toward the one it's heading for, from
-        /// where GO last saw it, carried on at its pace since (never past that
-        /// station, and never back from where it was last drawn). Nil when the report
-        /// doesn't fit this stretch of track.
-        private func livePlace(_ train: LiveTrain, fix: LiveFix, codes: [String], line: String, key: String,
-                               times: [Date?], now: Date) -> Spot? {
-            let k = fix.index
-            guard codes.indices.contains(k) else { return nil }
-            if fix.isAt {
-                liveAlong[key] = nil
-                if k > 0, let inbound = segment(line, codes[k - 1], codes[k]) {
-                    let end = inbound.cumulative[inbound.cumulative.count - 1]
-                    // Pointing the way it will carry on.
-                    var heading = Self.heading(on: inbound, at: end)
-                    if k + 1 < codes.count, let onward = segment(line, codes[k], codes[k + 1]) {
-                        heading = Self.heading(on: onward, at: 0) ?? heading
+        private func forget(_ key: String) -> Spot? {
+            drawn[key] = nil
+            return nil
+        }
+
+        /// Moves a train's drawing toward where it should be: at that pace, closing
+        /// any gap over a few seconds, speeding up and slowing down no harder than
+        /// a train does, never going back, and never past the station it's heading
+        /// for. Starts again there when it's far off, or wasn't drawn just now.
+        private func ease(_ key: String, toward target: TrainReplay.Position, on run: TrainRun,
+                          now: Date) -> TrainReplay.Position {
+            let limit = run.starts.indices.contains(target.stop) ? run.starts[target.stop] : run.length
+            if let last = drawn[key] {
+                let dt = now.timeIntervalSince(last.at)
+                if dt > 0, dt < 5, abs(target.distance - last.distance) < 2_000 {
+                    let coasting = last.distance + last.speed * dt
+                    let wanted = max(0, target.speed + 0.5 * (target.distance - coasting))
+                    var speed = max(0, last.speed + min(max(wanted - last.speed, -1.5 * dt), 1.5 * dt))
+                    var distance = last.distance + (last.speed + speed) / 2 * dt
+                    if distance >= limit {
+                        distance = max(limit, last.distance)
+                        speed = min(speed, target.speed)
                     }
-                    return (inbound.point(at: end), heading, k)
+                    drawn[key] = (distance, speed, now)
+                    return TrainReplay.Position(distance: distance, speed: speed, stop: target.stop,
+                                                isAt: target.isAt && abs(distance - target.distance) < 2)
                 }
-                guard k + 1 < codes.count, let onward = segment(line, codes[k], codes[k + 1]) else { return nil }
-                return (onward.point(at: 0), Self.heading(on: onward, at: 0), k)
+                if dt <= 0 {
+                    return TrainReplay.Position(distance: last.distance, speed: last.speed, stop: target.stop,
+                                                isAt: target.isAt && abs(last.distance - target.distance) < 2)
+                }
             }
-            guard k > 0, let path = segment(line, codes[k - 1], codes[k]) else { return nil }
-            let length = path.cumulative[path.cumulative.count - 1]
-            let seen = path.project(TrackGeometry.point(train.coordinate))
-            guard seen.distance < 1_500 else { return nil }
-            // Its pace: from its last two reports on this stretch, otherwise the timetable's here.
-            var pace: Double?
-            if let before = LiveTrains.shared.previous[train.trip], before.stop == train.stop, !before.isAtStop {
-                let earlier = path.project(TrackGeometry.point(before.coordinate))
-                let elapsed = train.time.timeIntervalSince(before.time)
-                if elapsed >= 5, earlier.distance < 1_500 { pace = max(0, seen.arc - earlier.arc) / elapsed }
-            }
-            if pace == nil, times.indices.contains(k), let start = times[k - 1],
-               let end = TrainState.arrival(at: k, times: times) {
-                let run = end.timeIntervalSince(start)
-                if run > 30 { pace = length / run }
-            }
-            let elapsed = min(max(0, now.timeIntervalSince(train.time)), 90)
-            var along = min(seen.arc + min(pace ?? 15, 45) * elapsed, max(length - 30, seen.arc))
-            if let shown = liveAlong[key], shown.stop == k { along = max(along, shown.along) }
-            liveAlong[key] = (k, along)
-            return (path.point(at: along), Self.heading(on: path, at: along), k)
+            drawn[key] = (target.distance, target.speed, now)
+            return target
         }
 
-        /// Where the timetable puts a running train now (along the track between the
-        /// stops either side, standing at a station for its minute there, or at its
-        /// last stop for a minute after it gets in), which way it's going, and the
-        /// stop it's at or heading for. Nil before it sets off and once it's gone.
-        private func place(_ trip: ScheduleStore.RunningTrip, at now: Date) -> Spot? {
-            let stops = trip.pattern
-            guard trip.times.count == stops.count, stops.count >= 2 else { return nil }
-            let line = RailNetwork.shared.line(code: trip.lineCode)?.code ?? trip.lineCode
-            switch TrainState.locate(times: trip.times.map { Optional($0) }, now: now) {
-            case .moving(let from, let fraction):
-                guard from + 1 < stops.count, let path = segment(line, stops[from], stops[from + 1]) else { return nil }
-                let along = path.cumulative[path.cumulative.count - 1] * fraction
-                return (path.point(at: along), Self.heading(on: path, at: along), from + 1)
-            case .stopped(let at):
-                guard at > 0, at < stops.count, let inbound = segment(line, stops[at - 1], stops[at]) else { return nil }
-                let end = inbound.cumulative[inbound.cumulative.count - 1]
-                // Pointing the way it will carry on.
-                var heading = Self.heading(on: inbound, at: end)
-                if at + 1 < stops.count, let onward = segment(line, stops[at], stops[at + 1]) {
-                    heading = Self.heading(on: onward, at: 0) ?? heading
-                }
-                return (inbound.point(at: end), heading, at)
-            case .arrived(let time):
-                let last = stops.count - 1
-                guard now < time.addingTimeInterval(TrainState.lingerAtEnd),
-                      let inbound = segment(line, stops[last - 1], stops[last]) else { return nil }
-                let end = inbound.cumulative[inbound.cumulative.count - 1]
-                return (inbound.point(at: end), Self.heading(on: inbound, at: end), last)
-            case .waiting, .unknown:
-                return nil
-            }
+        /// Where `position` is on the map.
+        private func spot(on run: TrainRun, at position: TrainReplay.Position) -> Spot? {
+            guard let placed = run.point(at: position.distance) else { return nil }
+            let reached = position.isAt ? position.stop : max(position.stop - 1, 0)
+            return Spot(point: placed.point, heading: placed.heading, reached: reached, next: position.stop,
+                        speed: position.speed)
         }
 
         /// The track between two neighbouring stops, measured once.
@@ -963,7 +968,7 @@ struct NetworkMapView: UIViewRepresentable {
                     best = (trip, distance)
                 }
             }
-            guard let best, let spot = self.spot(for: best.trip, at: Date()) else { return nil }
+            guard let best, let spot = spots[best.trip.id] else { return nil }
             return (best.trip, spot.next)
         }
 
@@ -989,17 +994,36 @@ struct NetworkMapView: UIViewRepresentable {
         /// otherwise along its track.
         private func trainHeading(at now: Date) -> Double? {
             if isOnBoard, let course = userLocation?.course, course >= 0 { return course }
-            return liveTrainSpot(at: now)?.heading ?? trip?.heading(at: now, on: geometry)
+            return trackedSpot?.heading ?? trip?.heading(at: now, on: geometry)
         }
 
-        /// Where the tracked train's latest live report puts it now (see `livePlace`).
-        private func liveTrainSpot(at now: Date) -> Spot? {
-            guard let trip, let fix = trip.live, fix.isFresh(at: now),
-                  let train = LiveTrains.shared.train(trip.tripNumber, at: now)
-            else { return nil }
+        /// Whether the tracked train is moving where it's drawn.
+        private func trainIsMoving(at now: Date) -> Bool {
+            if let trackedSpot { return trackedSpot.speed > 0.3 }
+            return trip?.state(at: now).isMoving ?? false
+        }
+
+        /// Where the tracked train is drawn now (see `updateTrackedSpot(at:)`).
+        private var trackedSpot: Spot?
+
+        /// Where the tracked train is now: half a minute behind its live reports
+        /// when it has recent ones, otherwise where its times put it (with what the
+        /// latest live report says); moved there smoothly from where it was last drawn.
+        private func updateTrackedSpot(at now: Date) {
+            guard let trip else {
+                trackedSpot = nil
+                return
+            }
             let line = RailNetwork.shared.line(code: trip.lineCode)?.code ?? trip.lineCode
-            return livePlace(train, fix: fix, codes: trip.stopCodes, line: line, key: "tracked",
-                             times: trip.stops.map { $0.departed ?? $0.expected ?? $0.time }, now: now)
+            guard let run = self.run(line: line, codes: trip.stopCodes),
+                  let target = replayed(trip.tripNumber, on: run, at: now)
+                      ?? run.position(of: trip.state(at: now),
+                                      times: trip.stops.map { $0.departed ?? $0.expected ?? $0.time })
+            else {
+                trackedSpot = nil
+                return
+            }
+            trackedSpot = spot(on: run, at: ease("tracked", toward: target, on: run, now: now))
         }
 
         private static func coordinate(_ point: TrackGeometry.Point) -> CLLocationCoordinate2D {
@@ -1028,10 +1052,9 @@ struct NetworkMapView: UIViewRepresentable {
             }
         }
 
-        /// Where the train is now, along the track: by its latest live report when
-        /// there's a fresh one, otherwise where its times put it.
+        /// Where the train is now, along the track, as it's drawn.
         private func estimatedPoint(at now: Date) -> TrackGeometry.Point? {
-            liveTrainSpot(at: now)?.point ?? trip?.position(at: now, on: geometry)
+            trackedSpot?.point ?? trip?.position(at: now, on: geometry)
         }
 
         /// Where to draw the train: with you when you're on it, otherwise where it
@@ -1046,6 +1069,7 @@ struct NetworkMapView: UIViewRepresentable {
 
         private func moveTrain(in mapView: MKMapView, now: Date) {
             guard let trip else { return }
+            updateTrackedSpot(at: now)
             updateOnBoard(in: mapView, now: now)
             guard let point = trainPoint(at: now) else { return }
             let coordinate = Self.coordinate(point)
@@ -1060,7 +1084,7 @@ struct NetworkMapView: UIViewRepresentable {
                 appear([marker], in: mapView)
             }
             if let train, let view = mapView.view(for: train) as? TrainAnnotationView {
-                view.configure(color: lineColor(trip.lineCode), animatesPointer: trip.state(at: now).isMoving, isOnBoard: isOnBoard)
+                view.configure(color: lineColor(trip.lineCode), animatesPointer: trainIsMoving(at: now), isOnBoard: isOnBoard)
                 view.setHeading(trainHeading(at: now), animated: true)
             }
         }
@@ -1070,7 +1094,8 @@ struct NetworkMapView: UIViewRepresentable {
         /// and the train moves along it.
         private func updateRoute(in mapView: MKMapView, now: Date) {
             guard let trip else { return }
-            let start = trip.state(at: now).reached(stopCount: trip.stops.count)
+            // From the last stop the train has reached where it's drawn.
+            let start = trackedSpot?.reached ?? trip.state(at: now).reached(stopCount: trip.stops.count)
             guard start != routeStart else { return }
             routeStart = start
             let old = route
@@ -1130,7 +1155,7 @@ struct NetworkMapView: UIViewRepresentable {
             if value != isOnBoard {
                 isOnBoard = value
                 if let train, let trip, let view = mapView.view(for: train) as? TrainAnnotationView {
-                    view.configure(color: lineColor(trip.lineCode), animatesPointer: trip.state(at: Date()).isMoving, isOnBoard: value)
+                    view.configure(color: lineColor(trip.lineCode), animatesPointer: trainIsMoving(at: Date()), isOnBoard: value)
                 }
             }
             mapView.view(for: mapView.userLocation)?.isHidden = isOnBoard

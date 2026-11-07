@@ -66,8 +66,9 @@ final class LiveTrains {
     private(set) var trains: [String: LiveTrain] = [:]
     /// When the list last came in.
     private(set) var updatedAt: Date?
-    /// Each train's report before its latest, for how fast it's going.
-    @ObservationIgnored private(set) var previous: [String: LiveTrain] = [:]
+    /// Each train's reports over the last few minutes, oldest first (kept a while
+    /// after it leaves the list), for replaying its run on the map.
+    @ObservationIgnored private(set) var history: [String: [LiveTrain]] = [:]
     @ObservationIgnored private var loading: Task<Void, Never>?
 
     private init() {}
@@ -116,19 +117,25 @@ final class LiveTrains {
         guard (response as? HTTPURLResponse)?.statusCode == 200,
               let list = try? Self.decoder.decode(Response.self, from: data)
         else { return }
+        let now = Date()
         var next: [String: LiveTrain] = [:]
         for var train in list.trains {
-            if let before = trains[train.trip] {
-                // Creeping along the platform it's at, GO says it's on its way to
-                // that same station: it's still there.
-                if train.status == "to", before.isAtStop, before.stop == train.stop { train.status = "at" }
-                if before.time != train.time { previous[train.trip] = before }
+            // Creeping along the platform it's at, GO says it's on its way to that
+            // same station: it's still there.
+            if train.status == "to", let before = trains[train.trip], before.isAtStop, before.stop == train.stop {
+                train.status = "at"
             }
             next[train.trip] = train
+            var reports = history[train.trip] ?? []
+            if reports.last.map({ train.time > $0.time }) ?? true { reports.append(train) }
+            history[train.trip] = Array(reports.suffix(12))
         }
-        previous = previous.filter { next[$0.key] != nil }
+        history = history.compactMapValues { reports in
+            let kept = reports.filter { now.timeIntervalSince($0.time) < 300 }
+            return kept.isEmpty ? nil : kept
+        }
         trains = next
-        updatedAt = Date()
+        updatedAt = now
         TripTracker.shared.follow(self)
     }
 }
