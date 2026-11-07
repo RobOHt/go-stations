@@ -1015,16 +1015,53 @@ struct NetworkMapView: UIViewRepresentable {
                 return
             }
             let line = RailNetwork.shared.line(code: trip.lineCode)?.code ?? trip.lineCode
-            guard let run = self.run(line: line, codes: trip.stopCodes),
-                  let target = replayed(trip.tripNumber, on: run, at: now)
-                      ?? run.position(of: trip.state(at: now),
-                                      times: trip.stops.map { $0.departed ?? $0.expected ?? $0.time })
+            guard let run = self.run(line: line, codes: trip.stopCodes) else {
+                trackedSpot = nil
+                return
+            }
+            let replay = replayed(trip.tripNumber, on: run, at: now)
+            guard let target = replay ?? run.position(of: trip.state(at: now),
+                                                      times: trip.stops.map { $0.departed ?? $0.expected ?? $0.time })
             else {
                 trackedSpot = nil
                 return
             }
-            trackedSpot = spot(on: run, at: ease("tracked", toward: target, on: run, now: now))
+            let shown = ease("tracked", toward: target, on: run, now: now)
+            trackedSpot = spot(on: run, at: shown)
+            #if DEBUG
+            trace(trip.tripNumber, now: now, replayed: replay != nil, target: target, shown: shown)
+            #endif
         }
+
+        #if DEBUG
+        /// Debug builds launched with `-traceTrains YES`: each time the tracked train
+        /// is drawn, where it should be and where it's drawn, in Documents/train-trace.tsv
+        /// (tools/trace_summary.py says how smoothly it moved).
+        private static let traceFile: FileHandle? = {
+            guard UserDefaults.standard.bool(forKey: "traceTrains"),
+                  let folder = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
+            else { return nil }
+            let url = folder.appendingPathComponent("train-trace.tsv")
+            let header = "time\tsource\ttarget\ttarget_speed\tdrawn\tdrawn_speed\treport_age\treports\tstop\n"
+            FileManager.default.createFile(atPath: url.path, contents: Data(header.utf8))
+            return try? FileHandle(forWritingTo: url)
+        }()
+
+        private func trace(_ number: String, now: Date, replayed: Bool, target: TrainReplay.Position,
+                           shown: TrainReplay.Position) {
+            guard let file = Self.traceFile else { return }
+            let reports = LiveTrains.shared.history[number] ?? []
+            let age = reports.last.map { now.timeIntervalSince($0.time) } ?? -1
+            let fields: [String] = [
+                String(format: "%.2f", now.timeIntervalSince1970), replayed ? "replay" : "times",
+                String(format: "%.1f", target.distance), String(format: "%.2f", target.speed),
+                String(format: "%.1f", shown.distance), String(format: "%.2f", shown.speed),
+                String(format: "%.1f", age), "\(reports.count)", "\(target.stop)\(target.isAt ? "@" : ">")",
+            ]
+            _ = try? file.seekToEnd()
+            try? file.write(contentsOf: Data((fields.joined(separator: "\t") + "\n").utf8))
+        }
+        #endif
 
         private static func coordinate(_ point: TrackGeometry.Point) -> CLLocationCoordinate2D {
             let coordinate = TrackGeometry.coordinate(point)

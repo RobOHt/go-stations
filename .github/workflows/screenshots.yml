@@ -141,6 +141,28 @@ jobs:
           shoot 13-activity-gallery 8 activityGallery
           shoot 13b-activity-lock-screen 8 activityGallery -galleryLockScreen YES
 
+      - name: Trace the tracked train's motion
+        if: always() && steps.sim.outputs.udid != ''
+        env:
+          UDID: ${{ steps.sim.outputs.udid }}
+        run: |
+          # Two and a half minutes of the tracked train on live data, as it's drawn
+          # each second (debug builds log it with -traceTrains): how smoothly it moves.
+          xcrun simctl terminate "$UDID" "$BUNDLE_ID" > /dev/null 2>&1 || true
+          container=$(xcrun simctl get_app_container "$UDID" "$BUNDLE_ID" data)
+          rm -f "$container/Documents/train-trace.tsv"
+          sleep 1
+          xcrun simctl launch "$UDID" "$BUNDLE_ID" -debugScene trackedTrip -traceTrains YES \
+            -homeStation OA -workStation UN > /dev/null < /dev/null
+          sleep 150
+          xcrun simctl io "$UDID" screenshot --type=png shots/14-traced-trip.png > /dev/null 2>&1 || true
+          if cp "$container/Documents/train-trace.tsv" shots/ 2> /dev/null; then
+            python3 tools/trace_summary.py shots/train-trace.tsv | tee trace-summary.txt
+            echo "::notice title=Train motion::$(head -4 trace-summary.txt | tr '\n' ' ')"
+          else
+            echo "::warning title=Train motion::No trace was written"
+          fi
+
       - name: Check the start-up station
         id: startup
         env:
