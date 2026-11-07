@@ -8,8 +8,9 @@ import Observation
 final class AppSettings {
     private(set) var homeCode: String?
     private(set) var workCode: String?
-    /// Every train running now on the map, not just the tracked one.
-    private(set) var showsAllTrains = false
+    /// Every train running now on the map, not just the tracked one. On until
+    /// turned off.
+    private(set) var showsAllTrains = true
 
     private enum Key {
         static let home = "homeStation"
@@ -25,7 +26,7 @@ final class AppSettings {
         cloud.synchronize()
         homeCode = Self.stored(Key.home, cloud: cloud, local: local)
         workCode = Self.stored(Key.work, cloud: cloud, local: local)
-        showsAllTrains = local.bool(forKey: Key.allTrains)
+        showsAllTrains = local.object(forKey: Key.allTrains) as? Bool ?? true
 
         // Home/work changed on another device.
         cloudObserver = NotificationCenter.default.addObserver(
