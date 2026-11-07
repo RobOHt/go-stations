@@ -1,12 +1,13 @@
 """Checks that every SF Symbol the app names exists on a simulator's iOS: a symbol
 newer than the iOS the app runs on draws as nothing, and the compiler can't tell.
 
-    check_symbols.py <runtime root> <source folder>...
+    check_symbols.py list <source folder>... > symbols.tsv
+    check_symbols.py check <runtime root> symbols.tsv
 
-Reads the symbol names iOS knows from its CoreGlyphs bundle (name_availability.plist,
-and name_aliases.strings for old names), and the macOS host's for the full list.
-Any string literal in the sources that the host knows as a symbol but the runtime
-doesn't is reported (exit 1)."""
+`list` writes each string literal in the sources that this Mac knows as a symbol
+(run it on the newest macOS, which knows them all), with where it's used. `check`
+reports (and exits 1 for) those the simulator's iOS doesn't know. The names come
+from CoreGlyphs (name_availability.plist, and name_aliases.strings for old names)."""
 import pathlib
 import plistlib
 import re
@@ -22,32 +23,45 @@ def known_symbols(root):
             with plist.open("rb") as f:
                 names |= set(plistlib.load(f).get("symbols", {}))
         for aliases in bundle.rglob("name_aliases.strings"):
-            with aliases.open("rb") as f:
-                data = f.read()
+            data = aliases.read_bytes()
             try:
                 names |= set(plistlib.loads(data))
             except Exception:
-                names |= set(re.findall(r'"([^"]+)"\s*=', data.decode("utf-16" if data[:2] in (b"\xff\xfe", b"\xfe\xff") else "utf-8", "ignore")))
+                text = data.decode("utf-16" if data[:2] in (b"\xff\xfe", b"\xfe\xff") else "utf-8", "ignore")
+                names |= set(re.findall(r'"([^"]+)"\s*=', text))
     return names
 
 
-runtime_root, sources = sys.argv[1], sys.argv[2:]
-on_runtime = known_symbols(runtime_root)
-on_host = known_symbols("/")
-if not on_runtime or not on_host:
-    print(f"::warning title=SF Symbols::Couldn't read the symbol lists (runtime {len(on_runtime)}, host {len(on_host)})")
-    sys.exit(0)
+def list_symbols(folders):
+    known = known_symbols("/")
+    if not known:
+        sys.exit("Couldn't read this Mac's symbol list")
+    seen = {}
+    for folder in folders:
+        for path in sorted(pathlib.Path(folder).rglob("*.swift")):
+            for number, line in enumerate(path.read_text().splitlines(), 1):
+                for name in LITERAL.findall(line):
+                    if name in known:
+                        seen.setdefault(name, f"{path}:{number}")
+    for name, where in sorted(seen.items()):
+        print(f"{name}\t{where}")
 
-used = {}
-for folder in sources:
-    for path in sorted(pathlib.Path(folder).rglob("*.swift")):
-        for number, line in enumerate(path.read_text().splitlines(), 1):
-            for name in LITERAL.findall(line):
-                used.setdefault(name, f"{path}:{number}")
 
-symbols = {name: where for name, where in used.items() if name in on_host or name in on_runtime}
-missing = {name: where for name, where in symbols.items() if name not in on_runtime}
-print(f"{len(symbols)} SF Symbols named in the app; {len(missing)} missing on this iOS")
-for name, where in sorted(missing.items()):
-    print(f"::error file={where.split(':')[0]},line={where.split(':')[1]},title=SF Symbol missing::{name} doesn't exist on this iOS")
-sys.exit(1 if missing else 0)
+def check(runtime_root, listing):
+    known = known_symbols(runtime_root)
+    if not known:
+        print(f"::warning title=SF Symbols::Couldn't read the symbol list in {runtime_root}")
+        return 0
+    used = [line.split("\t") for line in pathlib.Path(listing).read_text().splitlines() if line]
+    missing = [(name, where) for name, where in used if name not in known]
+    print(f"{len(used)} SF Symbols named in the app; {len(missing)} missing on this iOS")
+    for name, where in missing:
+        path, line = where.rsplit(":", 1)
+        print(f"::error file={path},line={line},title=SF Symbol missing::{name} doesn't exist on this iOS")
+    return 1 if missing else 0
+
+
+if sys.argv[1] == "list":
+    list_symbols(sys.argv[2:])
+else:
+    sys.exit(check(sys.argv[2], sys.argv[3]))

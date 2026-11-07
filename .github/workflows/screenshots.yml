@@ -26,15 +26,11 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  shots:
-    name: Simulator screenshots
+  build:
+    name: Simulator build
     # GitHub's Xcode 27 image (macOS 27, Apple silicon) with the iOS 27 SDK and simulators.
     runs-on: xcode-27
-    timeout-minutes: 60
-    env:
-      BUNDLE_ID: com.robinzhong.Departures
-      IOS_VERSION: ${{ inputs.ios }}
-      DEVICE: ${{ inputs.device }}
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
 
@@ -73,6 +69,52 @@ jobs:
             }
           tail -3 build.log
 
+      - name: Keep the app for the screenshots
+        run: |
+          ditto -c -k --keepParent build/Build/Products/Debug-iphonesimulator/Departures.app Departures.app.zip
+          # The SF Symbols the app names, as this (newest) macOS knows them, to check on the simulator's iOS.
+          python3 .github/scripts/check_symbols.py list Departures DeparturesWidgets > symbols.tsv
+          wc -l < symbols.tsv
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: simulator-app
+          # With the timetable it bundled, which the start-up check compares against.
+          path: |
+            Departures.app.zip
+            symbols.tsv
+            Departures/Resources/schedule.json
+          retention-days: 3
+
+  shots:
+    name: Simulator screenshots
+    needs: build
+    # The Xcode 27 image's iOS 27 simulators; for an iOS before 26, GitHub's macOS 15
+    # image, which still has iOS 18's (Xcode 27 can't download those). Either runs the
+    # app built above.
+    runs-on: ${{ inputs.ios != '' && fromJSON(inputs.ios) < 26 && 'macos-15' || 'xcode-27' }}
+    timeout-minutes: 50
+    env:
+      BUNDLE_ID: com.robinzhong.Departures
+      IOS_VERSION: ${{ inputs.ios }}
+      DEVICE: ${{ inputs.device }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: simulator-app
+
+      - name: Unpack the app
+        run: |
+          mkdir -p build/Build/Products/Debug-iphonesimulator
+          ditto -x -k Departures.app.zip build/Build/Products/Debug-iphonesimulator
+          # The newest Xcode 27 when the image has one, as for the build; otherwise its own.
+          XCODE=$(ls -d /Applications/Xcode_27.1*.app 2>/dev/null | grep -vi beta | sort -V | tail -1)
+          [ -n "$XCODE" ] || XCODE=$(ls -d /Applications/Xcode_27*.app 2>/dev/null | grep -vi beta | sort -V | tail -1)
+          [ -n "$XCODE" ] && sudo xcode-select -s "$XCODE/Contents/Developer"
+          xcodebuild -version
+
       - name: Boot a simulator
         id: sim
         run: |
@@ -84,7 +126,6 @@ jobs:
                      "$IOS_VERSION.2" "$IOS_VERSION.1" "$IOS_VERSION.0"; do
               echo "Downloading the iOS $v simulator"
               if xcodebuild -downloadPlatform iOS -buildVersion "$v"; then break; fi
-              if command -v xcodes > /dev/null && xcodes runtimes install "iOS $v"; then break; fi
             done
             python3 .github/scripts/pick_simulator.py > sim.txt
           fi
@@ -103,7 +144,7 @@ jobs:
         continue-on-error: true
         env:
           ROOT: ${{ steps.sim.outputs.root }}
-        run: python3 .github/scripts/check_symbols.py "$ROOT" Departures DeparturesWidgets
+        run: python3 .github/scripts/check_symbols.py check "$ROOT" symbols.tsv
 
       - name: Install the app
         env:
