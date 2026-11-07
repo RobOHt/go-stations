@@ -96,6 +96,7 @@ struct TripSheet: View {
         .scrollIndicators(.hidden)
         // The train's line, terminus and close button stay pinned over the stops.
         .pinnedHeader(bottomRoom: PinnedHeaderMetrics.tripBottom) { header }
+        .environment(\.glassBackdrop, .sheet)
         .task {
             detail = await BoardService.shared.tripDetail(for: row, from: selection.station)
         }
@@ -226,7 +227,7 @@ struct TripSheet: View {
                 .contentShape(Capsule())
         }
         .buttonStyle(.plain)
-        .glassEffect(tracking ? .regular.interactive() : .regular.tint(lineColor).interactive(), in: Capsule())
+        .glass(tracking ? .interactive : .tinted(lineColor), in: Capsule())
         .animation(.smooth(duration: 0.25), value: tracking)
         .accessibilityHint(tracking ? "Stops following this train"
                                     : "Follows this train on the map and in a Live Activity")

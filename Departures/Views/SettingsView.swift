@@ -13,13 +13,19 @@ struct SettingsView: View {
                 mapSection
                 aboutSection
             }
-            .scrollEdgeEffectStyle(.soft, for: .top)
+            .softTopScrollEdge()
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done", systemImage: "checkmark") {
-                        dismiss()
+                    if #available(iOS 26.0, *) {
+                        Button("Done", systemImage: "checkmark") {
+                            dismiss()
+                        }
+                    } else {
+                        Button("Done") {
+                            dismiss()
+                        }
                     }
                 }
             }

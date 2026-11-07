@@ -1,6 +1,6 @@
 # GO Stations
 
-A tiny native iOS app that puts the GO Transit station departure board in your pocket. (The Xcode project and target are named `Departures`; the app shows up as **GO Stations** on your home screen.)
+A tiny native iOS app that puts the GO Transit station departure board in your pocket. (The Xcode project and target are named `Departures`; the app shows up as **GO Stations** on your home screen.) It runs on iOS 18 and later, in Liquid Glass from iOS 26; on iOS 18 the controls are frosted, as iOS drew them then.
 
 - **Map first.** Apple Maps with every GO rail line drawn thick in its official colour, a dot for every station, and your location.
 - **Tap a station, get the board.** A native bottom sheet opens with the departure screen as it looks in the station: same bilingual headers, colours, line badges, ⚡ express marker, platform numbers with ♿, red cancellations, and Union's "Info in X min" countdowns. Adapted for portrait so nothing scrolls sideways.

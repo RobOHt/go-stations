@@ -3,17 +3,26 @@ name: Screenshots
 # Runs a Debug build in the iOS Simulator, opens it in a few set-up states
 # (Departures/App/DebugScene.swift), screenshots each, and force-pushes the
 # PNGs to a screenshots-<branch> branch, so changes can be checked by eye before
-# they go to TestFlight. Runs on pushes to preview/** branches, or by hand.
+# they go to TestFlight. Runs on pushes to preview/** branches, or by hand: by
+# hand, optionally on an older iOS (its simulator is downloaded when the image
+# lacks it) or another iPhone, published to screenshots-<branch>-ios<N>-<device>.
 on:
   push:
     branches: ["preview/**"]
   workflow_dispatch:
+    inputs:
+      ios:
+        description: "iOS version (say 18); empty for the newest"
+        default: ""
+      device:
+        description: "iPhone model (say iPhone 16 Pro); empty for the usual one"
+        default: ""
 
 permissions:
   contents: write
 
 concurrency:
-  group: screenshots-${{ github.ref }}
+  group: screenshots-${{ github.ref }}-${{ inputs.ios }}-${{ inputs.device }}
   cancel-in-progress: true
 
 jobs:
@@ -21,9 +30,11 @@ jobs:
     name: Simulator screenshots
     # GitHub's Xcode 27 image (macOS 27, Apple silicon) with the iOS 27 SDK and simulators.
     runs-on: xcode-27
-    timeout-minutes: 45
+    timeout-minutes: 60
     env:
       BUNDLE_ID: com.robinzhong.Departures
+      IOS_VERSION: ${{ inputs.ios }}
+      DEVICE: ${{ inputs.device }}
     steps:
       - uses: actions/checkout@v5
 
@@ -67,7 +78,16 @@ jobs:
         run: |
           # Show the on-screen keyboard rather than assuming a hardware one.
           defaults write com.apple.iphonesimulator ConnectHardwareKeyboard -bool false
-          python3 .github/scripts/pick_simulator.py > sim.txt
+          if ! python3 .github/scripts/pick_simulator.py > sim.txt; then
+            # An older iOS than the image has: download its simulator (newest point release first).
+            for v in "$IOS_VERSION" "$IOS_VERSION.6" "$IOS_VERSION.5" "$IOS_VERSION.4" "$IOS_VERSION.3" \
+                     "$IOS_VERSION.2" "$IOS_VERSION.1" "$IOS_VERSION.0"; do
+              echo "Downloading the iOS $v simulator"
+              if xcodebuild -downloadPlatform iOS -buildVersion "$v"; then break; fi
+              if command -v xcodes > /dev/null && xcodes runtimes install "iOS $v"; then break; fi
+            done
+            python3 .github/scripts/pick_simulator.py > sim.txt
+          fi
           read -r RUNTIME TYPE NAME < sim.txt
           echo "Simulator: $NAME on $RUNTIME"
           UDID=$(xcrun simctl create shots "$TYPE" "$RUNTIME")
@@ -75,6 +95,15 @@ jobs:
           xcrun simctl bootstatus "$UDID" -b > /dev/null
           echo "udid=$UDID" >> "$GITHUB_OUTPUT"
           echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "runtime=$RUNTIME" >> "$GITHUB_OUTPUT"
+          ROOT=$(xcrun simctl list runtimes -j | python3 -c "import json,sys; print(next(r['runtimeRoot'] for r in json.load(sys.stdin)['runtimes'] if r['identifier'] == sys.argv[1]))" "$RUNTIME")
+          echo "root=$ROOT" >> "$GITHUB_OUTPUT"
+
+      - name: Check the app's SF Symbols exist on this iOS
+        continue-on-error: true
+        env:
+          ROOT: ${{ steps.sim.outputs.root }}
+        run: python3 .github/scripts/check_symbols.py "$ROOT" Departures DeparturesWidgets
 
       - name: Install the app
         env:
@@ -208,11 +237,12 @@ jobs:
         if: always() && steps.sim.outputs.udid != ''
         env:
           GH_TOKEN: ${{ github.token }}
-          DEVICE: ${{ steps.sim.outputs.name }}
+          NAME: ${{ steps.sim.outputs.name }}
+          RUNTIME: ${{ steps.sim.outputs.runtime }}
         run: |
           cd shots
-          printf '# Simulator screenshots\n\n%s, commit %s on %s (run %s).\n' \
-            "${DEVICE//_/ }" "$GITHUB_SHA" "$GITHUB_REF_NAME" "$GITHUB_RUN_ID" > README.md
+          printf '# Simulator screenshots\n\n%s (%s), commit %s on %s (run %s).\n' \
+            "${NAME//_/ }" "${RUNTIME##*.}" "$GITHUB_SHA" "$GITHUB_REF_NAME" "$GITHUB_RUN_ID" > README.md
           git init -q -b ci-screenshots
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -220,6 +250,8 @@ jobs:
           git commit -qm "Screenshots for ${GITHUB_SHA}"
           # One screenshots branch per source branch, so parallel runs don't overwrite each other.
           TARGET="screenshots-${GITHUB_REF_NAME//\//-}"
+          [ -n "$IOS_VERSION" ] && TARGET="$TARGET-ios$IOS_VERSION"
+          [ -n "$DEVICE" ] && TARGET="$TARGET-$(echo "$DEVICE" | tr 'A-Z ' 'a-z-')"
           git push -qf "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:$TARGET"
           echo "::notice title=Screenshots::Pushed $(ls *.png | wc -l | tr -d ' ') screenshots to $TARGET"
 

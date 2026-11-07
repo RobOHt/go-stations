@@ -29,18 +29,8 @@ struct RootView: View {
     private let network = RailNetwork.shared
 
     var body: some View {
-        // The search field is the system's own (`.searchable` in the bottom toolbar),
-        // so iOS sizes and places it like Settings' on every iPhone, and handles the
-        // keyboard, the close button and larger text. The navigation bar is hidden:
-        // the map runs edge to edge.
         NavigationStack {
-            mapScreen
-                .toolbar {
-                    DefaultToolbarItem(kind: .search, placement: .bottomBar)
-                }
-                .toolbarVisibility(.hidden, for: .navigationBar)
-                .searchable(text: $search.query, isPresented: $searchPresented, prompt: "Search stations or places")
-                .searchFocused($searchFocused)
+            searchableMap
                 .onChange(of: searchFocused) { _, focused in
                     // Putting the keyboard away (tapping the map, say) closes the search, so
                     // it's never left open behind the map, where it gets in the way of
@@ -54,14 +44,7 @@ struct RootView: View {
                     if presented, search.place != nil { search.clearPlace() }
                 }
                 .autocorrectionDisabled()
-                .onSubmit(of: .search) {
-                    if let station = search.submit() {
-                        openFromSearch(station)
-                    } else {
-                        // Searching places: put the keyboard away for the results.
-                        searchFocused = false
-                    }
-                }
+                .onSubmit(of: .search) { submitSearch() }
         }
         .sheet(isPresented: stationSheetPresented) {
             if let selected {
@@ -166,6 +149,79 @@ struct RootView: View {
             default:
                 break
             }
+        }
+    }
+
+    private static let searchPrompt = "Search stations or places"
+
+    /// The map with its search field. On iOS 26 the field is the system's own
+    /// (`.searchable` in the bottom toolbar), so iOS sizes and places it like
+    /// Settings' on every iPhone, and handles the keyboard, the close button and
+    /// larger text. Before iOS 26 there's no search field in a bottom bar, so it's
+    /// one of our own in the same place. The navigation bar is hidden either way:
+    /// the map runs edge to edge.
+    @ViewBuilder
+    private var searchableMap: some View {
+        if #available(iOS 26.0, *) {
+            mapScreen
+                .toolbar {
+                    DefaultToolbarItem(kind: .search, placement: .bottomBar)
+                }
+                .toolbarVisibility(.hidden, for: .navigationBar)
+                .searchable(text: $search.query, isPresented: $searchPresented, prompt: Self.searchPrompt)
+                .searchFocused($searchFocused)
+        } else {
+            mapScreen
+                .toolbarVisibility(.hidden, for: .navigationBar)
+                .safeAreaInset(edge: .bottom, spacing: 0) { searchBar }
+        }
+    }
+
+    /// Before iOS 26: the bottom search field, frosted like the map buttons, with a
+    /// close button beside it while the search is open (as iOS 26's has).
+    private var searchBar: some View {
+        HStack(spacing: 10) {
+            HStack(spacing: 8) {
+                Image(systemName: "magnifyingglass")
+                    .font(.body.weight(.medium))
+                    .foregroundStyle(.secondary)
+                TextField(Self.searchPrompt, text: $search.query)
+                    .focused($searchFocused)
+                    .submitLabel(.search)
+                    .onSubmit { submitSearch() }
+                if search.hasQuery {
+                    Button {
+                        search.clearQuery()
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Clear text")
+                }
+            }
+            .padding(.horizontal, 16)
+            .frame(minHeight: 48)
+            .background {
+                // Anywhere on the field, not just its text, starts typing.
+                Capsule()
+                    .fill(.clear)
+                    .contentShape(Capsule())
+                    .onTapGesture { searchFocused = true }
+            }
+            .glass(in: Capsule())
+
+            if searchPresented {
+                GlassCloseButton { endSearch() }
+                    .transition(.scale(scale: 0.6).combined(with: .opacity))
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.bottom, 6)
+        .animation(.smooth(duration: 0.25), value: searchPresented)
+        .onChange(of: searchFocused) { _, focused in
+            // Tapping in opens the search, as tapping the system's field does.
+            if focused { searchPresented = true }
         }
     }
 
@@ -293,7 +349,7 @@ struct RootView: View {
     private var controls: some View {
         let home = settings.homeCode.flatMap(network.station)
         let work = settings.workCode.flatMap(network.station)
-        return GlassEffectContainer(spacing: 10) {
+        return GlassGroup(spacing: 10) {
             VStack(spacing: 12) {
                 if home != nil || work != nil {
                     GlassButtonGroup {
@@ -344,6 +400,16 @@ struct RootView: View {
         if DebugScene.fixedNow != nil { return }
         #endif
         Task.detached(priority: .background) { await ScheduleStore.shared.refreshIfNeeded() }
+    }
+
+    /// The Search key: open an exact station match, otherwise look the text up as a place.
+    private func submitSearch() {
+        if let station = search.submit() {
+            openFromSearch(station)
+        } else {
+            // Searching places: put the keyboard away for the results.
+            searchFocused = false
+        }
     }
 
     private func openFromSearch(_ station: Station) {

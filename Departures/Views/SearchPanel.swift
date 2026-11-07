@@ -146,7 +146,7 @@ final class PlaceSearchModel {
             let found = SearchPlace(
                 name: item.name ?? fallbackName,
                 subtitle: subtitle,
-                coordinate: item.location.coordinate
+                coordinate: item.placeCoordinate
             )
             place = found
             completer.cancel()
@@ -157,6 +157,26 @@ final class PlaceSearchModel {
             let stations = await StationFinder.nearest(to: found.coordinate)
             guard !Task.isCancelled, place == found else { return }
             nearby = stations
+        }
+    }
+}
+
+extension MKMapItem {
+    /// Where it is: its `location` from iOS 26, its placemark's before.
+    var placeCoordinate: CLLocationCoordinate2D {
+        if #available(iOS 26.0, *) {
+            location.coordinate
+        } else {
+            placemark.coordinate
+        }
+    }
+
+    /// A map item at a point, for directions.
+    static func at(_ location: CLLocation) -> MKMapItem {
+        if #available(iOS 26.0, *) {
+            MKMapItem(location: location, address: nil)
+        } else {
+            MKMapItem(placemark: MKPlacemark(coordinate: location.coordinate))
         }
     }
 }
@@ -223,9 +243,8 @@ enum StationFinder {
     private static func drive(from coordinate: CLLocationCoordinate2D, to station: Station,
                               straightLine: CLLocationDistance) async -> NearbyStation {
         let request = MKDirections.Request()
-        request.source = MKMapItem(location: CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude),
-                                   address: nil)
-        request.destination = MKMapItem(location: station.location, address: nil)
+        request.source = MKMapItem.at(CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude))
+        request.destination = MKMapItem.at(station.location)
         request.transportType = .automobile
         let eta = try? await MKDirections(request: request).calculateETA()
         return NearbyStation(station: station, travelTime: eta?.expectedTravelTime,
@@ -338,7 +357,7 @@ struct SearchResults: View {
         .scrollDismissesKeyboard(.never)
         // As tall as the results, up to 340 pt, and shorter when the keyboard leaves less room.
         .frame(maxHeight: min(max(contentHeight, 1), 340))
-        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
+        .glass(.plain, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
     }
 
     @ViewBuilder

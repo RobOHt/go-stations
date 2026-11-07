@@ -55,6 +55,7 @@ struct StationSheet: View {
         .scrollIndicators(.hidden)
         // The name, lines and buttons stay pinned in a bar over the board.
         .pinnedHeader { header }
+        .environment(\.glassBackdrop, .sheet)
         // No pull-to-refresh: pulling down closes the sheet. The board keeps
         // itself current instead.
         // Paused while a trip sheet covers this board; resumes (and refreshes) when it closes.
@@ -154,7 +155,7 @@ struct StationSheet: View {
             Spacer(minLength: 8)
 
             // Home and work share one glass, the close button has its own.
-            GlassEffectContainer(spacing: 10) {
+            GlassGroup(spacing: 10) {
                 HStack(spacing: 10) {
                     GlassButtonGroup(axis: .horizontal) {
                         // Each asks first, in an action sheet that comes out of the button
@@ -349,7 +350,7 @@ private struct AlertCard: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .glass(.plain, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
 }
 

@@ -1,6 +1,98 @@
 import SwiftUI
 import UIKit
 
+// MARK: - Glass, and what stands in for it before iOS 26
+
+/// How a piece of glass looks.
+enum GlassLook {
+    /// Plain glass, for a card or panel.
+    case plain
+    /// Glass that responds to touch, for a button.
+    case interactive
+    /// Touch-responsive glass in a colour, for a prominent button.
+    case tinted(Color)
+
+    @available(iOS 26.0, *)
+    var glass: Glass {
+        switch self {
+        case .plain: .regular
+        case .interactive: .regular.interactive()
+        case .tinted(let color): .regular.tint(color).interactive()
+        }
+    }
+}
+
+/// What glass sits on, for its stand-in before iOS 26 (no Liquid Glass): over the
+/// map it's frosted with a soft shadow, like iOS 18's floating map controls; on a
+/// sheet it's a flat grey fill, like iOS 18's sheet buttons and cards.
+enum GlassBackdrop {
+    case map, sheet
+}
+
+extension EnvironmentValues {
+    @Entry var glassBackdrop: GlassBackdrop = .map
+}
+
+extension View {
+    /// Liquid Glass in `shape` behind this view; before iOS 26, its stand-in (see
+    /// `GlassBackdrop`).
+    func glass(_ look: GlassLook = .interactive, in shape: some Shape) -> some View {
+        modifier(GlassBackground(look: look, shape: shape))
+    }
+
+    /// The soft edge where content scrolls under a top bar (iOS 26). Before iOS 26
+    /// the bar has its own background instead.
+    @ViewBuilder
+    func softTopScrollEdge() -> some View {
+        if #available(iOS 26.0, *) {
+            scrollEdgeEffectStyle(.soft, for: .top)
+        } else {
+            self
+        }
+    }
+}
+
+private struct GlassBackground<S: Shape>: ViewModifier {
+    let look: GlassLook
+    let shape: S
+    @Environment(\.glassBackdrop) private var backdrop
+
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content.glassEffect(look.glass, in: shape)
+        } else {
+            content.background {
+                switch (look, backdrop) {
+                case (.tinted(let color), _):
+                    shape.fill(color)
+                case (.plain, .sheet):
+                    shape.fill(Color(uiColor: .secondarySystemBackground))
+                case (.interactive, .sheet):
+                    shape.fill(Color(uiColor: .tertiarySystemFill))
+                case (_, .map):
+                    shape.fill(.regularMaterial)
+                        .shadow(color: .black.opacity(0.16), radius: 10, y: 3)
+                }
+            }
+        }
+    }
+}
+
+/// Glass shapes in here blend together where they come close, as one piece of
+/// Liquid Glass (iOS 26). Before iOS 26 there's nothing to blend: just the content.
+struct GlassGroup<Content: View>: View {
+    var spacing: CGFloat? = nil
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        if #available(iOS 26.0, *) {
+            GlassEffectContainer(spacing: spacing) { content }
+        } else {
+            content
+        }
+    }
+}
+
 // MARK: - Grouped glass buttons
 
 /// Icon buttons sharing one glass capsule, like the location and map-mode
@@ -18,7 +110,7 @@ struct GlassButtonGroup<Content: View>: View {
             }
         }
         .buttonStyle(.plain)
-        .glassEffect(.regular.interactive(), in: Capsule())
+        .glass(in: Capsule())
     }
 }
 
@@ -68,16 +160,46 @@ extension View {
     /// means a taller soft edge.
     func pinnedHeader<Header: View>(bottomRoom: CGFloat = PinnedHeaderMetrics.bottom,
                                     @ViewBuilder _ header: () -> Header) -> some View {
-        let content = header()
-        return self
-            .scrollEdgeEffectStyle(.soft, for: .top)
-            .safeAreaBar(edge: .top) {
-                content
-                    .padding(.leading, PinnedHeaderMetrics.leading)
-                    .padding(.trailing, PinnedHeaderMetrics.trailing)
-                    .padding(.top, PinnedHeaderMetrics.top)
-                    .padding(.bottom, bottomRoom)
-            }
+        modifier(PinnedHeader(header: header()
+            .padding(.leading, PinnedHeaderMetrics.leading)
+            .padding(.trailing, PinnedHeaderMetrics.trailing)
+            .padding(.top, PinnedHeaderMetrics.top)
+            .padding(.bottom, bottomRoom)))
+    }
+}
+
+/// See `pinnedHeader`. Before iOS 26 (no soft scroll edge) the bar is like a
+/// navigation bar of then: clear at rest, frosted with a hairline below once the
+/// content scrolls under it.
+private struct PinnedHeader<Header: View>: ViewModifier {
+    let header: Header
+    @State private var scrolledUnder = false
+
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content
+                .scrollEdgeEffectStyle(.soft, for: .top)
+                .safeAreaBar(edge: .top) { header }
+        } else {
+            content
+                .onScrollGeometryChange(for: Bool.self) { geometry in
+                    geometry.contentOffset.y + geometry.contentInsets.top > 1
+                } action: { _, under in
+                    scrolledUnder = under
+                }
+                .safeAreaInset(edge: .top, spacing: 0) {
+                    header
+                        .frame(maxWidth: .infinity)
+                        .background {
+                            Rectangle()
+                                .fill(.bar)
+                                .overlay(alignment: .bottom) { Divider() }
+                                .ignoresSafeArea(edges: .top)
+                                .opacity(scrolledUnder ? 1 : 0)
+                        }
+                        .animation(.easeOut(duration: 0.15), value: scrolledUnder)
+                }
+        }
     }
 }
 
@@ -90,7 +212,7 @@ struct GlassCloseButton: View {
             GlassIcon(systemName: "xmark")
         }
         .buttonStyle(.plain)
-        .glassEffect(.regular.interactive(), in: Circle())
+        .glass(in: Circle())
         .accessibilityLabel("Close")
     }
 }

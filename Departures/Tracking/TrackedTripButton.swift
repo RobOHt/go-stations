@@ -24,7 +24,7 @@ struct TrackedTripButton: View {
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)
-        .glassEffect(.regular.interactive(), in: Capsule())
+        .glass(in: Capsule())
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Tracking line \(trip.lineCode). \(status(at: Date()))")
         .accessibilityHint("Shows the train's stops and where it is")
