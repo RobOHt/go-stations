@@ -34,7 +34,7 @@ To build locally instead, open `Departures.xcodeproj` in Xcode 26 or later, pick
 | --- | --- |
 | Lines, colours, track shapes, stations | `Departures/Resources/network.json`, generated from the official GO GTFS feed |
 | Live data | the Worker in `worker/`, which forwards to Metrolinx Open Data with the key and caches answers for 20 s to 10 min |
-| Live train positions | GO's GTFS vehicle positions (every ~20 s: where each train is, and whether it's standing at a station) with Service at a Glance's delays, merged by the Worker (`/v1/live/trains`, cached 5 s). The map draws each train half a minute behind GO's reports, on a smooth curve through every place it was reported along the track (it eases out of stations and slows into them, and never jumps or goes back); "Arrived", the countdowns and the Live Activity go by the latest report |
+| Live train positions | GO's GTFS vehicle positions (every ~20 s: where each train is, and whether it's standing at a station) with Service at a Glance's delays, merged by the Worker (`/v1/live/trains`, cached 5 s). The map draws each train 5 seconds behind now: on a smooth curve through the places it was reported along the track, and past the latest report (GO's come about every 20 s, 5 to 15 s after the fact) carried on at its pace, braking for the station ahead. The drawn train eases from one guess to the next, speeding up and slowing down no harder than a train does, so it never jumps or goes back |
 | Union Station board | `ServiceUpdate/UnionDepartures/All` (platforms, "Express To" stop lists) |
 | Other stations | `Stop/NextService/{station}` plus `Schedule/Trip/{date}/{trip}` for the stop list (cached per day) |
 | Delays | `ComputedDepartureTime` vs `ScheduledDepartureTime` from NextService |

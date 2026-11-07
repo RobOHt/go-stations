@@ -14,7 +14,7 @@ import csv
 import statistics
 import sys
 
-REPLAY_DELAY = 30
+REPLAY_DELAY = 5
 
 
 def main(path):

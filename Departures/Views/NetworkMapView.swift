@@ -804,12 +804,12 @@ struct NetworkMapView: UIViewRepresentable {
             let speed: Double
         }
 
-        /// How far behind GO's live reports the trains are drawn. GO reports each
-        /// train about every 20 seconds, 5 to 15 seconds after the fact; half a
-        /// minute behind, the next report is nearly always in by the time it's
-        /// needed, so each train moves smoothly through every place it was reported
-        /// (see TrainReplay) rather than guessing ahead and jumping.
-        static let replayDelay: TimeInterval = 30
+        /// How far behind now the trains are drawn. GO reports each train about
+        /// every 20 seconds, 5 to 15 seconds after the fact, so most of the time
+        /// this is a guess from the latest report (see TrainReplay), which the
+        /// drawing eases to (see `ease`) rather than jumping; a few seconds behind
+        /// keeps the guesses short.
+        static let replayDelay: TimeInterval = 5
 
         /// The other trains as last drawn, by trip (for their markers and taps).
         private var spots: [String: Spot] = [:]
@@ -830,44 +830,49 @@ struct NetworkMapView: UIViewRepresentable {
             return run
         }
 
-        /// Where a train should be drawn now along its run: half a minute behind
-        /// its live reports when it has recent ones (nil when they don't fit the
-        /// run). The live list's other trains have none, so they aren't running.
-        private func replayed(_ number: String, on run: TrainRun, at now: Date) -> TrainReplay.Position? {
+        /// Where a train should be drawn now along its run, by its live reports when
+        /// it has recent ones (nil when they don't fit the run). The live list's other
+        /// trains have none, so they aren't running.
+        private func replayed(_ number: String, on run: TrainRun, at now: Date,
+                              times: [Date?]) -> TrainReplay.Position? {
             let reports = LiveTrains.shared.history[number] ?? []
             guard let newest = reports.last,
                   now.timeIntervalSince(newest.time) < LiveFix.freshFor + Self.replayDelay
             else { return nil }
-            return TrainReplay.position(of: reports, on: run, at: now.addingTimeInterval(-Self.replayDelay))
+            return TrainReplay.position(of: reports, on: run, at: now.addingTimeInterval(-Self.replayDelay),
+                                        times: times)
         }
 
-        /// Where one of the other trains is now: half a minute behind its live
-        /// reports when it has any, otherwise where the timetable puts it; moved
-        /// there smoothly from where it was last drawn. On the map from a minute
-        /// before it's due to set off until a minute after it gets in; nil otherwise.
+        /// Where one of the other trains is drawn now: by its live reports when it
+        /// has any, otherwise where the timetable puts it (both a few seconds behind
+        /// now); moved there smoothly from where it was last drawn. On the map from a
+        /// minute before it's due to set off until a minute after it gets in; nil otherwise.
         private func spot(for trip: ScheduleStore.RunningTrip, at now: Date) -> Spot? {
             let line = RailNetwork.shared.line(code: trip.lineCode)?.code ?? trip.lineCode
             guard trip.times.count == trip.pattern.count, let run = self.run(line: line, codes: trip.pattern) else {
                 return forget(trip.id)
             }
             let times = trip.times.map { Optional($0) }
-            var target = replayed(trip.tripNumber, on: run, at: now)
-            if target == nil {
+            var found = replayed(trip.tripNumber, on: run, at: now, times: times)
+            if found == nil {
                 // Missing from an up-to-date list of live trains: not running.
                 if LiveTrains.shared.isCurrent(at: now), LiveTrains.shared.history[trip.tripNumber] == nil {
                     return forget(trip.id)
                 }
-                let state = TrainState.locate(times: times, now: now)
+                // On the same clock as the replays, so a train switching between the
+                // two doesn't jump.
+                let then = now.addingTimeInterval(-Self.replayDelay)
+                let state = TrainState.locate(times: times, now: then)
                 switch state {
                 case .waiting, .unknown:
                     return forget(trip.id)
-                case .arrived(let time) where now >= time.addingTimeInterval(TrainState.lingerAtEnd):
+                case .arrived(let time) where then >= time.addingTimeInterval(TrainState.lingerAtEnd):
                     return forget(trip.id)
                 default:
-                    target = run.position(of: state, times: times)
+                    found = run.position(of: state, times: times)
                 }
             }
-            guard let target else { return forget(trip.id) }
+            guard let target = found else { return forget(trip.id) }
             // Waiting at its first stop: on the map from a minute before it's due to leave.
             if target.isAt, target.stop == 0, let leaves = trip.times.first, now < leaves.addingTimeInterval(-60) {
                 return forget(trip.id)
@@ -887,10 +892,11 @@ struct NetworkMapView: UIViewRepresentable {
             return nil
         }
 
-        /// Moves a train's drawing toward where it should be: at that pace, closing
-        /// any gap over a few seconds, speeding up and slowing down no harder than
-        /// a train does, never going back, and never past the station it's heading
-        /// for. Starts again there when it's far off, or wasn't drawn just now.
+        /// Moves a train's drawing toward where it should be, gently: at that pace,
+        /// closing any gap over a few seconds (no faster than it could slow down
+        /// again without overshooting), speeding up and slowing down no harder than a
+        /// train does, never going back, and never past the station it's heading for.
+        /// Starts again there when it's far off, or wasn't drawn just now.
         private func ease(_ key: String, toward target: TrainReplay.Position, on run: TrainRun,
                           now: Date) -> TrainReplay.Position {
             let limit = run.starts.indices.contains(target.stop) ? run.starts[target.stop] : run.length
@@ -898,7 +904,9 @@ struct NetworkMapView: UIViewRepresentable {
                 let dt = now.timeIntervalSince(last.at)
                 if dt > 0, dt < 5, abs(target.distance - last.distance) < 2_000 {
                     let coasting = last.distance + last.speed * dt
-                    let wanted = max(0, target.speed + 0.5 * (target.distance - coasting))
+                    let gap = target.distance - coasting
+                    let correction = min(0.5 * abs(gap), (2 * abs(gap)).squareRoot())
+                    let wanted = max(0, target.speed + (gap < 0 ? -correction : correction))
                     var speed = max(0, last.speed + min(max(wanted - last.speed, -1.5 * dt), 1.5 * dt))
                     var distance = last.distance + (last.speed + speed) / 2 * dt
                     if distance >= limit {
@@ -1006,9 +1014,9 @@ struct NetworkMapView: UIViewRepresentable {
         /// Where the tracked train is drawn now (see `updateTrackedSpot(at:)`).
         private var trackedSpot: Spot?
 
-        /// Where the tracked train is now: half a minute behind its live reports
-        /// when it has recent ones, otherwise where its times put it (with what the
-        /// latest live report says); moved there smoothly from where it was last drawn.
+        /// Where the tracked train is drawn now: by its live reports when it has
+        /// recent ones, otherwise where its times put it (both a few seconds behind
+        /// now); moved there smoothly from where it was last drawn.
         private func updateTrackedSpot(at now: Date) {
             guard let trip else {
                 trackedSpot = nil
@@ -1019,9 +1027,11 @@ struct NetworkMapView: UIViewRepresentable {
                 trackedSpot = nil
                 return
             }
-            let replay = replayed(trip.tripNumber, on: run, at: now)
-            guard let target = replay ?? run.position(of: trip.state(at: now),
-                                                      times: trip.stops.map { $0.departed ?? $0.expected ?? $0.time })
+            let times = trip.stops.map { $0.departed ?? $0.expected ?? $0.time }
+            let replay = replayed(trip.tripNumber, on: run, at: now, times: times)
+            // Its times on the same clock as the replay, so switching between the two doesn't jump.
+            guard let target = replay ?? run.position(of: trip.state(at: now.addingTimeInterval(-Self.replayDelay)),
+                                                      times: times)
             else {
                 trackedSpot = nil
                 return

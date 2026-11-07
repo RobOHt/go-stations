@@ -203,8 +203,8 @@ struct RootView: View {
         }
         .task(id: wantsLiveTrains) {
             // Where the trains really are, every 5 seconds while the map shows any:
-            // each new report as soon as it's out, so the map can draw them close
-            // behind it (see NetworkMapView.Coordinator.replayDelay).
+            // each new report soon after it's out, so the map's guesses from the
+            // latest one stay short (see NetworkMapView.Coordinator.replayDelay).
             guard wantsLiveTrains else { return }
             while !Task.isCancelled {
                 if scenePhase == .active { await LiveTrains.shared.refresh(maxAge: 4) }

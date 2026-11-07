@@ -69,6 +69,14 @@ struct TrainRun {
         return .init(time: time, distance: starts[fix.index - 1] + along, stop: fix.index, isAt: false)
     }
 
+    /// The timetable's pace on the way into `stop`, in metres per second.
+    func pace(into stop: Int, times: [Date?]) -> Double? {
+        guard stop > 0, stop < starts.count, times.indices.contains(stop), let start = times[stop - 1],
+              let end = TrainState.arrival(at: stop, times: times), end.timeIntervalSince(start) > 30
+        else { return nil }
+        return (starts[stop] - starts[stop - 1]) / end.timeIntervalSince(start)
+    }
+
     /// Where a train's times put it along the run (TrainState): standing at a
     /// station, or the right fraction of the way between two.
     func position(of state: TrainState, times: [Date?]) -> TrainReplay.Position? {
@@ -98,15 +106,15 @@ struct TrainRun {
     }
 }
 
-/// Replays a train's live reports a little behind them, so it moves smoothly
-/// through every place GO reported it rather than guessing ahead and jumping when
-/// the next report comes in.
+/// Where a train is along its run by its live reports, a few seconds behind them.
 ///
 /// Between two reports the train follows a smooth curve through them along the
 /// track (monotone cubic: it never goes back or overshoots, and it stands still
-/// where it stood). After the latest one it carries on at its pace, slowing to
-/// stop at the station it's heading for and never passing it, until the next
-/// report comes in.
+/// where it stood). After the latest one, which is usually what's needed (GO's
+/// reports come about every 20 seconds, 5 to 15 seconds after the fact), it
+/// carries on at its pace, braking to stop at the station it's heading for and
+/// never passing it, until the next report comes in. (The map eases the drawn
+/// train from one guess to the next; see NetworkMapView.)
 enum TrainReplay {
     /// One report, as a place along the run.
     struct Sample {
@@ -130,14 +138,17 @@ enum TrainReplay {
         let isAt: Bool
     }
 
-    /// How hard a train usually brakes for a station, in m/s².
-    static let braking = 0.7
+    /// How hard a train brakes for a station, in m/s² (GO's trains, from their
+    /// reports: about this).
+    static let braking = 0.5
     /// How long past its latest report a train is carried on before it's held.
-    static let ahead: TimeInterval = 45
+    static let ahead: TimeInterval = 60
 
-    /// Where the train was at `date` by its reports (oldest first). Nil when none
-    /// of them fits the run.
-    static func position(of reports: [LiveTrain], on run: TrainRun, at date: Date) -> Position? {
+    /// Where the train was at `date` by its reports (oldest first); with a single
+    /// report of it on the move, at the timetable's pace from `times`. Nil when
+    /// none of them fits the run.
+    static func position(of reports: [LiveTrain], on run: TrainRun, at date: Date,
+                         times: [Date?] = []) -> Position? {
         var samples: [Sample] = []
         for report in reports {
             guard var sample = run.measure(report, from: samples.last?.stop ?? 0) else { continue }
@@ -148,15 +159,18 @@ enum TrainReplay {
             }
             samples.append(sample)
         }
-        return position(of: samples, on: run, at: date.timeIntervalSinceReferenceDate)
+        let pace = samples.count == 1 ? samples.last.flatMap { run.pace(into: $0.stop, times: times) } : nil
+        return position(of: samples, on: run, at: date.timeIntervalSinceReferenceDate, pace: pace)
     }
 
-    static func position(of samples: [Sample], on run: TrainRun, at time: Double) -> Position? {
+    static func position(of samples: [Sample], on run: TrainRun, at time: Double, pace: Double? = nil) -> Position? {
         guard let first = samples.first, let last = samples.last else { return nil }
         if time <= first.time {
             return Position(distance: first.distance, speed: 0, stop: first.stop, isAt: first.isAt)
         }
-        let slopes = self.slopes(samples)
+        var slopes = self.slopes(samples)
+        // A single report of it on the move: going at the timetable's pace.
+        if samples.count == 1, !first.isAt, let pace { slopes = [pace] }
         if time < last.time {
             var index = 0
             while samples[index + 1].time <= time { index += 1 }
