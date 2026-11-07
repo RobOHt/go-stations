@@ -134,7 +134,7 @@ final class RailNetwork {
 
     /// The station a feed names: "Union Station", "Brampton Innovation District GO",
     /// "Guelph" for Guelph Central and so on.
-    func station(named name: String) -> Station? {
+    func stationNamed(_ name: String) -> Station? {
         func plain(_ text: String) -> String {
             text.lowercased()
                 .replacingOccurrences(of: ".", with: "")

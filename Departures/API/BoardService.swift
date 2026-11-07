@@ -310,7 +310,7 @@ actor BoardService {
                 isCancelled: live?.departureStatus?.trimmed == "C",
                 reasonEnglish: nil,
                 reasonFrench: nil,
-                stopCodes: stops.compactMap { network.station(named: $0)?.code }
+                stopCodes: stops.compactMap { network.stationNamed($0)?.code }
             ))
         }
         rows.sort { $0.scheduled < $1.scheduled }
