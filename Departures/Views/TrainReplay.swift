@@ -166,12 +166,19 @@ enum TrainReplay {
 
     static func position(of samples: [Sample], on run: TrainRun, at time: Double, pace: Double? = nil) -> Position? {
         guard let first = samples.first, let last = samples.last else { return nil }
-        if time <= first.time {
-            return Position(distance: first.distance, speed: 0, stop: first.stop, isAt: first.isAt)
-        }
         var slopes = self.slopes(samples)
         // A single report of it on the move: going at the timetable's pace.
         if samples.count == 1, !first.isAt, let pace { slopes = [pace] }
+        if time <= first.time {
+            // Before its first report: on its way there at that pace, if it was moving.
+            let speed = slopes[0]
+            guard !first.isAt, speed > 0 else {
+                return Position(distance: first.distance, speed: 0, stop: first.stop, isAt: first.isAt)
+            }
+            let from = run.starts.indices.contains(first.stop - 1) ? run.starts[first.stop - 1] : 0
+            return Position(distance: max(first.distance - speed * (first.time - time), from), speed: speed,
+                            stop: first.stop, isAt: false)
+        }
         if time < last.time {
             var index = 0
             while samples[index + 1].time <= time { index += 1 }
