@@ -37,6 +37,9 @@ final class TrainAnnotationView: MKAnnotationView {
     private let ripple = CAShapeLayer()
     private let disc = UIView()
     private let glyph = UIImageView()
+    /// The tracked train's speed under it, as it's drawn moving ("82 km/h").
+    private let speedBadge = UIVisualEffectView(effect: UIBlurEffect(style: .systemThickMaterial))
+    private let speedLabel = UILabel()
 
     /// The train's direction of travel, in degrees clockwise from north.
     private var heading: Double?
@@ -118,6 +121,18 @@ final class TrainAnnotationView: MKAnnotationView {
         glyph.contentMode = .center
         glyph.frame = disc.bounds
         disc.addSubview(glyph)
+
+        // Below the disc, clear of the pointer when it points down.
+        speedBadge.isHidden = true
+        speedBadge.isUserInteractionEnabled = false
+        speedBadge.clipsToBounds = true
+        speedBadge.layer.cornerRadius = 9
+        speedBadge.layer.cornerCurve = .continuous
+        speedLabel.font = .monospacedDigitSystemFont(ofSize: 11, weight: .bold)
+        speedLabel.textColor = .label
+        speedLabel.textAlignment = .center
+        speedBadge.contentView.addSubview(speedLabel)
+        content.addSubview(speedBadge)
     }
 
     @available(*, unavailable)
@@ -153,6 +168,27 @@ final class TrainAnnotationView: MKAnnotationView {
             updateMotion()
         }
         accessibilityLabel = isOnBoard ? "Your train" : "Train"
+    }
+
+    // MARK: How fast
+
+    /// Shows how fast the train goes under it, in km/h (nil hides it). It's the
+    /// speed the marker is drawn moving at, so the two always agree.
+    func setSpeed(_ metresPerSecond: Double?) {
+        guard let metresPerSecond, metresPerSecond.isFinite else {
+            speedBadge.isHidden = true
+            accessibilityValue = nil
+            return
+        }
+        let text = "\(Int((max(metresPerSecond, 0) * 3.6).rounded())) km/h"
+        if speedLabel.text != text || speedBadge.isHidden {
+            speedLabel.text = text
+            let width = ceil(speedLabel.intrinsicContentSize.width) + 12
+            speedBadge.frame = CGRect(x: (bounds.width - width) / 2, y: bounds.midY + 27, width: width, height: 18)
+            speedLabel.frame = speedBadge.bounds
+        }
+        speedBadge.isHidden = false
+        accessibilityValue = text
     }
 
     // MARK: Pointing the way
@@ -288,6 +324,7 @@ final class TrainAnnotationView: MKAnnotationView {
         super.prepareForReuse()
         content.layer.removeAllAnimations()
         content.alpha = 1
+        setSpeed(nil)
         heading = nil
         pointer.isHidden = true
         isAnimated = false

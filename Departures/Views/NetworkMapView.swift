@@ -537,6 +537,7 @@ struct NetworkMapView: UIViewRepresentable {
                     trainView.configure(color: lineColor(trip.lineCode), animatesPointer: trainIsMoving(at: now),
                                         isOnBoard: isOnBoard)
                     trainView.setHeading(trainHeading(at: now), animated: false)
+                    trainView.setSpeed(trainSpeed())
                 }
                 return view
             }
@@ -906,7 +907,9 @@ struct NetworkMapView: UIViewRepresentable {
                     let coasting = last.distance + last.speed * dt
                     let gap = target.distance - coasting
                     let correction = min(0.5 * abs(gap), (2 * abs(gap)).squareRoot())
-                    let wanted = max(0, target.speed + (gap < 0 ? -correction : correction))
+                    // (No faster than GO's trains go, about 150 km/h, unless it really is.)
+                    let wanted = min(max(0, target.speed + (gap < 0 ? -correction : correction)),
+                                     max(42, target.speed))
                     var speed = max(0, last.speed + min(max(wanted - last.speed, -1.5 * dt), 1.5 * dt))
                     var distance = last.distance + (last.speed + speed) / 2 * dt
                     if distance >= limit {
@@ -1003,6 +1006,13 @@ struct NetworkMapView: UIViewRepresentable {
         private func trainHeading(at now: Date) -> Double? {
             if isOnBoard, let course = userLocation?.course, course >= 0 { return course }
             return trackedSpot?.heading ?? trip?.heading(at: now, on: geometry)
+        }
+
+        /// How fast the tracked train goes, as it's drawn moving (as you go, when
+        /// you're on it and the train is drawn with you), in metres per second.
+        private func trainSpeed() -> Double? {
+            if isOnBoard, let speed = userLocation?.speed, speed >= 0 { return speed }
+            return trackedSpot?.speed
         }
 
         /// Whether the tracked train is moving where it's drawn.
@@ -1133,6 +1143,7 @@ struct NetworkMapView: UIViewRepresentable {
             if let train, let view = mapView.view(for: train) as? TrainAnnotationView {
                 view.configure(color: lineColor(trip.lineCode), animatesPointer: trainIsMoving(at: now), isOnBoard: isOnBoard)
                 view.setHeading(trainHeading(at: now), animated: true)
+                view.setSpeed(trainSpeed())
             }
         }
 
