@@ -139,9 +139,11 @@ enum TrainReplay {
         let isAt: Bool
     }
 
-    /// How hard a train brakes for a station, in m/s² (GO's trains, from their
-    /// reports: about this).
+    /// How hard a train brakes for a station, and speeds up leaving one, in m/s²
+    /// (GO's trains, from their reports: about this), and the speed it then runs at.
     static let braking = 0.5
+    static let departing = 0.4
+    static let cruising = 33.0
     /// How long past its latest report a train is carried on before it's held.
     static let ahead: TimeInterval = 60
 
@@ -194,26 +196,39 @@ enum TrainReplay {
             return Position(distance: min(max(distance, a.distance), b.distance), speed: standing ? 0 : max(speed, 0),
                             stop: b.stop, isAt: standing)
         }
-        // After the latest report.
+        // After the latest report: carried on from there.
         if last.isAt { return Position(distance: last.distance, speed: 0, stop: last.stop, isAt: true) }
         let goal = run.starts.indices.contains(last.stop) ? run.starts[last.stop] : last.distance
-        let room = max(goal - last.distance, 0)
-        let v = max(slopes[samples.count - 1], 0)
-        let elapsed = min(time - last.time, ahead)
-        let rate = max(braking, v * v / (2 * max(room, 1)))
-        let coast = max(room - v * v / (2 * rate), 0)
-        let coastTime = v > 0 ? coast / v : .infinity
-        var travelled: Double
-        var speed: Double
-        if elapsed <= coastTime {
-            travelled = v * elapsed
-            speed = v
-        } else {
-            let braked = min(elapsed - coastTime, v / rate)
-            travelled = coast + v * braked - rate * braked * braked / 2
-            speed = max(v - rate * braked, 0)
+        var speed = max(slopes[samples.count - 1], 0)
+        var speedingUp = 0.0
+        if samples.count >= 2, samples[samples.count - 2].isAt {
+            // Just left a station: from a standstill, speeding up as trains do (its
+            // average since the last report there takes in time it stood).
+            let gone = max(last.distance - samples[samples.count - 2].distance, 0)
+            speed = min(speed, (2 * departing * gone).squareRoot())
+            speedingUp = departing
         }
-        let distance = min(last.distance + travelled, goal)
+        let top = max(cruising, speed)
+        var distance = last.distance
+        var elapsed = 0.0
+        let horizon = min(time - last.time, ahead)
+        while elapsed < horizon {
+            let step = min(0.5, horizon - elapsed)
+            let room = goal - distance
+            if room <= 0.5 {
+                distance = goal
+                speed = 0
+                break
+            }
+            // Braking to stop at the station once it must, otherwise speeding up to its
+            // running speed, or holding it.
+            let needed = speed * speed / (2 * room)
+            let rate = needed >= braking ? -needed : (speed < top ? speedingUp : 0)
+            let next = max(speed + rate * step, 0)
+            distance = min(distance + (speed + next) / 2 * step, goal)
+            speed = next
+            elapsed += step
+        }
         return Position(distance: distance, speed: distance >= goal ? 0 : speed, stop: last.stop, isAt: false)
     }
 
