@@ -18,8 +18,7 @@ struct StationSheet: View {
     /// Timetable trains after the live ones, so the board always shows a few trains
     /// (your way, when it's filtered), however far ahead the next ones are.
     @State private var laterRows: [BoardRow] = []
-    /// The timetable's trains from the day and hour picked on a board's clock (nil
-    /// while they load).
+    /// The timetable's whole day picked on the week strip (nil while it loads).
     @State private var plannedRows: [BoardRow]?
     /// What the home or work button is about to do, asked first. Worked out when the
     /// button is tapped, so the words don't change while the dialog closes.
@@ -40,26 +39,29 @@ struct StationSheet: View {
         let filter = showsAllDirections ? nil : commute?.direction
         let allRows = model.snapshot?.rows ?? []
         let live = filter.map { allRows.filter($0.includes) } ?? allRows
-        // Never an empty board: when the live trains run out (a quiet evening, a
-        // weekend), the timetable's next ones follow, tomorrow's or Monday's if need be.
+        // After the live trains (they run out within a few hours), the rest of today's
+        // from the timetable; and never an empty board: on a quiet evening or weekend,
+        // tomorrow's or Monday's first ones.
         let liveTrips = Set(allRows.map(\.tripNumber))
-        let later = model.snapshot == nil ? [] : (filter.map { laterRows.filter($0.includes) } ?? laterRows)
+        let added = model.snapshot == nil ? [] : (filter.map { laterRows.filter($0.includes) } ?? laterRows)
             .filter { !liveTrips.contains($0.tripNumber) }
-        let added = Array(later.prefix(max(0, Self.minimumRows - live.count)))
         let earlier = earlierRows.map { list in filter.map { list.filter($0.includes) } ?? list }
-        // Another day or hour picked on the clock: the timetable's trains from then.
-        let chosen = BoardTime.shared.shown(at: Date())
+        // A later day picked on the week strip: the timetable's whole day.
+        let chosen = BoardTime.shared.shownDay(at: Date())
         let planned = plannedRows.map { list in filter.map { list.filter($0.includes) } ?? list }
         let rows = chosen == nil ? live + added : planned ?? []
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
+                DayStrip(selected: chosen, now: Date()) { day in
+                    withAnimation(.snappy) { BoardTime.shared.day = day }
+                }
                 TimelineView(.periodic(from: .now, by: 1)) { context in
                     BoardView(
                         rows: rows,
                         station: station,
                         now: context.date,
                         message: chosen != nil
-                            ? (planned == nil ? "Loading | Chargement" : "No trains this week | Aucun train cette semaine")
+                            ? (planned == nil ? "Loading | Chargement" : "No trains that day | Aucun train ce jour-là")
                             : boardMessage ?? (rows.isEmpty && !allRows.isEmpty
                                 ? commute.map { $0.toward == .work ? "No trains toward work | Aucun train vers le travail"
                                                                    : "No trains toward home | Aucun train vers la maison" }
@@ -77,8 +79,7 @@ struct StationSheet: View {
                                 withAnimation(.snappy) { showsAllDirections.toggle() }
                             }
                         },
-                        chosenTime: chosen,
-                        onChooseTime: { time in withAnimation(.snappy) { BoardTime.shared.chosen = time } }
+                        chosenDay: chosen
                     )
                 }
                 statusLine(addsTimetable: !added.isEmpty, chosen: chosen)
@@ -116,24 +117,23 @@ struct StationSheet: View {
             laterRows = []
             plannedRows = nil
         }
-        // The trains from the picked day and hour, worked out again for another
-        // station, time or way.
+        // The picked day's trains, worked out again for another station, day or way.
         .task(id: plannedKey) {
-            guard let chosen = BoardTime.shared.shown(at: Date()) else {
+            guard let day = BoardTime.shared.shownDay(at: Date()) else {
                 plannedRows = nil
                 return
             }
-            plannedRows = await BoardService.shared.laterRows(
-                for: station, after: chosen.addingTimeInterval(-1), limit: Self.plannedCount,
-                toward: showsAllDirections ? nil : commute?.direction)
+            plannedRows = await BoardService.shared.dayRows(
+                for: station, on: day, toward: showsAllDirections ? nil : commute?.direction)
         }
         // The timetable's trains after the live ones, worked out again when those move on.
         .task(id: laterKey) {
             guard let snapshot = model.snapshot else { return }
+            let direction = showsAllDirections ? nil : commute?.direction
+            let live = direction.map { snapshot.rows.filter($0.includes) } ?? snapshot.rows
             let after = max(snapshot.rows.map(\.scheduled).max() ?? .distantPast, Date())
             laterRows = await BoardService.shared.laterRows(
-                for: station, after: after, limit: Self.minimumRows,
-                toward: showsAllDirections ? nil : commute?.direction)
+                for: station, after: after, atLeast: max(0, Self.minimumRows - live.count), toward: direction)
         }
         #if DEBUG
         // Screenshots: `-showAllDirections YES` opens home and work boards unfiltered.
@@ -356,12 +356,9 @@ struct StationSheet: View {
 
     /// The board shows at least this many trains, from the timetable past the live ones.
     private static let minimumRows = 4
-    /// How many trains a board for a picked day and hour lists.
-    private static let plannedCount = 40
-
     private var plannedKey: String {
-        let chosen = BoardTime.shared.chosen.map { String(Int($0.timeIntervalSince1970)) } ?? "now"
-        return "\(station.code)#\(chosen)#\(showsAllDirections)#\(commute?.direction.toward ?? "")"
+        let day = BoardTime.shared.day.map(TorontoTime.dateWire) ?? "today"
+        return "\(station.code)#\(day)#\(showsAllDirections)#\(commute?.direction.toward ?? "")"
     }
 
     /// What the timetable trains depend on: the station, the last live train (or,
@@ -381,11 +378,6 @@ struct StationSheet: View {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Image(systemName: "calendar")
                 Text("As timetabled: no live times or platforms")
-                Spacer(minLength: 8)
-                Button("Back to now") {
-                    withAnimation(.snappy) { BoardTime.shared.chosen = nil }
-                }
-                .fontWeight(.semibold)
             }
             .font(.footnote)
             .foregroundStyle(.secondary)

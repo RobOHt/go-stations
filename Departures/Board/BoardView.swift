@@ -23,14 +23,13 @@ struct BoardView: View {
     /// On your home or work station's board: which way the trains go, and the switch
     /// for all of them; no switch without it.
     var direction: BoardDirection? = nil
-    /// The day and hour the board shows instead of now (the timetable's trains from then).
-    var chosenTime: Date? = nil
-    /// Picks the time from the clock's menu (nil: now); no menu without it.
-    var onChooseTime: ((Date?) -> Void)? = nil
+    /// A later day the board shows (the timetable's whole day) instead of today.
+    var chosenDay: Date? = nil
 
     var body: some View {
-        VStack(spacing: 0) {
-            BoardTitleBar(now: now, chosen: chosenTime, onChoose: onChooseTime)
+        // Lazy: a whole day's trains at a busy station run to hundreds of rows.
+        LazyVStack(spacing: 0) {
+            BoardTitleBar(now: now, chosenDay: chosenDay)
             DottedRule()
             if let direction {
                 DirectionSwitch(direction: direction)
@@ -64,7 +63,7 @@ struct BoardView: View {
                 ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
                     // A heading where the trains go on to another day: tomorrow, or a weekday.
                     if let day = BoardDay.heading(for: row.scheduled,
-                                                  after: index == 0 ? chosenTime ?? now : rows[index - 1].scheduled,
+                                                  after: index == 0 ? chosenDay ?? now : rows[index - 1].scheduled,
                                                   now: now) {
                         BoardDayHeading(english: day.english, french: day.french)
                         DottedRule()
@@ -262,10 +261,8 @@ private struct EarlierToggle: View {
 
 struct BoardTitleBar: View {
     let now: Date
-    /// Another day and hour than now: the board says which, and the clock shows the hour.
-    var chosen: Date? = nil
-    /// With it, the clock is a menu of the week ahead, by day and hour.
-    var onChoose: ((Date?) -> Void)? = nil
+    /// A later day than today: the title says which.
+    var chosenDay: Date? = nil
 
     var body: some View {
         HStack(alignment: .center, spacing: 10) {
@@ -274,10 +271,10 @@ struct BoardTitleBar: View {
                 .frame(width: 22, height: 28)
 
             VStack(alignment: .leading, spacing: 0) {
-                let day = chosen.map { BoardDay.names(for: $0, now: now) }
+                let day = chosenDay.map { BoardDay.names(for: $0, now: now) }
                 Text(day?.english ?? "Train Departures")
                     .font(.system(size: 17, weight: .bold))
-                    .foregroundStyle(chosen == nil ? BoardTheme.white : BoardTheme.time)
+                    .foregroundStyle(chosenDay == nil ? BoardTheme.white : BoardTheme.time)
                 Text(day?.french ?? "Départs des trains")
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(BoardTheme.frenchGrey)
@@ -287,18 +284,12 @@ struct BoardTitleBar: View {
 
             Spacer(minLength: 8)
 
-            if let onChoose {
-                Menu {
-                    TimeMenu(now: now, chosen: chosen, onChoose: onChoose)
-                } label: {
-                    clock(showsMenu: true)
-                }
-                .accessibilityLabel(chosen.map { "Departures from \(BoardDay.names(for: $0, now: now).english) at \(TorontoTime.hourMinute($0))" }
-                                    ?? "Departures now")
-                .accessibilityHint("Shows another day or time, up to a week ahead")
-            } else {
-                clock(showsMenu: false)
-            }
+            Text(TorontoTime.clock(now))
+                .font(.system(size: 29, weight: .bold).monospacedDigit())
+                .foregroundStyle(BoardTheme.white)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .contentTransition(.identity)
         }
         .padding(.horizontal, BoardTheme.horizontalPadding)
         .padding(.top, 12)
@@ -306,69 +297,65 @@ struct BoardTitleBar: View {
     }
 }
 
-extension BoardTitleBar {
-    /// The live clock, or the picked hour in the timetable's yellow, with a chevron
-    /// when it opens the menu.
-    fileprivate func clock(showsMenu: Bool) -> some View {
-        HStack(alignment: .center, spacing: 5) {
-            Text(chosen.map(TorontoTime.hourMinute) ?? TorontoTime.clock(now))
-                .font(.system(size: 29, weight: .bold).monospacedDigit())
-                .foregroundStyle(chosen == nil ? BoardTheme.white : BoardTheme.time)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-                .contentTransition(.identity)
-            if showsMenu {
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 13, weight: .heavy))
-                    .foregroundStyle(BoardTheme.frenchGrey)
-            }
-        }
-        .contentShape(Rectangle())
-    }
-}
+// MARK: - Day strip
 
-/// Now, or a day of the week ahead and an hour of it: the clock's menu.
-private struct TimeMenu: View {
+/// Today and the week after it, weekday over date like a calendar's week: one tap
+/// picks the day the board shows.
+struct DayStrip: View {
+    /// A later day at midnight; nil for today.
+    let selected: Date?
     let now: Date
-    let chosen: Date?
-    let onChoose: (Date?) -> Void
+    let onSelect: (Date?) -> Void
 
     var body: some View {
-        Button {
-            onChoose(nil)
-        } label: {
-            if chosen == nil { Label("Now", systemImage: "checkmark") } else { Text("Now") }
-        }
-        Divider()
-        ForEach(days, id: \.self) { day in
-            let hours = self.hours(on: day)
-            if !hours.isEmpty {
-                Menu(day == days.first ? "Later today" : BoardDay.names(for: day, now: now).english) {
-                    ForEach(hours, id: \.self) { hour in
-                        Button {
-                            onChoose(hour)
-                        } label: {
-                            if hour == chosen { Label(TorontoTime.hourMinute(hour), systemImage: "checkmark") }
-                            else { Text(TorontoTime.hourMinute(hour)) }
-                        }
+        HStack(spacing: 5) {
+            ForEach(Array(days.enumerated()), id: \.element) { index, day in
+                let isOn = index == 0 ? selected == nil : day == selected
+                Button {
+                    onSelect(index == 0 ? nil : day)
+                } label: {
+                    VStack(spacing: 1) {
+                        Text(index == 0 ? "Today" : Self.weekday.string(from: day))
+                            .font(.caption2.weight(.semibold))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                        Text(Self.date.string(from: day))
+                            .font(.callout.weight(.bold).monospacedDigit())
                     }
+                    .foregroundStyle(isOn ? Color.white : Color.primary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 6)
+                    .background(isOn ? Color.accentColor : Color(uiColor: .tertiarySystemFill),
+                                in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
+                .accessibilityLabel(index == 0 ? "Today" : Self.spoken.string(from: day))
+                .accessibilityAddTraits(isOn ? .isSelected : [])
             }
         }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Day")
     }
 
-    /// Today and the week after it, at midnight.
+    /// Today and the next `BoardTime.daysAhead` days, at midnight.
     private var days: [Date] {
         let calendar = BoardDay.calendar
         let today = calendar.startOfDay(for: now)
         return (0...BoardTime.daysAhead).compactMap { calendar.date(byAdding: .day, value: $0, to: today) }
     }
 
-    /// The hours trains run (04:00 to 23:00) on a day, those still to come today.
-    private func hours(on day: Date) -> [Date] {
-        (4...23).compactMap { BoardDay.calendar.date(bySettingHour: $0, minute: 0, second: 0, of: day) }
-            .filter { $0 > now }
+    private static func formatter(_ format: String) -> DateFormatter {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_CA")
+        formatter.timeZone = TorontoTime.zone
+        formatter.dateFormat = format
+        return formatter
     }
+
+    private static let weekday = formatter("EEE")
+    private static let date = formatter("d")
+    private static let spoken = formatter("EEEE, MMMM d")
 }
 
 // MARK: - Column header

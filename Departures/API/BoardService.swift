@@ -92,12 +92,20 @@ actor BoardService {
         return BoardSnapshot(rows: rows, alerts: [], fetchedAt: now, source: .schedule, note: reason)
     }
 
-    /// Timetable trains after a time, however far ahead (tomorrow, after the
-    /// weekend): the first `limit` going `direction`'s way (any way without one),
-    /// for a board that would otherwise show only a few.
-    func laterRows(for station: Station, after time: Date, limit: Int,
+    /// The rest of today's timetable trains after a time (the live ones run out within
+    /// a few hours) going `direction`'s way (any way without one); when that's fewer
+    /// than `atLeast`, the next ones however far ahead (tomorrow, after the weekend).
+    func laterRows(for station: Station, after time: Date, atLeast minimum: Int,
                    toward direction: CommuteDirection?) async -> [BoardRow] {
-        let departures = await ScheduleStore.shared.laterDepartures(from: station.code, after: time, limit: limit) {
+        let departures = await ScheduleStore.shared.laterDepartures(from: station.code, after: time, atLeast: minimum) {
+            direction?.includes(stopCodes: Array($0.pattern[($0.stopIndex + 1)...])) ?? true
+        }
+        return departures.map { Self.row(for: $0, at: station) }
+    }
+
+    /// A whole day's timetable trains from a station going `direction`'s way.
+    func dayRows(for station: Station, on day: Date, toward direction: CommuteDirection?) async -> [BoardRow] {
+        let departures = await ScheduleStore.shared.dayDepartures(from: station.code, on: day) {
             direction?.includes(stopCodes: Array($0.pattern[($0.stopIndex + 1)...])) ?? true
         }
         return departures.map { Self.row(for: $0, at: station) }

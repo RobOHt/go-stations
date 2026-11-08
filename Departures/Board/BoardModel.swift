@@ -43,24 +43,24 @@ final class BoardModel {
     }
 }
 
-/// The time the boards show when it isn't now: a day (up to a week ahead) and hour
-/// picked from a board's clock. It stays for every board opened after it (planning a
-/// trip means looking at a few stations) until Now is picked again, it goes by, or
-/// the app has been away a while.
+/// The day the boards show when it isn't today: picked on a board's week strip. It
+/// stays for every board opened after it (planning a trip means looking at a few
+/// stations) until Today is picked again, the day comes, or the app has been away a
+/// while.
 @MainActor
 @Observable
 final class BoardTime {
     static let shared = BoardTime()
 
-    /// Nil: now, with live times.
-    var chosen: Date?
+    /// A later day at midnight; nil for today, with live times.
+    var day: Date?
 
-    /// How far ahead a day can be picked.
+    /// How many days after today can be picked.
     static let daysAhead = 7
 
-    /// The time to show, unless it's already gone by.
-    func shown(at now: Date) -> Date? {
-        guard let chosen, chosen > now else { return nil }
-        return chosen
+    /// The day to show, unless it's today (or gone by).
+    func shownDay(at now: Date) -> Date? {
+        guard let day, TorontoTime.dateWire(day) > TorontoTime.dateWire(now) else { return nil }
+        return day
     }
 }
