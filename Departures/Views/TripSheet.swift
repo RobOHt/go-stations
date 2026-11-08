@@ -233,9 +233,13 @@ struct TripSheet: View {
                                     : "Follows this train on the map and in a Live Activity")
     }
 
-    /// Only a train with times that hasn't finished its run.
+    /// How long before it leaves a train can be tracked: its Live Activity has to
+    /// last until it gets in, and iOS keeps one up about eight hours.
+    static let trackAhead: TimeInterval = 4 * 3600
+
+    /// Only a train with times that hasn't finished its run, leaving within a few hours.
     private func canTrack(_ detail: TripDetail, at now: Date) -> Bool {
-        guard detail.source != nil else { return false }
+        guard detail.source != nil, row.expected.timeIntervalSince(now) < Self.trackAhead else { return false }
         if case .arrived = trainState(detail, at: now) { return false }
         return true
     }
@@ -259,6 +263,11 @@ struct TripSheet: View {
             VStack(alignment: .leading, spacing: 12) {
                 if tracker.isTracking(row) || canTrack(detail, at: context.date) {
                     trackButton
+                } else if detail.source != nil, row.expected.timeIntervalSince(context.date) > Self.trackAhead {
+                    Label("You can track it from 4 hours before it leaves", systemImage: "clock")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
                 ZStack(alignment: .topLeading) {

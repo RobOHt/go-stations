@@ -138,6 +138,10 @@ struct RootView: View {
                 #endif
             case .active:
                 settings.reloadFromCloud()
+                if let backgroundedAt, Date.now.timeIntervalSince(backgroundedAt) > 15 * 60 {
+                    // A day or hour picked on a board was for then: back to now.
+                    BoardTime.shared.chosen = nil
+                }
                 TripTracker.shared.dropIfFinished()
                 Task { await TripTracker.shared.refresh() }
                 if wantsLiveTrains { Task { await LiveTrains.shared.refresh() } }
@@ -562,6 +566,12 @@ struct RootView: View {
     private func show(_ scene: DebugScene) async {
         try? await Task.sleep(for: .seconds(1.5))
         guard let union = network.station("UN") else { return }
+        // `-boardDaysAhead N -boardHour H`: boards show that day and hour, as if picked on the clock.
+        let ahead = UserDefaults.standard.integer(forKey: "boardDaysAhead")
+        if ahead > 0, let day = BoardDay.calendar.date(byAdding: .day, value: ahead, to: BoardDay.calendar.startOfDay(for: Date())) {
+            BoardTime.shared.chosen = BoardDay.calendar.date(bySettingHour: UserDefaults.standard.integer(forKey: "boardHour"),
+                                                             minute: 0, second: 0, of: day)
+        }
         switch scene {
         case .map:
             center(on: union.coordinate, sheetOpen: false)

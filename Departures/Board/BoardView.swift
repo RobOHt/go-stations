@@ -23,10 +23,14 @@ struct BoardView: View {
     /// On your home or work station's board: which way the trains go, and the switch
     /// for all of them; no switch without it.
     var direction: BoardDirection? = nil
+    /// The day and hour the board shows instead of now (the timetable's trains from then).
+    var chosenTime: Date? = nil
+    /// Picks the time from the clock's menu (nil: now); no menu without it.
+    var onChooseTime: ((Date?) -> Void)? = nil
 
     var body: some View {
         VStack(spacing: 0) {
-            BoardTitleBar(now: now)
+            BoardTitleBar(now: now, chosen: chosenTime, onChoose: onChooseTime)
             DottedRule()
             if let direction {
                 DirectionSwitch(direction: direction)
@@ -59,7 +63,8 @@ struct BoardView: View {
             } else {
                 ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
                     // A heading where the trains go on to another day: tomorrow, or a weekday.
-                    if let day = BoardDay.heading(for: row.scheduled, after: index == 0 ? now : rows[index - 1].scheduled,
+                    if let day = BoardDay.heading(for: row.scheduled,
+                                                  after: index == 0 ? chosenTime ?? now : rows[index - 1].scheduled,
                                                   now: now) {
                         BoardDayHeading(english: day.english, french: day.french)
                         DottedRule()
@@ -105,13 +110,24 @@ enum BoardDay {
     static func heading(for date: Date, after previous: Date, now: Date) -> (english: String, french: String)? {
         let day = TorontoTime.dateWire(date)
         guard day != TorontoTime.dateWire(previous), day != TorontoTime.dateWire(now) else { return nil }
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TorontoTime.zone
+        return names(for: date, now: now)
+    }
+
+    /// "Today", "Tomorrow", or the weekday and date, in English and French.
+    static func names(for date: Date, now: Date) -> (english: String, french: String) {
+        let day = TorontoTime.dateWire(date)
+        if day == TorontoTime.dateWire(now) { return ("Today", "Aujourd'hui") }
         if let tomorrow = calendar.date(byAdding: .day, value: 1, to: now), day == TorontoTime.dateWire(tomorrow) {
             return ("Tomorrow", "Demain")
         }
         let french = Self.french.string(from: date)
         return (Self.english.string(from: date), french.prefix(1).uppercased() + french.dropFirst())
+    }
+
+    static var calendar: Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TorontoTime.zone
+        return calendar
     }
 
     private static func formatter(_ format: String, _ locale: String) -> DateFormatter {
@@ -246,6 +262,10 @@ private struct EarlierToggle: View {
 
 struct BoardTitleBar: View {
     let now: Date
+    /// Another day and hour than now: the board says which, and the clock shows the hour.
+    var chosen: Date? = nil
+    /// With it, the clock is a menu of the week ahead, by day and hour.
+    var onChoose: ((Date?) -> Void)? = nil
 
     var body: some View {
         HStack(alignment: .center, spacing: 10) {
@@ -254,10 +274,11 @@ struct BoardTitleBar: View {
                 .frame(width: 22, height: 28)
 
             VStack(alignment: .leading, spacing: 0) {
-                Text("Train Departures")
+                let day = chosen.map { BoardDay.names(for: $0, now: now) }
+                Text(day?.english ?? "Train Departures")
                     .font(.system(size: 17, weight: .bold))
-                    .foregroundStyle(BoardTheme.white)
-                Text("Départs des trains")
+                    .foregroundStyle(chosen == nil ? BoardTheme.white : BoardTheme.time)
+                Text(day?.french ?? "Départs des trains")
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(BoardTheme.frenchGrey)
             }
@@ -266,16 +287,87 @@ struct BoardTitleBar: View {
 
             Spacer(minLength: 8)
 
-            Text(TorontoTime.clock(now))
-                .font(.system(size: 29, weight: .bold).monospacedDigit())
-                .foregroundStyle(BoardTheme.white)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-                .contentTransition(.identity)
+            if let onChoose {
+                Menu {
+                    TimeMenu(now: now, chosen: chosen, onChoose: onChoose)
+                } label: {
+                    clock(showsMenu: true)
+                }
+                .accessibilityLabel(chosen.map { "Departures from \(BoardDay.names(for: $0, now: now).english) at \(TorontoTime.hourMinute($0))" }
+                                    ?? "Departures now")
+                .accessibilityHint("Shows another day or time, up to a week ahead")
+            } else {
+                clock(showsMenu: false)
+            }
         }
         .padding(.horizontal, BoardTheme.horizontalPadding)
         .padding(.top, 12)
         .padding(.bottom, 9)
+    }
+}
+
+extension BoardTitleBar {
+    /// The live clock, or the picked hour in the timetable's yellow, with a chevron
+    /// when it opens the menu.
+    fileprivate func clock(showsMenu: Bool) -> some View {
+        HStack(alignment: .center, spacing: 5) {
+            Text(chosen.map(TorontoTime.hourMinute) ?? TorontoTime.clock(now))
+                .font(.system(size: 29, weight: .bold).monospacedDigit())
+                .foregroundStyle(chosen == nil ? BoardTheme.white : BoardTheme.time)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .contentTransition(.identity)
+            if showsMenu {
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 13, weight: .heavy))
+                    .foregroundStyle(BoardTheme.frenchGrey)
+            }
+        }
+        .contentShape(Rectangle())
+    }
+}
+
+/// Now, or a day of the week ahead and an hour of it: the clock's menu.
+private struct TimeMenu: View {
+    let now: Date
+    let chosen: Date?
+    let onChoose: (Date?) -> Void
+
+    var body: some View {
+        Button {
+            onChoose(nil)
+        } label: {
+            if chosen == nil { Label("Now", systemImage: "checkmark") } else { Text("Now") }
+        }
+        Divider()
+        ForEach(days, id: \.self) { day in
+            let hours = self.hours(on: day)
+            if !hours.isEmpty {
+                Menu(day == days.first ? "Later today" : BoardDay.names(for: day, now: now).english) {
+                    ForEach(hours, id: \.self) { hour in
+                        Button {
+                            onChoose(hour)
+                        } label: {
+                            if hour == chosen { Label(TorontoTime.hourMinute(hour), systemImage: "checkmark") }
+                            else { Text(TorontoTime.hourMinute(hour)) }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// Today and the week after it, at midnight.
+    private var days: [Date] {
+        let calendar = BoardDay.calendar
+        let today = calendar.startOfDay(for: now)
+        return (0...BoardTime.daysAhead).compactMap { calendar.date(byAdding: .day, value: $0, to: today) }
+    }
+
+    /// The hours trains run (04:00 to 23:00) on a day, those still to come today.
+    private func hours(on day: Date) -> [Date] {
+        (4...23).compactMap { BoardDay.calendar.date(bySettingHour: $0, minute: 0, second: 0, of: day) }
+            .filter { $0 > now }
     }
 }
 

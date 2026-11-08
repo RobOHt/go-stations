@@ -193,6 +193,8 @@ jobs:
           shoot 5b-station-all-directions 12 station -showAllDirections YES
           # A quiet station (one train a weekday): the timetable fills the board, days ahead if need be.
           shoot 5c-quiet-station 15 stationLarge -debugStation SF
+          # A day and hour picked on the board's clock: Union two days ahead from 07:00, toward home.
+          shoot 5d-station-planned 12 stationLarge -boardDaysAhead 2 -boardHour 7
           shoot 6-station-large 10 stationLarge
           shoot 7-trip 15 trip
           # Control: a board scrolled under its pinned header (does the simulator draw edge effects?).

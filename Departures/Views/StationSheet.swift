@@ -18,6 +18,9 @@ struct StationSheet: View {
     /// Timetable trains after the live ones, so the board always shows a few trains
     /// (your way, when it's filtered), however far ahead the next ones are.
     @State private var laterRows: [BoardRow] = []
+    /// The timetable's trains from the day and hour picked on a board's clock (nil
+    /// while they load).
+    @State private var plannedRows: [BoardRow]?
     /// What the home or work button is about to do, asked first. Worked out when the
     /// button is tapped, so the words don't change while the dialog closes.
     @State private var roleDialog = RoleDialog()
@@ -43,8 +46,11 @@ struct StationSheet: View {
         let later = model.snapshot == nil ? [] : (filter.map { laterRows.filter($0.includes) } ?? laterRows)
             .filter { !liveTrips.contains($0.tripNumber) }
         let added = Array(later.prefix(max(0, Self.minimumRows - live.count)))
-        let rows = live + added
         let earlier = earlierRows.map { list in filter.map { list.filter($0.includes) } ?? list }
+        // Another day or hour picked on the clock: the timetable's trains from then.
+        let chosen = BoardTime.shared.shown(at: Date())
+        let planned = plannedRows.map { list in filter.map { list.filter($0.includes) } ?? list }
+        let rows = chosen == nil ? live + added : planned ?? []
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
                 TimelineView(.periodic(from: .now, by: 1)) { context in
@@ -52,26 +58,30 @@ struct StationSheet: View {
                         rows: rows,
                         station: station,
                         now: context.date,
-                        message: boardMessage ?? (rows.isEmpty && !allRows.isEmpty
-                            ? commute.map { $0.toward == .work ? "No trains toward work | Aucun train vers le travail"
-                                                               : "No trains toward home | Aucun train vers la maison" }
-                            : nil),
-                        isLoading: model.snapshot == nil && model.errorMessage == nil,
-                        isScheduled: model.snapshot?.source == .schedule,
+                        message: chosen != nil
+                            ? (planned == nil ? "Loading | Chargement" : "No trains this week | Aucun train cette semaine")
+                            : boardMessage ?? (rows.isEmpty && !allRows.isEmpty
+                                ? commute.map { $0.toward == .work ? "No trains toward work | Aucun train vers le travail"
+                                                                   : "No trains toward home | Aucun train vers la maison" }
+                                : nil),
+                        isLoading: chosen != nil ? planned == nil : model.snapshot == nil && model.errorMessage == nil,
+                        isScheduled: chosen != nil || model.snapshot?.source == .schedule,
                         onSelectRow: { row in
                             selectedTrip = TripSelection(row: row, station: station, fromBoard: true)
                         },
-                        earlierRows: earlier,
-                        onToggleEarlier: { toggleEarlier() },
-                        timetableRowIDs: Set(added.map(\.id)),
+                        earlierRows: chosen == nil ? earlier : nil,
+                        onToggleEarlier: chosen == nil ? toggleEarlier : nil,
+                        timetableRowIDs: chosen == nil ? Set(added.map(\.id)) : [],
                         direction: commute.map { commute in
                             BoardDirection(toward: commute.toward, showsAll: showsAllDirections) {
                                 withAnimation(.snappy) { showsAllDirections.toggle() }
                             }
-                        }
+                        },
+                        chosenTime: chosen,
+                        onChooseTime: { time in withAnimation(.snappy) { BoardTime.shared.chosen = time } }
                     )
                 }
-                statusLine(addsTimetable: !added.isEmpty)
+                statusLine(addsTimetable: !added.isEmpty, chosen: chosen)
                 alerts
             }
             .padding(.horizontal, 14)
@@ -104,6 +114,18 @@ struct StationSheet: View {
         .onChange(of: station.code) { _, _ in
             showsAllDirections = false
             laterRows = []
+            plannedRows = nil
+        }
+        // The trains from the picked day and hour, worked out again for another
+        // station, time or way.
+        .task(id: plannedKey) {
+            guard let chosen = BoardTime.shared.shown(at: Date()) else {
+                plannedRows = nil
+                return
+            }
+            plannedRows = await BoardService.shared.laterRows(
+                for: station, after: chosen.addingTimeInterval(-1), limit: Self.plannedCount,
+                toward: showsAllDirections ? nil : commute?.direction)
         }
         // The timetable's trains after the live ones, worked out again when those move on.
         .task(id: laterKey) {
@@ -334,6 +356,13 @@ struct StationSheet: View {
 
     /// The board shows at least this many trains, from the timetable past the live ones.
     private static let minimumRows = 4
+    /// How many trains a board for a picked day and hour lists.
+    private static let plannedCount = 40
+
+    private var plannedKey: String {
+        let chosen = BoardTime.shared.chosen.map { String(Int($0.timeIntervalSince1970)) } ?? "now"
+        return "\(station.code)#\(chosen)#\(showsAllDirections)#\(commute?.direction.toward ?? "")"
+    }
 
     /// What the timetable trains depend on: the station, the last live train (or,
     /// with none, the minute), and which way the board shows.
@@ -347,8 +376,21 @@ struct StationSheet: View {
     // MARK: Below the board
 
     @ViewBuilder
-    private func statusLine(addsTimetable: Bool) -> some View {
-        if let snapshot = model.snapshot {
+    private func statusLine(addsTimetable: Bool, chosen: Date?) -> some View {
+        if chosen != nil {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Image(systemName: "calendar")
+                Text("As timetabled: no live times or platforms")
+                Spacer(minLength: 8)
+                Button("Back to now") {
+                    withAnimation(.snappy) { BoardTime.shared.chosen = nil }
+                }
+                .fontWeight(.semibold)
+            }
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 6)
+        } else if let snapshot = model.snapshot {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 if snapshot.source == .schedule {
                     Image(systemName: "calendar")

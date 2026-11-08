@@ -42,3 +42,25 @@ final class BoardModel {
         }
     }
 }
+
+/// The time the boards show when it isn't now: a day (up to a week ahead) and hour
+/// picked from a board's clock. It stays for every board opened after it (planning a
+/// trip means looking at a few stations) until Now is picked again, it goes by, or
+/// the app has been away a while.
+@MainActor
+@Observable
+final class BoardTime {
+    static let shared = BoardTime()
+
+    /// Nil: now, with live times.
+    var chosen: Date?
+
+    /// How far ahead a day can be picked.
+    static let daysAhead = 7
+
+    /// The time to show, unless it's already gone by.
+    func shown(at now: Date) -> Date? {
+        guard let chosen, chosen > now else { return nil }
+        return chosen
+    }
+}
