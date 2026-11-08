@@ -252,7 +252,7 @@ final class RailNetwork {
 
 /// On your home or work station's board: the trains that take you toward the other
 /// one, whether straight there or to where you change (Union, say).
-struct CommuteDirection {
+struct CommuteDirection: Sendable {
     /// The board's station.
     let from: String
     /// Your other station, where the trains shown head.
@@ -271,7 +271,12 @@ struct CommuteDirection {
     /// stops the network knows is closer to it along the lines than this station.
     /// A train whose stops aren't known is kept, so none is hidden on a guess.
     func includes(_ row: BoardRow) -> Bool {
-        guard let codes = row.stopCodes, !codes.isEmpty else { return true }
+        includes(stopCodes: row.stopCodes)
+    }
+
+    /// The same for a train's stops after this station, as codes.
+    func includes(stopCodes codes: [String]?) -> Bool {
+        guard let codes, !codes.isEmpty else { return true }
         if codes.contains(toward) { return true }
         guard let here = distances[from], let next = codes.lazy.compactMap({ distances[$0] }).first
         else { return true }

@@ -15,6 +15,9 @@ struct StationSheet: View {
     @State private var earlierRows: [BoardRow]?
     /// On your home or work board: every train, not just the ones toward the other.
     @State private var showsAllDirections = false
+    /// Timetable trains after the live ones, so the board always shows a few trains
+    /// (your way, when it's filtered), however far ahead the next ones are.
+    @State private var laterRows: [BoardRow] = []
     /// What the home or work button is about to do, asked first. Worked out when the
     /// button is tapped, so the words don't change while the dialog closes.
     @State private var roleDialog = RoleDialog()
@@ -33,7 +36,14 @@ struct StationSheet: View {
         let commute = self.commute
         let filter = showsAllDirections ? nil : commute?.direction
         let allRows = model.snapshot?.rows ?? []
-        let rows = filter.map { allRows.filter($0.includes) } ?? allRows
+        let live = filter.map { allRows.filter($0.includes) } ?? allRows
+        // Never an empty board: when the live trains run out (a quiet evening, a
+        // weekend), the timetable's next ones follow, tomorrow's or Monday's if need be.
+        let liveTrips = Set(allRows.map(\.tripNumber))
+        let later = model.snapshot == nil ? [] : (filter.map { laterRows.filter($0.includes) } ?? laterRows)
+            .filter { !liveTrips.contains($0.tripNumber) }
+        let added = Array(later.prefix(max(0, Self.minimumRows - live.count)))
+        let rows = live + added
         let earlier = earlierRows.map { list in filter.map { list.filter($0.includes) } ?? list }
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
@@ -53,6 +63,7 @@ struct StationSheet: View {
                         },
                         earlierRows: earlier,
                         onToggleEarlier: { toggleEarlier() },
+                        timetableRowIDs: Set(added.map(\.id)),
                         direction: commute.map { commute in
                             BoardDirection(toward: commute.toward, showsAll: showsAllDirections) {
                                 withAnimation(.snappy) { showsAllDirections.toggle() }
@@ -60,7 +71,7 @@ struct StationSheet: View {
                         }
                     )
                 }
-                statusLine
+                statusLine(addsTimetable: !added.isEmpty)
                 alerts
             }
             .padding(.horizontal, 14)
@@ -90,7 +101,18 @@ struct StationSheet: View {
             if phase == .active { wake += 1 }
         }
         // Another station in the same sheet starts out filtered again.
-        .onChange(of: station.code) { _, _ in showsAllDirections = false }
+        .onChange(of: station.code) { _, _ in
+            showsAllDirections = false
+            laterRows = []
+        }
+        // The timetable's trains after the live ones, worked out again when those move on.
+        .task(id: laterKey) {
+            guard let snapshot = model.snapshot else { return }
+            let after = max(snapshot.rows.map(\.scheduled).max() ?? .distantPast, Date())
+            laterRows = await BoardService.shared.laterRows(
+                for: station, after: after, limit: Self.minimumRows,
+                toward: showsAllDirections ? nil : commute?.direction)
+        }
         #if DEBUG
         // Screenshots: `-showAllDirections YES` opens home and work boards unfiltered.
         .onAppear { if UserDefaults.standard.bool(forKey: "showAllDirections") { showsAllDirections = true } }
@@ -310,10 +332,22 @@ struct StationSheet: View {
         }
     }
 
+    /// The board shows at least this many trains, from the timetable past the live ones.
+    private static let minimumRows = 4
+
+    /// What the timetable trains depend on: the station, the last live train (or,
+    /// with none, the minute), and which way the board shows.
+    private var laterKey: String {
+        let last = model.snapshot.map { snapshot in
+            Int((snapshot.rows.map(\.scheduled).max() ?? snapshot.fetchedAt).timeIntervalSince1970 / 60)
+        }
+        return "\(station.code)#\(last.map(String.init) ?? "-")#\(showsAllDirections)#\(commute?.direction.toward ?? "")"
+    }
+
     // MARK: Below the board
 
     @ViewBuilder
-    private var statusLine: some View {
+    private func statusLine(addsTimetable: Bool) -> some View {
         if let snapshot = model.snapshot {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 if snapshot.source == .schedule {
@@ -331,7 +365,13 @@ struct StationSheet: View {
                     Text("Couldn't refresh · showing \(TorontoTime.hourMinute(snapshot.fetchedAt))")
                 } else {
                     Image(systemName: "dot.radiowaves.left.and.right")
-                    Text("Live · updated \(TorontoTime.clock(snapshot.fetchedAt))")
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("Live · updated \(TorontoTime.clock(snapshot.fetchedAt))")
+                        if addsTimetable {
+                            Text("Later trains as timetabled, without platforms")
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
                 }
             }
             .font(.footnote)

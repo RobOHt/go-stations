@@ -591,10 +591,15 @@ struct RootView: View {
             try? await Task.sleep(for: .milliseconds(800))
             _ = search.submit()
             searchFocused = false
-        case .station, .trip, .homeDialog, .workDialog, .stationEarlier:
+        case .station:
+            // `-debugStation CODE`: another station's board than Union's.
+            let code = UserDefaults.standard.string(forKey: "debugStation")
+            select(code.flatMap(network.station) ?? union, detent: .medium)
+        case .trip, .homeDialog, .workDialog, .stationEarlier:
             select(union, detent: .medium)
         case .stationLarge, .stationScrolled:
-            select(union, detent: .large)
+            let code = UserDefaults.standard.string(forKey: "debugStation")
+            select(code.flatMap(network.station) ?? union, detent: .large)
 
         case .allTrains:
             mapController.show(union.coordinate, width: 60_000, sheetOpen: false)

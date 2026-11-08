@@ -191,6 +191,8 @@ jobs:
           shoot 5-station 12 station
           # Union is the made-up work station: its board shows trains toward home, or all of them.
           shoot 5b-station-all-directions 12 station -showAllDirections YES
+          # A quiet station (one train a weekday): the timetable fills the board, days ahead if need be.
+          shoot 5c-quiet-station 15 stationLarge -debugStation SF
           shoot 6-station-large 10 stationLarge
           shoot 7-trip 15 trip
           # Control: a board scrolled under its pinned header (does the simulator draw edge effects?).

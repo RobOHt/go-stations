@@ -107,6 +107,55 @@ actor ScheduleStore {
             .map { Array($0.filter { $0.time < now.addingTimeInterval(-45) }.suffix(limit)) }
     }
 
+    /// The first `limit` scheduled departures from a station after a time that
+    /// `matches` lets through, soonest first, however many days ahead (up to `days`):
+    /// tomorrow's first trains, or Monday's after a weekend without any. Trips that
+    /// end at the station are left out.
+    func laterDepartures(from stationCode: String, after time: Date, limit: Int, days: Int = 7,
+                         matches: @Sendable (Departure) -> Bool) -> [Departure] {
+        loadIfNeeded()
+        guard let file, limit > 0 else { return [] }
+
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TorontoTime.zone
+        let today = calendar.startOfDay(for: time)
+
+        var result: [Departure] = []
+        // From yesterday's service day (it runs past midnight) on, a day at a time.
+        for offset in -1...days {
+            guard let day = calendar.date(byAdding: .day, value: offset, to: today),
+                  let noon = calendar.date(bySettingHour: 12, minute: 0, second: 0, of: day)
+            else { continue }
+            let dayKey = TorontoTime.dateWire(day)
+            // GTFS times count from "noon minus 12 hours", which stays right across DST changes.
+            let base = noon.addingTimeInterval(-12 * 3600)
+            for index in file.days[dayKey] ?? [] where index < file.trips.count {
+                let trip = file.trips[index]
+                guard trip.pattern < file.patterns.count else { continue }
+                let pattern = file.patterns[trip.pattern]
+                guard let stop = pattern.firstIndex(of: stationCode),
+                      stop < pattern.count - 1,
+                      stop < trip.times.count
+                else { continue }
+                let departs = base.addingTimeInterval(TimeInterval(trip.times[stop] * 60))
+                guard departs > time else { continue }
+                let departure = Departure(tripNumber: trip.number, lineCode: trip.line, pattern: pattern,
+                                          stopIndex: stop, time: departs, serviceDay: dayKey)
+                if matches(departure) { result.append(departure) }
+            }
+            // Later service days start at their own midnight: once enough trains leave
+            // before the next one starts, no later day can come in ahead of them.
+            result.sort { $0.time < $1.time }
+            if result.count >= limit,
+               let next = calendar.date(byAdding: .day, value: 1, to: day),
+               let nextNoon = calendar.date(bySettingHour: 12, minute: 0, second: 0, of: next),
+               result[limit - 1].time <= nextNoon.addingTimeInterval(-12 * 3600) {
+                break
+            }
+        }
+        return Array(result.prefix(limit))
+    }
+
     /// Scheduled departures from a station between two times, soonest first.
     private func departures(from stationCode: String, around now: Date, start: Date, end: Date) -> [Departure]? {
         loadIfNeeded()

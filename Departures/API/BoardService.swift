@@ -92,6 +92,17 @@ actor BoardService {
         return BoardSnapshot(rows: rows, alerts: [], fetchedAt: now, source: .schedule, note: reason)
     }
 
+    /// Timetable trains after a time, however far ahead (tomorrow, after the
+    /// weekend): the first `limit` going `direction`'s way (any way without one),
+    /// for a board that would otherwise show only a few.
+    func laterRows(for station: Station, after time: Date, limit: Int,
+                   toward direction: CommuteDirection?) async -> [BoardRow] {
+        let departures = await ScheduleStore.shared.laterDepartures(from: station.code, after: time, limit: limit) {
+            direction?.includes(stopCodes: Array($0.pattern[($0.stopIndex + 1)...])) ?? true
+        }
+        return departures.map { Self.row(for: $0, at: station) }
+    }
+
     /// The trains that most recently left a station, oldest first, from the timetable.
     func earlierRows(for station: Station) async -> [BoardRow] {
         let departures = await ScheduleStore.shared.earlierDepartures(from: station.code, before: Date(), limit: 6) ?? []

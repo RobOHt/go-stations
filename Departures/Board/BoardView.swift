@@ -18,6 +18,8 @@ struct BoardView: View {
     var earlierRows: [BoardRow]? = nil
     /// Shows or hides the earlier trains; no button without it.
     var onToggleEarlier: (() -> Void)? = nil
+    /// Rows from the timetable past the live ones: no platform or countdown yet.
+    var timetableRowIDs: Set<String> = []
     /// On your home or work station's board: which way the trains go, and the switch
     /// for all of them; no switch without it.
     var direction: BoardDirection? = nil
@@ -55,9 +57,16 @@ struct BoardView: View {
                 BoardMessage(text: message ?? "No upcoming trains | Aucun train à venir", isLoading: isLoading)
                 DottedRule()
             } else {
-                ForEach(rows) { row in
+                ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
+                    // A heading where the trains go on to another day: tomorrow, or a weekday.
+                    if let day = BoardDay.heading(for: row.scheduled, after: index == 0 ? now : rows[index - 1].scheduled,
+                                                  now: now) {
+                        BoardDayHeading(english: day.english, french: day.french)
+                        DottedRule()
+                    }
                     rowButton(BoardRowView(row: row, isUnion: station.isUnion, accessible: station.accessible,
-                                           now: now, showsPlatform: !isScheduled), row: row)
+                                           now: now, showsPlatform: !isScheduled && !timetableRowIDs.contains(row.id)),
+                              row: row)
                     DottedRule()
                 }
             }
@@ -86,6 +95,57 @@ struct BoardView: View {
         } else {
             rowView
         }
+    }
+}
+
+/// Which day a train on the board leaves, when it isn't today.
+enum BoardDay {
+    /// "Tomorrow | Demain", or the weekday and date further ahead, when `date` falls
+    /// on a later day than `previous` (the train above, or now) and isn't today.
+    static func heading(for date: Date, after previous: Date, now: Date) -> (english: String, french: String)? {
+        let day = TorontoTime.dateWire(date)
+        guard day != TorontoTime.dateWire(previous), day != TorontoTime.dateWire(now) else { return nil }
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TorontoTime.zone
+        if let tomorrow = calendar.date(byAdding: .day, value: 1, to: now), day == TorontoTime.dateWire(tomorrow) {
+            return ("Tomorrow", "Demain")
+        }
+        let french = Self.french.string(from: date)
+        return (Self.english.string(from: date), french.prefix(1).uppercased() + french.dropFirst())
+    }
+
+    private static func formatter(_ format: String, _ locale: String) -> DateFormatter {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: locale)
+        formatter.timeZone = TorontoTime.zone
+        formatter.dateFormat = format
+        return formatter
+    }
+
+    private static let english = formatter("EEEE, MMM d", "en_CA")
+    private static let french = formatter("EEEE d MMM", "fr_CA")
+}
+
+/// Above the first train of another day, across the board.
+private struct BoardDayHeading: View {
+    let english: String
+    let french: String
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "calendar")
+                .font(.system(size: 12, weight: .bold))
+            Text("\(english) | \(french)")
+                .font(.system(size: 13.5, weight: .bold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+        }
+        .foregroundStyle(BoardTheme.time)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 7)
+        .background(BoardTheme.headerStrip)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(english)
     }
 }
 
