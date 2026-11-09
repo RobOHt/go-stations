@@ -557,7 +557,7 @@ struct RootView: View {
                 selected = board
                 // You and the board's station, both in view above the half-height sheet
                 // (the station is often a few kilometres off).
-                mapController.frame([here.coordinate, board.coordinate], minWidth: 3_000, coveredFraction: 0.5)
+                mapController.frame([here.coordinate, board.coordinate], minWidth: 3_000, coveredFraction: 0.55)
             } else {
                 center(on: here.coordinate, sheetOpen: false)
             }

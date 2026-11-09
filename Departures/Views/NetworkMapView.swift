@@ -129,10 +129,14 @@ final class MapController {
             let height = max(maxY - minY, minSize)
 
             let size = mapView.bounds.size
-            let top = Self.topInset(of: mapView) + 48
-            let bottom = max(top + 80, size.height * (1 - coveredFraction) - 24)
-            let left: CGFloat = 40
-            let right = size.width - 40
+            // Clear of what sits over the map: the Dynamic Island, with room for a home
+            // or work pin's balloon above a dot; the map buttons down the right side; and
+            // the sheet (or search results) at the bottom, with room for a station's
+            // name under its dot.
+            let top = Self.topInset(of: mapView) + 56
+            let bottom = max(top + 80, size.height * (1 - coveredFraction) - 44)
+            let left: CGFloat = 48
+            let right = size.width - (BottomBarMetrics.controlsTrailingInset + 48 + 24)
             let mapPerPoint = max(width / Double(right - left), height / Double(bottom - top))
             let target = CGPoint(x: (left + right) / 2, y: (top + bottom) / 2)
             self.place(MKMapPoint(x: (minX + maxX) / 2, y: (minY + maxY) / 2), at: target,
