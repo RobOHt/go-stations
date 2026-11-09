@@ -189,6 +189,19 @@ jobs:
           shoot m-markham-15000 9 map -mapCenter 43.8700,-79.2900 -mapWidth 15000
           shoot m-whitby-15000 9 map -mapCenter 43.8700,-78.9300 -mapWidth 15000
           shoot m-barrie-15000 9 map -mapCenter 44.3600,-79.6900 -mapWidth 15000
+          # The station tags as the map changes, recorded (DebugScene.mapTour): the
+          # names popping up, a zoom in, a station opened and closed, a pan.
+          xcrun simctl terminate "$UDID" "$BUNDLE_ID" > /dev/null 2>&1 || true
+          sleep 1
+          xcrun simctl io "$UDID" recordVideo --codec=h264 --force shots/tour.mp4 > /dev/null 2>&1 &
+          RECORDER=$!
+          sleep 1
+          xcrun simctl launch "$UDID" "$BUNDLE_ID" -debugScene mapTour \
+            -homeStation OA -workStation UN > /dev/null
+          sleep 19
+          kill -INT "$RECORDER" 2> /dev/null || true
+          wait "$RECORDER" || true
+          ls -l shots/tour.mp4 || true
           xcrun simctl ui "$UDID" appearance light
           shoot m-light-union-6000 9 map -mapCenter 43.6453,-79.3806 -mapWidth 6000
           shoot m-light-union-40000 9 map -mapCenter 43.6453,-79.3806 -mapWidth 40000

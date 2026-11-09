@@ -652,6 +652,18 @@ struct RootView: View {
 
         case .allTrains:
             mapController.show(union.coordinate, width: 60_000, sheetOpen: false)
+        case .mapTour:
+            mapController.show(union.coordinate, width: 40_000, sheetOpen: false)
+            try? await Task.sleep(for: .seconds(4))
+            mapController.show(union.coordinate, width: 15_000, sheetOpen: false)
+            try? await Task.sleep(for: .seconds(3))
+            if let exhibition = network.station("EX") { select(exhibition, detent: .medium) }
+            try? await Task.sleep(for: .seconds(3.5))
+            selected = nil
+            try? await Task.sleep(for: .seconds(2.5))
+            if let danforth = network.station("DA") {
+                mapController.show(danforth.coordinate, width: 15_000, sheetOpen: false)
+            }
         case .trackedTrip, .liveActivity:
             await trackDebugTrain()
         case .activityGallery:
