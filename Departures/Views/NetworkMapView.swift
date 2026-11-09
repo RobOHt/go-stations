@@ -598,25 +598,28 @@ struct NetworkMapView: UIViewRepresentable {
                     StationTagView.rect(size: size, radius: radius, place: place)
                         .offsetBy(dx: point.x, dy: point.y)
                 }
-                // How far you are from the station, in metres (when you're near).
+                // Where you are from the station, in metres, when you're at it (within
+                // 400 m). Further away, your dot crossing a tag now and then is fine.
                 var fromHere: CGPoint?
                 if let you {
                     let here = Self.metres(onTrack(station))
                     let offset = CGPoint(x: you.x - here.x, y: you.y - here.y)
-                    if hypot(offset.x, offset.y) < 5_000 { fromHere = offset }
+                    if hypot(offset.x, offset.y) < 400 { fromHere = offset }
                 }
                 // A tag hanging below for you stays there until there's clear room
                 // above, so it doesn't flip back and forth as your location wobbles.
-                let reach: CGFloat = 11 + (namePlaces[station.code] == .below ? 6 : 0)
+                let hangs = namePlaces[station.code] == .below
                 func coversYou(_ place: StationTagPlace) -> Bool {
                     guard let fromHere else { return false }
-                    // The tag's body, that is: your dot on its point is fine.
+                    // The tag's name, that is: your dot on its point or edge is fine.
                     var body = StationTagView.rect(size: size, radius: radius, place: place)
                     body.size.height -= StationTag.pointLength
                     if place == .below { body.origin.y += StationTag.pointLength }
+                    let name = body.insetBy(dx: 6, dy: 4)
+                    let reach: CGFloat = 11 + (hangs && place != .below ? 6 : 0)
                     return samples.contains { scale in
                         CGRect(x: fromHere.x / scale - reach, y: fromHere.y / scale - reach,
-                               width: reach * 2, height: reach * 2).intersects(body)
+                               width: reach * 2, height: reach * 2).intersects(name)
                     }
                 }
                 func fits(_ place: StationTagPlace) -> Bool {
