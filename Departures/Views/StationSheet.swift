@@ -49,11 +49,17 @@ struct StationSheet: View {
         let chosen = BoardTime.shared.shownDay(at: Date())
         let planned = plannedRows.map { list in filter.map { list.filter($0.includes) } ?? list }
         let dayRows = chosen == nil ? live + added : planned ?? []
-        // A long day narrows to its morning, noon or afternoon, among the parts with trains.
-        let parts = DayPeriod.parts.filter { part in dayRows.contains { part.contains($0.scheduled) } }
-        let showsParts = dayRows.count > Self.partsAfter && parts.count > 1
+        // A long day narrows to its morning, noon or afternoon, among the parts with
+        // trains. Only the board's own day counts (04:00 to 04:00: service runs past
+        // midnight), not tomorrow's trains a live board lists at night.
+        let calendar = BoardDay.calendar
+        let dayStart = calendar.date(bySettingHour: 4, minute: 0, second: 0, of: chosen ?? Date()) ?? Date()
+        let dayEnd = calendar.date(byAdding: .day, value: 1, to: dayStart) ?? dayStart
+        let ofTheDay = dayRows.filter { $0.scheduled >= dayStart && $0.scheduled < dayEnd }
+        let parts = DayPeriod.parts.filter { part in ofTheDay.contains { part.contains($0.scheduled) } }
+        let showsParts = ofTheDay.count > Self.partsAfter && parts.count > 1
         let part = showsParts && parts.contains(BoardTime.shared.period) ? BoardTime.shared.period : .allDay
-        let rows = dayRows.filter { part.contains($0.scheduled) }
+        let rows = part == .allDay ? dayRows : ofTheDay.filter { part.contains($0.scheduled) }
         let earlier = earlierRows.map { list in (filter.map { list.filter($0.includes) } ?? list).filter { part.contains($0.scheduled) } }
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
