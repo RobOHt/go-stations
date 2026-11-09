@@ -54,6 +54,8 @@ final class BoardTime {
 
     /// A later day at midnight; nil for today, with live times.
     var day: Date?
+    /// The part of the day the board narrows to, when it has many trains.
+    var period: DayPeriod = .allDay
 
     /// How many days after today can be picked.
     static let daysAhead = 7
@@ -62,5 +64,33 @@ final class BoardTime {
     func shownDay(at now: Date) -> Date? {
         guard let day, TorontoTime.dateWire(day) > TorontoTime.dateWire(now) else { return nil }
         return day
+    }
+}
+
+/// A part of the day on a board with many trains: the morning until 11:00, noon until
+/// 14:00, and the afternoon on to the last train (past midnight).
+enum DayPeriod: String, CaseIterable, Hashable {
+    case allDay, morning, noon, afternoon
+
+    /// The parts, without the whole day.
+    static let parts: [DayPeriod] = [.morning, .noon, .afternoon]
+
+    var label: String {
+        switch self {
+        case .allDay: "All day"
+        case .morning: "Morning"
+        case .noon: "Noon"
+        case .afternoon: "Afternoon"
+        }
+    }
+
+    func contains(_ date: Date) -> Bool {
+        let hour = TorontoTime.hour(date)
+        switch self {
+        case .allDay: return true
+        case .morning: return (4..<11).contains(hour)
+        case .noon: return (11..<14).contains(hour)
+        case .afternoon: return hour >= 14 || hour < 4
+        }
     }
 }

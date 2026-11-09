@@ -196,6 +196,8 @@ jobs:
           # A day picked on the week strip: Union two days ahead, the whole day toward home.
           shoot 5d-station-planned 12 station -boardDaysAhead 2
           shoot 5e-station-planned-large 12 stationLarge -boardDaysAhead 2
+          # Narrowed to a part of the day (a long day has the switch).
+          shoot 5f-station-planned-noon 12 stationLarge -boardDaysAhead 2 -boardPeriod noon
           shoot 6-station-large 10 stationLarge
           shoot 7-trip 15 trip
           # Control: a board scrolled under its pinned header (does the simulator draw edge effects?).

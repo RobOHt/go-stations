@@ -141,6 +141,7 @@ struct RootView: View {
                 if let backgroundedAt, Date.now.timeIntervalSince(backgroundedAt) > 15 * 60 {
                     // A day picked on a board's week strip was for then: back to today.
                     BoardTime.shared.day = nil
+                    BoardTime.shared.period = .allDay
                 }
                 TripTracker.shared.dropIfFinished()
                 Task { await TripTracker.shared.refresh() }
@@ -566,6 +567,10 @@ struct RootView: View {
     private func show(_ scene: DebugScene) async {
         try? await Task.sleep(for: .seconds(1.5))
         guard let union = network.station("UN") else { return }
+        // `-boardPeriod noon`: boards narrow to that part of the day, when they can.
+        if let period = UserDefaults.standard.string(forKey: "boardPeriod").flatMap(DayPeriod.init(rawValue:)) {
+            BoardTime.shared.period = period
+        }
         // `-boardDaysAhead N`: boards show that day, as if picked on the week strip.
         let ahead = UserDefaults.standard.integer(forKey: "boardDaysAhead")
         if ahead > 0 {

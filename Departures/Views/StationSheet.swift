@@ -45,15 +45,31 @@ struct StationSheet: View {
         let liveTrips = Set(allRows.map(\.tripNumber))
         let added = model.snapshot == nil ? [] : (filter.map { laterRows.filter($0.includes) } ?? laterRows)
             .filter { !liveTrips.contains($0.tripNumber) }
-        let earlier = earlierRows.map { list in filter.map { list.filter($0.includes) } ?? list }
         // A later day picked on the week strip: the timetable's whole day.
         let chosen = BoardTime.shared.shownDay(at: Date())
         let planned = plannedRows.map { list in filter.map { list.filter($0.includes) } ?? list }
-        let rows = chosen == nil ? live + added : planned ?? []
+        let dayRows = chosen == nil ? live + added : planned ?? []
+        // A long day narrows to its morning, noon or afternoon, among the parts with trains.
+        let parts = DayPeriod.parts.filter { part in dayRows.contains { part.contains($0.scheduled) } }
+        let showsParts = dayRows.count > Self.partsAfter && parts.count > 1
+        let part = showsParts && parts.contains(BoardTime.shared.period) ? BoardTime.shared.period : .allDay
+        let rows = dayRows.filter { part.contains($0.scheduled) }
+        let earlier = earlierRows.map { list in (filter.map { list.filter($0.includes) } ?? list).filter { part.contains($0.scheduled) } }
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
                 DayStrip(selected: chosen, now: Date()) { day in
                     withAnimation(.snappy) { BoardTime.shared.day = day }
+                }
+                if showsParts {
+                    Picker("Time of day", selection: Binding(get: { part }, set: { new in
+                        withAnimation(.snappy) { BoardTime.shared.period = new }
+                    })) {
+                        Text(DayPeriod.allDay.label).tag(DayPeriod.allDay)
+                        ForEach(parts, id: \.self) { part in
+                            Text(part.label).tag(part)
+                        }
+                    }
+                    .pickerStyle(.segmented)
                 }
                 TimelineView(.periodic(from: .now, by: 1)) { context in
                     BoardView(
@@ -356,6 +372,8 @@ struct StationSheet: View {
 
     /// The board shows at least this many trains, from the timetable past the live ones.
     private static let minimumRows = 4
+    /// With more trains than this in a day, it can narrow to a part of the day.
+    private static let partsAfter = 10
     private var plannedKey: String {
         let day = BoardTime.shared.day.map(TorontoTime.dateWire) ?? "today"
         return "\(station.code)#\(day)#\(showsAllDirections)#\(commute?.direction.toward ?? "")"
