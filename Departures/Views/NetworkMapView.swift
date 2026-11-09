@@ -18,6 +18,16 @@ enum MapZoom: Int, Comparable {
         }
     }
 
+    /// The step for a span, staying at `current` while the span is only just past
+    /// the edge of it, so a pinch that hovers at the edge doesn't flip the map's
+    /// dots and tags back and forth between two steps.
+    init(span latitudeDelta: Double, keeping current: MapZoom) {
+        let plain = MapZoom(span: latitudeDelta)
+        // 8% further back the way it came: still the current step?
+        let back = MapZoom(span: plain > current ? latitudeDelta / 1.08 : latitudeDelta * 1.08)
+        self = back == current ? current : plain
+    }
+
     static func < (lhs: MapZoom, rhs: MapZoom) -> Bool { lhs.rawValue < rhs.rawValue }
 
     var dotSize: CGFloat {
@@ -323,8 +333,9 @@ struct NetworkMapView: UIViewRepresentable {
         let coordinator = context.coordinator
         coordinator.controller = controller
         let changed = coordinator.update(from: self)
-        if changed.stations { coordinator.refreshStations(in: mapView) }
+        // Where the tags go first, then how they look: each tag changes once.
         if changed.stations || changed.cover { coordinator.placeNames(in: mapView) }
+        if changed.stations { coordinator.refreshStations(in: mapView) }
         coordinator.syncPlace(place, in: mapView)
         coordinator.syncTrip(trackedTrip, in: mapView)
         coordinator.syncRunning(runningTrips, in: mapView)
@@ -384,11 +395,19 @@ struct NetworkMapView: UIViewRepresentable {
             stationTags = stations.map { StationTagAnnotation(station: $0, coordinate: onTrack($0)) }
             mapView.addAnnotations(stations.map { StationAnnotation(station: $0, coordinate: onTrack($0)) })
             mapView.addAnnotations(stationTags)
-            // The busier stations' names go first, once the timetable says which they are.
+            // The busier stations' names go first, so the names wait (a moment) for the
+            // timetable to say which they are, rather than show and then reshuffle.
             Task { [weak self, weak mapView] in
                 let counts = await ScheduleStore.shared.trainsPerStation()
-                guard let self, let mapView, !counts.isEmpty else { return }
+                guard let self, let mapView else { return }
                 self.trainsAt = counts
+                self.namesReady = true
+                self.placeNames(in: mapView)
+            }
+            Task { [weak self, weak mapView] in
+                try? await Task.sleep(for: .seconds(1.5))
+                guard let self, let mapView, !self.namesReady else { return }
+                self.namesReady = true
                 self.placeNames(in: mapView)
             }
         }
@@ -451,19 +470,20 @@ struct NetworkMapView: UIViewRepresentable {
             }
         }
 
-        private func configure(_ view: StationAnnotationView, for station: Station) {
+        private func configure(_ view: StationAnnotationView, for station: Station, animated: Bool) {
             view.configure(zoom: zoom, isSelected: station.code == selectedCode, role: role(for: station),
-                           station: station)
+                           station: station, animated: animated)
         }
 
-        private func configure(_ view: StationTagView, for station: Station) {
+        private func configure(_ view: StationTagView, for station: Station, animated: Bool) {
             view.configure(
                 zoom: zoom,
                 isSelected: station.code == selectedCode,
                 role: role(for: station),
                 station: station,
                 dotSize: dotSize(for: station),
-                place: namePlaces[station.code]
+                place: namePlaces[station.code],
+                animated: animated
             )
         }
 
@@ -476,6 +496,8 @@ struct NetworkMapView: UIViewRepresentable {
 
         /// How many trains stop at each station on a weekday, from the timetable.
         private var trainsAt: [String: Int] = [:]
+        /// The timetable's counts are in (or took too long): names can go up.
+        private var namesReady = false
 
         /// Stations at the ends of the lines' runs.
         private static let lineEnds = Set(RailNetwork.shared.lines.flatMap { line in
@@ -505,8 +527,10 @@ struct NetworkMapView: UIViewRepresentable {
         /// the search bar or the sheet, and keeps clear of the map buttons and cards.
         /// Trains don't count: they move, and the tags shouldn't come and go as they
         /// pass (the tags sit above them instead). Zoomed right out, only the tags
-        /// that matter most.
+        /// that matter most. A tag keeps its side of the dot while it still fits there,
+        /// so tags only move when they have to, and every change animates.
         func placeNames(in mapView: MKMapView) {
+            guard namesReady else { return }
             let bounds = mapView.bounds
             let screen = bounds.insetBy(dx: -60, dy: -30)
             let top = max(mapView.window?.safeAreaInsets.top ?? 0, mapView.safeAreaInsets.top) + 4
@@ -574,7 +598,10 @@ struct NetworkMapView: UIViewRepresentable {
                         && !tags.contains { $0.intersects(rect) }
                         && !dots.contains { $0.key != station.code && $0.value.intersects(rect) }
                 }
-                var chosen = above.first(where: fits)
+                // Where it is now first, if it still fits there: tags don't hop about.
+                let current = namePlaces[station.code]
+                let tries = above.filter { $0 == current } + above.filter { $0 != current }
+                var chosen = tries.first(where: fits)
                 // You're where its tag would stand (at the station, say): it hangs below.
                 if chosen == nil, above.contains(where: coversYou), fits(.below) {
                     chosen = .below
@@ -583,9 +610,9 @@ struct NetworkMapView: UIViewRepresentable {
                 // under a button, as long as it's on screen: a tag cut off at the edge
                 // would look broken.
                 if chosen == nil, rank <= 1 {
-                    chosen = (above + [.below]).first { isClear(frame($0)) && !coversYou($0) }
-                        ?? above.first { isClear(frame($0)) }
-                        ?? above.first { visible.contains(frame($0)) }
+                    chosen = (tries + [.below]).first { isClear(frame($0)) && !coversYou($0) }
+                        ?? tries.first { isClear(frame($0)) }
+                        ?? tries.first { visible.contains(frame($0)) }
                 }
                 if let chosen {
                     places[station.code] = chosen
@@ -597,20 +624,22 @@ struct NetworkMapView: UIViewRepresentable {
             namePlaces = places
             for annotation in stationTags where moved.contains(annotation.station.code) {
                 if let view = mapView.view(for: annotation) as? StationTagView {
-                    configure(view, for: annotation.station)
+                    configure(view, for: annotation.station, animated: true)
                 }
             }
             keepOrder(in: mapView)
         }
 
+        /// Brings every dot and tag on the map up to date (zoom, open station, home and
+        /// work), changing smoothly.
         func refreshStations(in mapView: MKMapView) {
             for annotation in mapView.annotations {
                 if let annotation = annotation as? StationAnnotation,
                    let view = mapView.view(for: annotation) as? StationAnnotationView {
-                    configure(view, for: annotation.station)
+                    configure(view, for: annotation.station, animated: true)
                 } else if let annotation = annotation as? StationTagAnnotation,
                           let view = mapView.view(for: annotation) as? StationTagView {
-                    configure(view, for: annotation.station)
+                    configure(view, for: annotation.station, animated: true)
                 }
             }
         }
@@ -631,8 +660,8 @@ struct NetworkMapView: UIViewRepresentable {
             // nearer another.
             var tagged: (station: Station, miss: CGFloat)?
             for annotation in stationTags {
-                guard let view = mapView.view(for: annotation), !view.isHidden else { continue }
-                let frame = view.convert(view.bounds, to: mapView)
+                guard let view = mapView.view(for: annotation) as? StationTagView,
+                      let frame = view.tagFrame(in: mapView) else { continue }
                 let miss = hypot(max(frame.minX - point.x, 0, point.x - frame.maxX),
                                  max(frame.minY - point.y, 0, point.y - frame.maxY))
                 if miss <= 5, miss < (tagged?.miss ?? .greatestFiniteMagnitude) {
@@ -704,13 +733,14 @@ struct NetworkMapView: UIViewRepresentable {
             }
             if let tag = annotation as? StationTagAnnotation {
                 let view = mapView.dequeueReusableAnnotationView(withIdentifier: StationTagView.reuseID, for: tag)
-                if let tagView = view as? StationTagView { configure(tagView, for: tag.station) }
+                // A tag coming onto the map pops up once it's on screen.
+                if let tagView = view as? StationTagView { configure(tagView, for: tag.station, animated: true) }
                 return view
             }
             guard let annotation = annotation as? StationAnnotation else { return nil }
             let view = mapView.dequeueReusableAnnotationView(withIdentifier: StationAnnotationView.reuseID, for: annotation)
             guard let stationView = view as? StationAnnotationView else { return view }
-            configure(stationView, for: annotation.station)
+            configure(stationView, for: annotation.station, animated: false)
             return stationView
         }
 
@@ -762,12 +792,14 @@ struct NetworkMapView: UIViewRepresentable {
                 view.setMapHeading(mapView.camera.heading)
             }
 
-            // Only re-render when the zoom crosses a step.
-            let newZoom = MapZoom(span: mapView.region.span.latitudeDelta)
+            // Only re-render when the zoom crosses a step (and not back and forth as a
+            // pinch hovers at one).
+            let newZoom = MapZoom(span: mapView.region.span.latitudeDelta, keeping: zoom)
             guard newZoom != zoom else { return }
             zoom = newZoom
-            refreshStations(in: mapView)
+            // Where the tags go at this zoom, then how they look: each tag changes once.
             placeNames(in: mapView)
+            refreshStations(in: mapView)
             for marker in running.values {
                 guard let view = mapView.view(for: marker) as? TrainAnnotationView, let trip = marker.running else { continue }
                 view.configure(color: lineColor(trip.lineCode), animatesPointer: false, isOnBoard: false, scale: runningScale)
@@ -1530,6 +1562,9 @@ final class PlacePinView: MKMarkerAnnotationView {
 final class StationAnnotationView: MKAnnotationView {
     static let reuseID = "station"
     private static let ink = UIColor(red: 0x1C / 255, green: 0x1C / 255, blue: 0x1E / 255, alpha: 1)
+    /// Room for the biggest dot (the open station's), so a dot grows and shrinks
+    /// about its centre.
+    private static let side: CGFloat = 24
 
     private let dot = CAShapeLayer()
 
@@ -1542,7 +1577,9 @@ final class StationAnnotationView: MKAnnotationView {
         collisionMode = .circle
         clipsToBounds = false
         backgroundColor = .clear
+        bounds = CGRect(x: 0, y: 0, width: Self.side, height: Self.side)
 
+        dot.frame = bounds
         dot.fillColor = UIColor.white.cgColor
         dot.strokeColor = Self.ink.cgColor
         dot.shadowColor = UIColor.black.cgColor
@@ -1555,17 +1592,18 @@ final class StationAnnotationView: MKAnnotationView {
         fatalError("init(coder:) is not supported")
     }
 
-    func configure(zoom: MapZoom, isSelected: Bool, role: StationRole, station: Station) {
+    /// `animated`: the dot grows or shrinks to its new size (zooming, or opening it).
+    func configure(zoom: MapZoom, isSelected: Bool, role: StationRole, station: Station, animated: Bool) {
         isUserInteractionEnabled = false
 
         let size = isSelected ? min(22, max(12, zoom.dotSize + 7)) : zoom.dotSize
         let border = isSelected ? max(2.5, zoom.dotBorder + 1) : zoom.dotBorder
-        let box = CGRect(x: 0, y: 0, width: size, height: size)
+        let box = CGRect(x: (Self.side - size) / 2, y: (Self.side - size) / 2, width: size, height: size)
 
         CATransaction.begin()
-        CATransaction.setDisableActions(true)
-        bounds = box
-        dot.frame = box
+        CATransaction.setDisableActions(!animated)
+        CATransaction.setAnimationDuration(StationTagView.duration)
+        CATransaction.setAnimationTimingFunction(CAMediaTimingFunction(name: .easeInEaseOut))
         dot.path = UIBezierPath(ovalIn: box.insetBy(dx: border / 2, dy: border / 2)).cgPath
         dot.lineWidth = border
         dot.shadowPath = UIBezierPath(ovalIn: box).cgPath
@@ -1582,10 +1620,85 @@ final class StationAnnotationView: MKAnnotationView {
 /// A station's tag: a pin with its name, standing on the station's dot where
 /// there's room (the map works out where, see `placeNames`). It sits above the
 /// other trains, so a passing train never hides a name, and below the tracked one.
+///
+/// Every change animates: a tag pops up out of its dot and sinks back into it,
+/// slides to its new place with its point staying on the dot, and takes on a new
+/// look (zooming in or out, opening the station) or moves to the other side of
+/// the dot in a crossfade. (Reduce Motion: fades only.)
 final class StationTagView: MKAnnotationView {
     static let reuseID = "station-tag"
+    /// How long the tags and dots take to change.
+    static let duration: TimeInterval = 0.3
+    /// How small a tag is as it pops up out of its dot, or sinks back into it.
+    private static let popScale: CGFloat = 0.3
 
-    private let pin = StationTag()
+    /// What the tag shows, and where.
+    private struct State: Equatable {
+        var look: StationTag.Look
+        var place: StationTagPlace
+        /// The dot's radius: the point stands on its edge.
+        var radius: CGFloat
+    }
+
+    /// A tag's point: filled from just inside the tag's edge (covering its border
+    /// there) to the dot's edge, with the tag's border down its sides (on plain tags).
+    private struct Point {
+        let layer = CALayer()
+        let fill = CAShapeLayer()
+        let edge = CAShapeLayer()
+        /// Hanging from the dot, below it, rather than standing on it.
+        let up: Bool
+
+        init(up: Bool) {
+            self.up = up
+            edge.fillColor = nil
+            edge.lineWidth = 1
+            layer.addSublayer(fill)
+            layer.addSublayer(edge)
+        }
+
+        func shape(radius: CGFloat) {
+            let sign: CGFloat = up ? 1 : -1
+            let tip = CGPoint(x: 0, y: sign * radius)
+            let tagEdge = sign * (radius + StationTag.pointLength)
+            let filled = CGMutablePath()
+            filled.move(to: CGPoint(x: -5.5, y: tagEdge + sign))
+            filled.addLine(to: tip)
+            filled.addLine(to: CGPoint(x: 5.5, y: tagEdge + sign))
+            filled.closeSubpath()
+            fill.path = filled
+            // Its sides, from the tag's edge to the tip.
+            let side = 5.5 * StationTag.pointLength / (StationTag.pointLength + 1)
+            let sides = CGMutablePath()
+            sides.move(to: CGPoint(x: -side, y: tagEdge))
+            sides.addLine(to: tip)
+            sides.addLine(to: CGPoint(x: side, y: tagEdge))
+            edge.path = sides
+        }
+
+        func color(_ colors: StationTag.Colors, traits: UITraitCollection) {
+            fill.fillColor = colors.fill.resolvedColor(with: traits).cgColor
+            edge.strokeColor = (colors.border ?? .clear).resolvedColor(with: traits).cgColor
+        }
+    }
+
+    /// Everything that pops up and sinks back together. (0, 0) is the dot's centre
+    /// (and this view's), so it all grows out of the dot and shrinks back into it.
+    private let content = UIView()
+    /// The tag's body: its rounded shape, bullet or symbol, and the name.
+    private let body = StationTag()
+    /// The body's last look, fading out over the new one.
+    private let ghost = StationTag()
+    private let pointDown = Point(up: false)
+    private let pointUp = Point(up: true)
+
+    private var state: State?
+    /// Counts changes, so an animation finishing late leaves a newer change be.
+    private var generation = 0
+    /// The tag is to pop up as soon as it's on screen.
+    private var popsWhenShown = false
+
+    private var reduceMotion: Bool { UIAccessibility.isReduceMotionEnabled }
 
     override init(annotation: MKAnnotation?, reuseIdentifier: String?) {
         super.init(annotation: annotation, reuseIdentifier: reuseIdentifier)
@@ -1597,8 +1710,23 @@ final class StationTagView: MKAnnotationView {
         backgroundColor = .clear
         // The dot under it already reads the station's name.
         isAccessibilityElement = false
+        bounds = CGRect(x: 0, y: 0, width: 2, height: 2)
         isHidden = true
-        addSubview(pin)
+
+        content.bounds = CGRect(x: -1, y: -1, width: 2, height: 2)
+        content.center = CGPoint(x: 1, y: 1)
+        content.isUserInteractionEnabled = false
+        addSubview(content)
+        ghost.isHidden = true
+        content.addSubview(ghost)
+        content.addSubview(body)
+        // The points over the body, so their fill covers its border where they meet.
+        content.layer.addSublayer(pointDown.layer)
+        content.layer.addSublayer(pointUp.layer)
+
+        registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (view: StationTagView, _: UITraitCollection) in
+            view.colorPoints(animated: false)
+        }
     }
 
     @available(*, unavailable)
@@ -1606,35 +1734,221 @@ final class StationTagView: MKAnnotationView {
         fatalError("init(coder:) is not supported")
     }
 
-    /// `dotSize`: the dot's size as drawn, so the tag's point stands on its edge.
+    override func prepareForReuse() {
+        super.prepareForReuse()
+        state = nil
+        generation += 1
+        popsWhenShown = false
+        isHidden = true
+        settle()
+    }
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        if popsWhenShown, window != nil { pop() }
+    }
+
+    /// The tag's body in `view`'s coordinates while it shows (not while it goes).
+    func tagFrame(in view: UIView) -> CGRect? {
+        guard state != nil, !isHidden else { return nil }
+        return content.convert(body.frame, to: view)
+    }
+
+    /// Shows the tag at `place` (none: no room for it), changing smoothly from what
+    /// shows now when `animated`. `dotSize`: the dot's size as drawn, so the tag's
+    /// point stands on its edge.
     func configure(zoom: MapZoom, isSelected: Bool, role: StationRole, station: Station,
-                   dotSize: CGFloat, place: StationTagPlace?) {
+                   dotSize: CGFloat, place: StationTagPlace?, animated: Bool) {
         isUserInteractionEnabled = false
-        guard let place else {
-            isHidden = true
-            return
-        }
-        let font = Self.font(zoom: zoom, isSelected: isSelected)
+        zPriority = MKAnnotationViewZPriority(rawValue: isSelected ? 987 : (role == .plain ? 985 : 986))
         let style: StationTag.Style = switch role {
         case .home: .home
         case .work: .work
         case .plain: isSelected ? .open : .plain(Self.lineColor(of: station))
         }
-        let size = StationTag.size(name: station.name, font: font, hasGlyph: role != .plain)
-        let rect = Self.rect(size: size, radius: dotSize / 2, place: place)
+        let look = StationTag.Look(name: station.name, font: Self.font(zoom: zoom, isSelected: isSelected),
+                                   style: style, hasGlyph: role != .plain)
+        let new = place.map { State(look: look, place: $0, radius: dotSize / 2) }
+        guard new != state else { return }
+        let old = state
+        state = new
+        generation += 1
 
-        CATransaction.begin()
-        CATransaction.setDisableActions(true)
-        bounds = CGRect(origin: .zero, size: size)
-        pin.frame = bounds
-        // The view's centre sits on the station; move it so the point lands on the dot.
-        centerOffset = CGPoint(x: rect.midX, y: rect.midY)
-        CATransaction.commit()
-        pin.set(name: station.name, font: font, style: style, hasGlyph: role != .plain,
-                pointX: -rect.minX, pointsUp: place == .below)
+        guard let new else {
+            hide(animated: animated)
+            return
+        }
+        if let old, !isHidden {
+            change(from: old, to: new, animated: animated && window != nil)
+        } else {
+            appear(new, animated: animated)
+        }
+    }
 
-        zPriority = MKAnnotationViewZPriority(rawValue: isSelected ? 987 : (role == .plain ? 985 : 986))
+    // MARK: Changes
+
+    /// The tag pops up out of its dot (or just shows).
+    private func appear(_ state: State, animated: Bool) {
+        let wasHidden = isHidden
+        dropGhost()
+        body.layer.removeAllAnimations()
+        UIView.performWithoutAnimation {
+            body.look = state.look
+            body.frame = Self.bodyFrame(for: state)
+            body.alpha = 1
+        }
+        shapePoints(for: state, animated: false)
         isHidden = false
+        guard animated else {
+            popsWhenShown = false
+            content.layer.removeAllAnimations()
+            content.alpha = 1
+            content.transform = .identity
+            return
+        }
+        if wasHidden {
+            content.alpha = 0
+            content.transform = reduceMotion ? .identity : CGAffineTransform(scaleX: Self.popScale, y: Self.popScale)
+        }
+        if window == nil {
+            popsWhenShown = true
+        } else {
+            pop()
+        }
+    }
+
+    private func pop() {
+        popsWhenShown = false
+        UIView.animate(withDuration: 0.45, delay: 0, usingSpringWithDamping: 0.72, initialSpringVelocity: 0,
+                       options: [.beginFromCurrentState, .allowUserInteraction]) {
+            self.content.alpha = 1
+            self.content.transform = .identity
+        }
+    }
+
+    /// The tag sinks back into its dot (or just goes).
+    private func hide(animated: Bool) {
+        popsWhenShown = false
+        guard animated, window != nil, !isHidden else {
+            isHidden = true
+            settle()
+            return
+        }
+        let generation = self.generation
+        UIView.animate(withDuration: 0.2, delay: 0, options: [.beginFromCurrentState, .curveEaseIn]) {
+            self.content.alpha = 0
+            if !self.reduceMotion {
+                self.content.transform = CGAffineTransform(scaleX: Self.popScale, y: Self.popScale)
+            }
+        } completion: { _ in
+            // Unless it's changed since (come back, say).
+            guard generation == self.generation else { return }
+            self.isHidden = true
+            self.settle()
+        }
+    }
+
+    /// From one place or look to another, while the tag shows.
+    private func change(from old: State, to new: State, animated: Bool) {
+        let frame = Self.bodyFrame(for: new)
+        guard animated else {
+            dropGhost()
+            body.layer.removeAllAnimations()
+            UIView.performWithoutAnimation {
+                body.look = new.look
+                body.frame = frame
+                body.alpha = 1
+            }
+            shapePoints(for: new, animated: false)
+            return
+        }
+        let flips = (old.place == .below) != (new.place == .below)
+        if old.look == new.look, !flips, !reduceMotion {
+            // The same tag somewhere else: it slides there, its point staying on the dot.
+            UIView.animate(withDuration: 0.4, delay: 0, usingSpringWithDamping: 0.86, initialSpringVelocity: 0,
+                           options: [.beginFromCurrentState, .allowUserInteraction]) {
+                self.body.frame = frame
+            }
+        } else {
+            // A new look, or the other side of the dot: the new tag fades in over the old.
+            crossfade(to: new.look, frame: frame, sliding: !flips && !reduceMotion)
+        }
+        shapePoints(for: new, animated: true)
+    }
+
+    /// The old look (as it shows right now, mid-move say) fades out, sliding toward
+    /// the new place when `sliding`, as the new one fades in there.
+    private func crossfade(to look: StationTag.Look, frame: CGRect, sliding: Bool) {
+        let shown = body.layer.presentation()
+        UIView.performWithoutAnimation {
+            ghost.layer.removeAllAnimations()
+            ghost.look = body.look
+            ghost.frame = shown?.frame ?? body.frame
+            ghost.alpha = CGFloat(shown?.opacity ?? Float(body.alpha))
+            ghost.isHidden = false
+            body.layer.removeAllAnimations()
+            body.look = look
+            body.frame = frame
+            body.alpha = 0
+        }
+        let generation = self.generation
+        UIView.animate(withDuration: Self.duration, delay: 0, options: [.curveEaseInOut, .allowUserInteraction]) {
+            self.ghost.alpha = 0
+            if sliding { self.ghost.center = CGPoint(x: frame.midX, y: frame.midY) }
+            self.body.alpha = 1
+        } completion: { _ in
+            guard generation == self.generation else { return }
+            self.ghost.isHidden = true
+        }
+    }
+
+    /// Stops what's moving, leaving everything as it ends up.
+    private func settle() {
+        content.layer.removeAllAnimations()
+        body.layer.removeAllAnimations()
+        dropGhost()
+        content.alpha = 1
+        content.transform = .identity
+        body.alpha = 1
+    }
+
+    private func dropGhost() {
+        ghost.layer.removeAllAnimations()
+        ghost.isHidden = true
+    }
+
+    /// The point on the tag's side of the dot, standing on its edge, in the tag's colours.
+    private func shapePoints(for state: State, animated: Bool) {
+        CATransaction.begin()
+        CATransaction.setDisableActions(!animated)
+        CATransaction.setAnimationDuration(Self.duration)
+        pointDown.shape(radius: state.radius)
+        pointUp.shape(radius: state.radius)
+        pointDown.layer.opacity = state.place == .below ? 0 : 1
+        pointUp.layer.opacity = state.place == .below ? 1 : 0
+        CATransaction.commit()
+        colorPoints(animated: animated)
+    }
+
+    private func colorPoints(animated: Bool) {
+        guard let state else { return }
+        let colors = StationTag.colors(for: state.look.style, dark: traitCollection.userInterfaceStyle == .dark)
+        CATransaction.begin()
+        CATransaction.setDisableActions(!animated)
+        CATransaction.setAnimationDuration(Self.duration)
+        pointDown.color(colors, traits: traitCollection)
+        pointUp.color(colors, traits: traitCollection)
+        CATransaction.commit()
+    }
+
+    // MARK: Geometry and looks
+
+    /// The tag's body (all but its point), around the dot's centre.
+    private static func bodyFrame(for state: State) -> CGRect {
+        let size = StationTag.size(name: state.look.name, font: state.look.font, hasGlyph: state.look.hasGlyph)
+        let whole = rect(size: size, radius: state.radius, place: state.place)
+        return CGRect(x: whole.minX, y: state.place == .below ? whole.minY + StationTag.pointLength : whole.minY,
+                      width: whole.width, height: whole.height - StationTag.pointLength)
     }
 
     /// The station's line colour for its tag's bullet (the app's green at Union, where all meet).
@@ -1653,8 +1967,8 @@ final class StationTagView: MKAnnotationView {
         }
     }
 
-    /// Where the tag goes, relative to the dot's centre: above it (below it when it
-    /// hangs), its point on the dot.
+    /// Where the whole tag goes (its body and point), relative to the dot's centre:
+    /// above it (below it when it hangs), its point on the dot.
     static func rect(size: CGSize, radius: CGFloat, place: StationTagPlace) -> CGRect {
         let pointX: CGFloat = switch place {
         case .centre, .below: size.width / 2
@@ -1673,14 +1987,31 @@ enum StationTagPlace: CaseIterable {
     case centre, runningRight, runningLeft, below
 }
 
-/// A station on the map as a pin, so it reads as something to tap: a rounded tag
-/// with the station's name and a small point at the bottom standing on its dot (at
-/// the top when it hangs below the dot). Home and work are in their colours with a
-/// house or briefcase; the open station is the map's ink colour turned round; the
-/// rest are in the map's own colours, with a bullet in the line's colour.
+/// A station's tag on the map, so it reads as something to tap: a rounded shape
+/// with the station's name, standing on its dot on a small point (which
+/// `StationTagView` draws, so it can stay on the dot as the tag moves). Home and
+/// work are in their colours with a house or briefcase; the open station is the
+/// map's ink colour turned round; the rest are in the map's own colours, with a
+/// bullet in the line's colour.
 final class StationTag: UIView {
-    enum Style {
+    enum Style: Equatable {
         case plain(UIColor), open, home, work
+    }
+
+    /// What a tag shows.
+    struct Look: Equatable {
+        let name: String
+        let font: UIFont
+        let style: Style
+        let hasGlyph: Bool
+    }
+
+    struct Colors {
+        let fill: UIColor
+        let text: UIColor
+        let border: UIColor?
+        let mark: UIColor
+        let glyph: String?
     }
 
     static let pointLength: CGFloat = 6
@@ -1689,19 +2020,34 @@ final class StationTag: UIView {
     private static let padding: CGFloat = 8
     private static let gap: CGFloat = 5
 
-    private var name = ""
-    private var font = UIFont.systemFont(ofSize: 13, weight: .semibold)
-    private var style = Style.plain(.systemGray)
-    private var hasGlyph = false
-    private var pointX: CGFloat = 0
-    private var pointsUp = false
+    var look: Look? {
+        didSet { if look != oldValue { setNeedsDisplay() } }
+    }
 
-    /// The tag's size for a name: its body, and the point under it.
+    /// The whole tag's size for a name: its body, and the point under it.
     static func size(name: String, font: UIFont, hasGlyph: Bool) -> CGSize {
         let text = (name as NSString).size(withAttributes: [.font: font])
         let mark = hasGlyph ? font.pointSize + 1 : 8
         let body = ceil(max(text.height, mark)) + 9
         return CGSize(width: ceil(text.width) + mark + gap + 2 * padding, height: body + pointLength)
+    }
+
+    static func colors(for style: Style, dark: Bool) -> Colors {
+        switch style {
+        case .plain(let line):
+            return Colors(fill: dark ? UIColor(white: 0.13, alpha: 0.97) : UIColor(white: 1, alpha: 0.97),
+                          text: dark ? .white : UIColor(white: 0.1, alpha: 1),
+                          border: dark ? UIColor(white: 1, alpha: 0.22) : UIColor(white: 0, alpha: 0.12),
+                          mark: line, glyph: nil)
+        case .open:
+            return Colors(fill: dark ? .white : UIColor(white: 0.1, alpha: 1),
+                          text: dark ? UIColor(white: 0.08, alpha: 1) : .white,
+                          border: nil, mark: UIColor(named: "AccentColor") ?? .systemGreen, glyph: nil)
+        case .home:
+            return Colors(fill: .systemBlue, text: .white, border: nil, mark: .white, glyph: "house.fill")
+        case .work:
+            return Colors(fill: .systemBrown, text: .white, border: nil, mark: .white, glyph: "briefcase.fill")
+        }
     }
 
     override init(frame: CGRect) {
@@ -1713,6 +2059,7 @@ final class StationTag: UIView {
         layer.shadowColor = UIColor.black.cgColor
         layer.shadowOffset = CGSize(width: 0, height: 1)
         layer.shadowRadius = 2.5
+        updateShadow()
         registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (view: StationTag, _: UITraitCollection) in
             view.setNeedsDisplay()
             view.updateShadow()
@@ -1724,109 +2071,46 @@ final class StationTag: UIView {
         fatalError("init(coder:) is not supported")
     }
 
-    func set(name: String, font: UIFont, style: Style, hasGlyph: Bool, pointX: CGFloat, pointsUp: Bool = false) {
-        self.name = name
-        self.font = font
-        self.style = style
-        self.hasGlyph = hasGlyph
-        self.pointX = pointX
-        self.pointsUp = pointsUp
-        setNeedsDisplay()
-        updateShadow()
-    }
-
     override func layoutSubviews() {
         super.layoutSubviews()
         updateShadow()
     }
 
     private func updateShadow() {
-        layer.shadowPath = outline().cgPath
+        layer.shadowPath = UIBezierPath(roundedRect: bounds, cornerRadius: bounds.height / 2).cgPath
         layer.shadowOpacity = traitCollection.userInterfaceStyle == .dark ? 0.55 : 0.28
     }
 
-    private var body: CGRect {
-        CGRect(x: 0.5, y: pointsUp ? Self.pointLength + 0.5 : 0.5,
-               width: bounds.width - 1, height: bounds.height - Self.pointLength - 1)
-    }
-
-    /// The body and its point, as one shape.
-    private func outline() -> UIBezierPath {
-        let body = self.body
-        let path = UIBezierPath(roundedRect: body, cornerRadius: body.height / 2)
-        path.append(point())
-        return path
-    }
-
-    private func point() -> UIBezierPath {
-        let body = self.body
-        let x = min(max(pointX, body.minX + body.height / 2), body.maxX - body.height / 2)
-        // Where the point leaves the body (just inside it), and its tip on the dot.
-        let base = pointsUp ? body.minY + 1 : body.maxY - 1
-        let tip = pointsUp ? bounds.minY + 0.5 : bounds.maxY - 0.5
-        let path = UIBezierPath()
-        path.move(to: CGPoint(x: x - 5.5, y: base))
-        path.addLine(to: CGPoint(x: pointX, y: tip))
-        path.addLine(to: CGPoint(x: x + 5.5, y: base))
-        path.close()
-        return path
-    }
-
     override func draw(_ rect: CGRect) {
-        let dark = traitCollection.userInterfaceStyle == .dark
-        let fill: UIColor, text: UIColor, border: UIColor?
-        var mark: (glyph: String?, color: UIColor)
-        switch style {
-        case .plain(let line):
-            fill = dark ? UIColor(white: 0.13, alpha: 0.97) : UIColor(white: 1, alpha: 0.97)
-            text = dark ? .white : UIColor(white: 0.1, alpha: 1)
-            border = dark ? UIColor(white: 1, alpha: 0.22) : UIColor(white: 0, alpha: 0.12)
-            mark = (nil, line)
-        case .open:
-            fill = dark ? .white : UIColor(white: 0.1, alpha: 1)
-            text = dark ? UIColor(white: 0.08, alpha: 1) : .white
-            border = nil
-            mark = (nil, UIColor(named: "AccentColor") ?? .systemGreen)
-        case .home:
-            fill = .systemBlue
-            text = .white
-            border = nil
-            mark = ("house.fill", .white)
-        case .work:
-            fill = .systemBrown
-            text = .white
-            border = nil
-            mark = ("briefcase.fill", .white)
-        }
-        if !hasGlyph { mark.glyph = nil }
-
-        let body = self.body
+        guard let look else { return }
+        let colors = Self.colors(for: look.style, dark: traitCollection.userInterfaceStyle == .dark)
+        let body = bounds.insetBy(dx: 0.5, dy: 0.5)
         let rounded = UIBezierPath(roundedRect: body, cornerRadius: body.height / 2)
-        fill.setFill()
+        colors.fill.setFill()
         rounded.fill()
-        if let border {
+        if let border = colors.border {
             border.setStroke()
             rounded.lineWidth = 1
             rounded.stroke()
         }
-        // The point over the border where it meets the body.
-        point().fill()
 
-        let size = hasGlyph ? font.pointSize + 1 : 8
+        let size = look.hasGlyph ? look.font.pointSize + 1 : 8
         var x = Self.padding
-        if let glyph = mark.glyph,
-           let image = UIImage(systemName: glyph, withConfiguration: UIImage.SymbolConfiguration(pointSize: font.pointSize - 1, weight: .bold))?
-               .withTintColor(mark.color, renderingMode: .alwaysOriginal) {
+        if look.hasGlyph, let glyph = colors.glyph,
+           let image = UIImage(systemName: glyph,
+                               withConfiguration: UIImage.SymbolConfiguration(pointSize: look.font.pointSize - 1, weight: .bold))?
+               .withTintColor(colors.mark, renderingMode: .alwaysOriginal) {
             image.draw(at: CGPoint(x: x + (size - image.size.width) / 2, y: body.midY - image.size.height / 2))
         } else {
-            // A bullet in the line's colour, ringed like the station dots.
+            // A bullet in the line's colour.
             let bullet = UIBezierPath(ovalIn: CGRect(x: x, y: body.midY - 4, width: 8, height: 8))
-            mark.color.setFill()
+            colors.mark.setFill()
             bullet.fill()
         }
         x += size + Self.gap
-        let label = name as NSString
-        let height = label.size(withAttributes: [.font: font]).height
-        label.draw(at: CGPoint(x: x, y: body.midY - height / 2), withAttributes: [.font: font, .foregroundColor: text])
+        let label = look.name as NSString
+        let height = label.size(withAttributes: [.font: look.font]).height
+        label.draw(at: CGPoint(x: x, y: body.midY - height / 2),
+                   withAttributes: [.font: look.font, .foregroundColor: colors.text])
     }
 }
