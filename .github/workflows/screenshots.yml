@@ -198,7 +198,7 @@ jobs:
           sleep 1
           xcrun simctl launch "$UDID" "$BUNDLE_ID" -debugScene mapTour \
             -homeStation OA -workStation UN > /dev/null
-          sleep 22
+          sleep 27
           kill -INT "$RECORDER" 2> /dev/null || true
           wait "$RECORDER" || true
           # Smaller (full size is about 45 MB), with macOS's own converter when it can.

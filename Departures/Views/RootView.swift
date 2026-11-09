@@ -30,6 +30,10 @@ struct RootView: View {
     @State private var floatingBottom: CGFloat = 0
     /// The tracked train's button or the hint, bottom left: how tall it is.
     @State private var leadingHeight: CGFloat = 0
+    #if DEBUG
+    /// Apple's logo moved up by hand, for the recorded tour (see `DebugScene.mapTour`).
+    @State private var debugLift: CGFloat?
+    #endif
 
     private let network = RailNetwork.shared
 
@@ -287,6 +291,9 @@ struct RootView: View {
     /// (they must stay in sight). Going by whether there's one, not whether it shows
     /// right now, so the map doesn't shift as the sheet comes and goes.
     private var attributionLift: CGFloat {
+        #if DEBUG
+        if let debugLift { return debugLift }
+        #endif
         guard TripTracker.shared.trip != nil || showsMapHint else { return 0 }
         // Its height, and a little room (they sit a few points below the buttons'
         // bottom edge otherwise).
@@ -655,6 +662,12 @@ struct RootView: View {
             if let danforth = network.station("DA") {
                 mapController.glide(to: danforth.coordinate, duration: 4)
             }
+            // Apple's logo up (as above the tracked train's button) and down again with
+            // the map still: the map mustn't shift as it goes.
+            try? await Task.sleep(for: .seconds(5.5))
+            debugLift = 58
+            try? await Task.sleep(for: .seconds(2))
+            debugLift = 0
         case .trackedTrip, .liveActivity:
             await trackDebugTrain()
         case .activityGallery:

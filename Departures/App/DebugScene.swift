@@ -47,7 +47,8 @@ enum DebugScene: String {
     /// Union's board with the trains that already left shown above.
     case stationEarlier
     /// The station tags as the map changes, for a screen recording: the names
-    /// popping up, a zoom in, Exhibition opened and closed, a pan along the lake.
+    /// popping up, a zoom in, Exhibition opened and closed, a slow pan along the
+    /// lake, then Apple's logo moved up and down again (the map should stay still).
     case mapTour
 
     static var current: DebugScene? {
