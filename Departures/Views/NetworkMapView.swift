@@ -384,6 +384,13 @@ struct NetworkMapView: UIViewRepresentable {
             stationTags = stations.map { StationTagAnnotation(station: $0, coordinate: onTrack($0)) }
             mapView.addAnnotations(stations.map { StationAnnotation(station: $0, coordinate: onTrack($0)) })
             mapView.addAnnotations(stationTags)
+            // The busier stations' names go first, once the timetable says which they are.
+            Task { [weak self, weak mapView] in
+                let counts = await ScheduleStore.shared.trainsPerStation()
+                guard let self, let mapView, !counts.isEmpty else { return }
+                self.trainsAt = counts
+                self.placeNames(in: mapView)
+            }
         }
 
         func mapDidLayout(_ mapView: MKMapView) {
@@ -467,13 +474,17 @@ struct NetworkMapView: UIViewRepresentable {
         /// Where each station's tag goes on the map as it stands (none: no room).
         private var namePlaces: [String: StationTagPlace] = [:]
 
+        /// How many trains stop at each station on a weekday, from the timetable.
+        private var trainsAt: [String: Int] = [:]
+
         /// Stations at the ends of the lines' runs.
         private static let lineEnds = Set(RailNetwork.shared.lines.flatMap { line in
             line.patterns.flatMap { [$0.first, $0.last].compactMap { $0 } }
         })
 
         /// Which tags matter most, and get the room first: the open station, home and
-        /// work, Union, then where lines meet and where they end, then the rest.
+        /// work, Union, then where lines meet and where they end, then the rest (the
+        /// busiest first, see `placeNames`).
         private func nameRank(_ station: Station) -> Int {
             if station.code == selectedCode { return 0 }
             if station.code == homeCode || station.code == workCode { return 1 }
@@ -530,9 +541,11 @@ struct NetworkMapView: UIViewRepresentable {
 
             var places: [String: StationTagPlace] = [:]
             var tags: [CGRect] = []
-            let ordered = onScreen.sorted {
-                (nameRank($0.station), $0.station.name) < (nameRank($1.station), $1.station.name)
+            // The ones that matter most first; among the rest, the ones more trains stop at.
+            func order(_ station: Station) -> (Int, Int, String) {
+                (nameRank(station), -(trainsAt[station.code] ?? 0), station.name)
             }
+            let ordered = onScreen.sorted { order($0.station) < order($1.station) }
             for (station, point) in ordered {
                 let rank = nameRank(station)
                 if zoom == .province, rank > 4 { continue }

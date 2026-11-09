@@ -268,6 +268,21 @@ actor ScheduleStore {
         return result
     }
 
+    /// How many trains stop at each station on the timetable's busiest day (a
+    /// weekday): how much each one matters to riders, for which names the map
+    /// shows first. Empty when there's no timetable.
+    func trainsPerStation() -> [String: Int] {
+        loadIfNeeded()
+        guard let file, let busiest = file.days.values.max(by: { $0.count < $1.count }) else { return [:] }
+        var counts: [String: Int] = [:]
+        for index in busiest where index < file.trips.count {
+            let trip = file.trips[index]
+            guard trip.pattern < file.patterns.count else { continue }
+            for code in file.patterns[trip.pattern] { counts[code, default: 0] += 1 }
+        }
+        return counts
+    }
+
     /// The whole timetable, for the start-up planner. Nil when there's none.
     func commuteTimetable() -> CommutePlanner.Timetable? {
         loadIfNeeded()
