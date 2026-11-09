@@ -8,14 +8,13 @@ import UIKit
 enum MapZoom: Int, Comparable {
     case street, city, region, network, province
 
+    /// Where each step ends: the degrees of latitude the map spans top to bottom.
+    private static let ends: [Double] = [0.08, 0.22, 0.5, 1.0]
+    /// How far past its end a step lasts (see `init(span:keeping:)`).
+    static let overshoot = 1.08
+
     init(span latitudeDelta: Double) {
-        switch latitudeDelta {
-        case ..<0.08: self = .street
-        case ..<0.22: self = .city
-        case ..<0.5: self = .region
-        case ..<1.0: self = .network
-        default: self = .province
-        }
+        self = MapZoom(rawValue: Self.ends.firstIndex { latitudeDelta < $0 } ?? Self.ends.count) ?? .province
     }
 
     /// The step for a span, staying at `current` while the span is only just past
@@ -23,9 +22,15 @@ enum MapZoom: Int, Comparable {
     /// dots and tags back and forth between two steps.
     init(span latitudeDelta: Double, keeping current: MapZoom) {
         let plain = MapZoom(span: latitudeDelta)
-        // 8% further back the way it came: still the current step?
-        let back = MapZoom(span: plain > current ? latitudeDelta / 1.08 : latitudeDelta * 1.08)
+        // A little further back the way it came: still the current step?
+        let back = MapZoom(span: plain > current ? latitudeDelta / Self.overshoot : latitudeDelta * Self.overshoot)
         self = back == current ? current : plain
+    }
+
+    /// The degrees of latitude the map spans where this step starts and ends (none
+    /// at the ends of the range), not counting the overshoot.
+    var spans: (from: Double?, to: Double?) {
+        (rawValue > 0 ? Self.ends[rawValue - 1] : nil, rawValue < Self.ends.count ? Self.ends[rawValue] : nil)
     }
 
     static func < (lhs: MapZoom, rhs: MapZoom) -> Bool { lhs.rawValue < rhs.rawValue }
@@ -69,15 +74,6 @@ enum StationRole {
     /// Apple Maps colours: home blue, work brown (same as `RoleColor`).
     var uiColor: UIColor { self == .work ? .systemBrown : .systemBlue }
     var symbolName: String { self == .work ? "briefcase.fill" : "house.fill" }
-}
-
-/// What the app puts over the map, in window coordinates, for the stations' tags to
-/// keep clear of: a tag half under a button or a sheet's edge looks broken.
-struct MapCover: Equatable {
-    /// Buttons and cards floating over the map.
-    var floating: [CGRect] = []
-    /// The top edge of the station's sheet, while it's up: the map below is hidden.
-    var sheetTop: CGFloat?
 }
 
 // MARK: - Camera control from SwiftUI
@@ -161,6 +157,20 @@ final class MapController {
                        mapPerPoint: mapPerPoint, in: mapView)
         }
     }
+
+    #if DEBUG
+    /// Slides the map over to `coordinate` slowly, at the same zoom: for recordings
+    /// of the map moving.
+    func glide(to coordinate: CLLocationCoordinate2D, duration: TimeInterval) {
+        perform { mapView in
+            guard let camera = mapView.camera.copy() as? MKMapCamera else { return }
+            camera.centerCoordinate = coordinate
+            UIView.animate(withDuration: duration, delay: 0, options: [.curveEaseInOut]) {
+                mapView.camera = camera
+            }
+        }
+    }
+    #endif
 
     /// The status bar / Dynamic Island inset, whatever safe area SwiftUI gives the map.
     private static func topInset(of mapView: MKMapView) -> CGFloat {
@@ -250,8 +260,6 @@ struct NetworkMapView: UIViewRepresentable {
     var runningTrips: [ScheduleStore.RunningTrip] = []
     /// One of those was tapped: the trip, and the index of the stop it's heading for.
     var onSelectRunningTrain: (ScheduleStore.RunningTrip, Int) -> Void = { _, _ in }
-    /// The buttons, cards and sheet over the map, which the station tags keep clear of.
-    var cover = MapCover()
     let onSelect: (Station) -> Void
 
     func makeCoordinator() -> Coordinator {
@@ -332,10 +340,11 @@ struct NetworkMapView: UIViewRepresentable {
     func updateUIView(_ mapView: LayoutAwareMapView, context: Context) {
         let coordinator = context.coordinator
         coordinator.controller = controller
-        let changed = coordinator.update(from: self)
-        // Where the tags go first, then how they look: each tag changes once.
-        if changed.stations || changed.cover { coordinator.placeNames(in: mapView) }
-        if changed.stations { coordinator.refreshStations(in: mapView) }
+        if coordinator.update(from: self) {
+            // Where the tags go first, then how they look: each tag changes once.
+            coordinator.placeNames(in: mapView)
+            coordinator.refreshStations(in: mapView)
+        }
         coordinator.syncPlace(place, in: mapView)
         coordinator.syncTrip(trackedTrip, in: mapView)
         coordinator.syncRunning(runningTrips, in: mapView)
@@ -356,14 +365,12 @@ struct NetworkMapView: UIViewRepresentable {
         private var homeCode: String?
         private var workCode: String?
         private var zoom = MapZoom(span: RailNetwork.overviewRegion.span.latitudeDelta)
-        private var cover = MapCover()
         private var renderers: [ObjectIdentifier: MKPolylineRenderer] = [:]
         private var didInitialLayout = false
         private var didSetZoomRange = false
 
-        /// What changed: anything the stations' dots and tags look like (`stations`),
-        /// or only what's over the map, so where the tags fit (`cover`).
-        func update(from view: NetworkMapView) -> (stations: Bool, cover: Bool) {
+        /// Returns true when anything the stations' dots and tags depend on changed.
+        func update(from view: NetworkMapView) -> Bool {
             onSelect = view.onSelect
             onTapMap = view.onTapMap
             onSelectTrain = view.onSelectTrain
@@ -371,12 +378,10 @@ struct NetworkMapView: UIViewRepresentable {
             let changed = selectedCode != view.selectedCode
                 || homeCode != view.homeCode
                 || workCode != view.workCode
-            let coverChanged = cover != view.cover
             selectedCode = view.selectedCode
             homeCode = view.homeCode
             workCode = view.workCode
-            cover = view.cover
-            return (changed, coverChanged)
+            return changed
         }
 
         // MARK: Setup
@@ -498,9 +503,6 @@ struct NetworkMapView: UIViewRepresentable {
         private var trainsAt: [String: Int] = [:]
         /// The timetable's counts are in (or took too long): names can go up.
         private var namesReady = false
-        /// The map is moving (a pinch, a drag, the camera on its way somewhere): tags
-        /// stay put until it stops, rather than shuffle on the way.
-        private var isMoving = false
 
         /// Stations at the ends of the lines' runs.
         private static let lineEnds = Set(RailNetwork.shared.lines.flatMap { line in
@@ -523,53 +525,60 @@ struct NetworkMapView: UIViewRepresentable {
             station.code == selectedCode ? min(22, max(12, zoom.dotSize + 7)) : zoom.dotSize
         }
 
-        /// Gives every station on screen a tag, a pin with its name standing on its dot,
-        /// where there's room: the ones that matter most first, each above its dot
-        /// (centred, else running right or left of its point) where it covers no other
-        /// tag or dot, stays on screen below the status bar and above Apple's logo and
-        /// the search bar, isn't cut in two by the sheet's edge, and keeps clear of the
-        /// map buttons and cards. Trains don't count: they move, and the tags shouldn't
-        /// come and go as they pass (the tags sit above them instead). Zoomed right
-        /// out, only the tags that matter most.
+        /// How many metres a point covers through this zoom step on a map this size,
+        /// from most zoomed in to most zoomed out (a little past its ends, where it
+        /// lasts: see `MapZoom.init(span:keeping:)`).
+        private static func scales(for zoom: MapZoom, in size: CGSize) -> (closest: CGFloat, farthest: CGFloat) {
+            // Metres a point covers per degree of latitude the map spans top to bottom.
+            let perDegree = 111_195 / size.height
+            let spans = zoom.spans
+            let closest = spans.from.map { CGFloat($0 / MapZoom.overshoot) * perDegree } ?? 0.3
+            let farthest = spans.to.map { CGFloat($0 * MapZoom.overshoot) * perDegree }
+                ?? CGFloat(RailNetwork.maxVisibleWidth) / size.width
+            return (closest, max(closest, farthest))
+        }
+
+        /// Where a coordinate lies, in metres east and south of the middle of the
+        /// network: near enough flat across it, for laying out the tags.
+        private static func metres(_ coordinate: CLLocationCoordinate2D) -> CGPoint {
+            let middle = RailNetwork.serviceArea.center
+            return CGPoint(x: CGFloat((coordinate.longitude - middle.longitude) * cos(middle.latitude * .pi / 180) * 111_195),
+                           y: CGFloat((middle.latitude - coordinate.latitude) * 111_195))
+        }
+
+        /// Lays the station tags out, pins with their names standing on their dots,
+        /// for the whole network at once at this zoom step: the ones that matter most
+        /// first, each above its dot (centred, else running right or left of its
+        /// point) where it covers no other tag or dot. They're laid out where the dots
+        /// are closest together, at the step's zoomed-out end, so they stay apart
+        /// wherever you are in it. Zoomed right out, only the tags that matter most.
+        /// Trains don't count: they move, and the tags sit above them instead.
         ///
-        /// So that tags only move when they have to: each keeps its side of the dot
-        /// while it still fits there, and nothing moves while the map does (a pinch, a
-        /// drag, the camera going somewhere), only once it stops. Every change animates.
+        /// So the tags stay put as the map moves, coming onto the screen and going off
+        /// it with the map like its own names. They change (animated) only when the
+        /// zoom step does, a station opens, home or work changes, or you move near
+        /// one, and each keeps its side of its dot while it still fits there.
         func placeNames(in mapView: MKMapView) {
-            guard namesReady, !isMoving else { return }
-            let bounds = mapView.bounds
-            let screen = bounds.insetBy(dx: -60, dy: -30)
-            let top = max(mapView.window?.safeAreaInsets.top ?? 0, mapView.safeAreaInsets.top) + 4
-            // Apple's logo and Legal link (which must stay readable) sit on the map's
-            // bottom layout margin, just above the search bar.
-            let bottom = bounds.height - (BottomBarMetrics.maximumRoom + 30)
-            let visible = CGRect(x: 4, y: top, width: bounds.width - 8, height: max(0, bottom - top))
-            // The map buttons and anything else floating over the map, with a little room.
-            let floating = cover.floating.map { mapView.convert($0, from: nil).insetBy(dx: -6, dy: -6) }
-            // The sheet's top edge, while it's up: a tag there would be cut in two. (One
-            // wholly under the sheet just waits there, hidden, for the sheet to go.)
-            let sheetEdge = cover.sheetTop.map { mapView.convert(CGPoint(x: 0, y: $0), from: nil).y }
-            func isClear(_ rect: CGRect) -> Bool {
-                guard visible.contains(rect), !floating.contains(where: { $0.intersects(rect) }) else { return false }
-                guard let sheetEdge else { return true }
-                return !(rect.minY - 6 ..< rect.maxY + 6).contains(sheetEdge)
-            }
-            // Your location's blue dot, drawn over everything: no tag's name goes under it.
-            var you: CGRect?
-            if !isOnBoard, let location = mapView.userLocation.location {
-                let point = mapView.convert(location.coordinate, toPointTo: mapView)
-                you = CGRect(x: point.x - 11, y: point.y - 11, width: 22, height: 22)
-            }
-            let above: [StationTagPlace] = [.centre, .runningRight, .runningLeft]
+            let size = mapView.bounds.size
+            guard namesReady, size.width > 0, size.height > 0 else { return }
+            let scales = Self.scales(for: zoom, in: size)
+            // Every station's dot, in points, with the map at the step's zoomed-out end.
+            var points: [String: CGPoint] = [:]
             var dots: [String: CGRect] = [:]
-            var onScreen: [(station: Station, point: CGPoint)] = []
             for station in RailNetwork.shared.stations {
-                let point = mapView.convert(onTrack(station), toPointTo: mapView)
-                guard screen.contains(point) else { continue }
+                let metres = Self.metres(onTrack(station))
+                let point = CGPoint(x: metres.x / scales.farthest, y: metres.y / scales.farthest)
+                points[station.code] = point
                 let radius = dotSize(for: station) / 2 + 1
                 dots[station.code] = CGRect(x: point.x - radius, y: point.y - radius, width: radius * 2, height: radius * 2)
-                onScreen.append((station, point))
             }
+            // Your location's blue dot is drawn over everything: no tag's name goes
+            // under it, anywhere in the step (checked at a dozen zooms across it).
+            let you = isOnBoard ? nil : mapView.userLocation.location.map { Self.metres($0.coordinate) }
+            let samples = (0...11).map { step -> CGFloat in
+                scales.closest * CGFloat(pow(Double(scales.farthest / scales.closest), Double(step) / 11))
+            }
+            let above: [StationTagPlace] = [.centre, .runningRight, .runningLeft]
 
             var places: [String: StationTagPlace] = [:]
             var tags: [CGRect] = []
@@ -577,10 +586,10 @@ struct NetworkMapView: UIViewRepresentable {
             func order(_ station: Station) -> (Int, Int, String) {
                 (nameRank(station), -(trainsAt[station.code] ?? 0), station.name)
             }
-            let ordered = onScreen.sorted { order($0.station) < order($1.station) }
-            for (station, point) in ordered {
+            for station in RailNetwork.shared.stations.sorted(by: { order($0) < order($1) }) {
                 let rank = nameRank(station)
                 if zoom == .province, rank > 4 { continue }
+                guard let point = points[station.code] else { continue }
                 let size = StationTag.size(name: station.name,
                                            font: StationTagView.font(zoom: zoom, isSelected: rank == 0),
                                            hasGlyph: role(for: station) != .plain)
@@ -589,20 +598,30 @@ struct NetworkMapView: UIViewRepresentable {
                     StationTagView.rect(size: size, radius: radius, place: place)
                         .offsetBy(dx: point.x, dy: point.y)
                 }
+                // How far you are from the station, in metres (when you're near).
+                var fromHere: CGPoint?
+                if let you {
+                    let here = Self.metres(onTrack(station))
+                    let offset = CGPoint(x: you.x - here.x, y: you.y - here.y)
+                    if hypot(offset.x, offset.y) < 5_000 { fromHere = offset }
+                }
                 // A tag hanging below for you stays there until there's clear room
                 // above, so it doesn't flip back and forth as your location wobbles.
-                let youRoom: CGFloat = namePlaces[station.code] == .below ? 6 : 0
+                let reach: CGFloat = 11 + (namePlaces[station.code] == .below ? 6 : 0)
                 func coversYou(_ place: StationTagPlace) -> Bool {
-                    guard let you else { return false }
+                    guard let fromHere else { return false }
                     // The tag's body, that is: your dot on its point is fine.
-                    var body = frame(place)
+                    var body = StationTagView.rect(size: size, radius: radius, place: place)
                     body.size.height -= StationTag.pointLength
                     if place == .below { body.origin.y += StationTag.pointLength }
-                    return you.insetBy(dx: -youRoom, dy: -youRoom).intersects(body)
+                    return samples.contains { scale in
+                        CGRect(x: fromHere.x / scale - reach, y: fromHere.y / scale - reach,
+                               width: reach * 2, height: reach * 2).intersects(body)
+                    }
                 }
                 func fits(_ place: StationTagPlace) -> Bool {
                     let rect = frame(place)
-                    return isClear(rect) && !coversYou(place)
+                    return !coversYou(place)
                         && !tags.contains { $0.intersects(rect) }
                         && !dots.contains { $0.key != station.code && $0.value.intersects(rect) }
                 }
@@ -614,13 +633,10 @@ struct NetworkMapView: UIViewRepresentable {
                 if chosen == nil, above.contains(where: coversYou), fits(.below) {
                     chosen = .below
                 }
-                // The open station, home and work have theirs even over other dots, or
-                // under a button, as long as it's on screen: a tag cut off at the edge
-                // would look broken.
+                // The open station, home and work always have theirs, over other dots
+                // and tags if need be (still not under you, if it can help it).
                 if chosen == nil, rank <= 1 {
-                    chosen = (tries + [.below]).first { isClear(frame($0)) && !coversYou($0) }
-                        ?? tries.first { isClear(frame($0)) }
-                        ?? tries.first { visible.contains(frame($0)) }
+                    chosen = (tries + [.below]).first { !coversYou($0) } ?? tries.first
                 }
                 if let chosen {
                     places[station.code] = chosen
@@ -741,8 +757,8 @@ struct NetworkMapView: UIViewRepresentable {
             }
             if let tag = annotation as? StationTagAnnotation {
                 let view = mapView.dequeueReusableAnnotationView(withIdentifier: StationTagView.reuseID, for: tag)
-                // A tag coming onto the map pops up once it's on screen.
-                if let tagView = view as? StationTagView { configure(tagView, for: tag.station, animated: true) }
+                // A tag coming onto the screen with the map is already in place: no pop.
+                if let tagView = view as? StationTagView { configure(tagView, for: tag.station, animated: false) }
                 return view
             }
             guard let annotation = annotation as? StationAnnotation else { return nil }
@@ -788,13 +804,10 @@ struct NetworkMapView: UIViewRepresentable {
             controller?.userGesture(recognizer.state)
         }
 
-        func mapView(_ mapView: MKMapView, regionWillChangeAnimated animated: Bool) {
-            isMoving = true
-        }
-
         func mapView(_ mapView: MKMapView, regionDidChangeAnimated animated: Bool) {
-            isMoving = false
             controller?.checkPlacement(mapView)
+            // (Where the map is doesn't move the tags; this only catches the map
+            // getting its size.)
             placeNames(in: mapView)
         }
 
@@ -810,8 +823,7 @@ struct NetworkMapView: UIViewRepresentable {
             let newZoom = MapZoom(span: mapView.region.span.latitudeDelta, keeping: zoom)
             guard newZoom != zoom else { return }
             zoom = newZoom
-            // The dots and tags take this zoom's sizes now; where the tags go waits for
-            // the map to stop (see `placeNames`).
+            // This step's tags, then this step's sizes: each tag changes once.
             placeNames(in: mapView)
             refreshStations(in: mapView)
             for marker in running.values {
