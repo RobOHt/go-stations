@@ -555,8 +555,12 @@ struct RootView: View {
             if let board {
                 detent = .medium
                 selected = board
+                // You and the board's station, both in view above the half-height sheet
+                // (the station is often a few kilometres off).
+                mapController.frame([here.coordinate, board.coordinate], minWidth: 3_000, coveredFraction: 0.5)
+            } else {
+                center(on: here.coordinate, sheetOpen: false)
             }
-            center(on: here.coordinate, sheetOpen: selected != nil)
         } else if let board {
             select(board, detent: .medium)
         }
@@ -579,7 +583,11 @@ struct RootView: View {
         }
         switch scene {
         case .map:
-            center(on: union.coordinate, sheetOpen: false)
+            // `-mapCenter 43.65,-79.38 -mapWidth 15000`: the map there, that many metres across.
+            let parts = (UserDefaults.standard.string(forKey: "mapCenter") ?? "").split(separator: ",").compactMap { Double($0) }
+            let width = UserDefaults.standard.double(forKey: "mapWidth")
+            let spot = parts.count == 2 ? CLLocationCoordinate2D(latitude: parts[0], longitude: parts[1]) : union.coordinate
+            mapController.show(spot, width: width > 0 ? width : 5_000, sheetOpen: false)
         case .searchFocused:
             center(on: union.coordinate, sheetOpen: false)
             searchPresented = true

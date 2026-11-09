@@ -177,6 +177,24 @@ jobs:
           shoot 1b-tracked-trip 25 trackedTrip
           # Settings > Show all trains: every train running now, from the timetable.
           shoot 1c-all-trains 20 allTrains -showsAllTrains YES
+          # The map at five widths around Union, then elsewhere on the network (dark,
+          # then a few in light), for how readable the stations are.
+          for width in 2000 6000 15000 40000 100000; do
+            shoot "m-union-${width}" 9 map -mapCenter 43.6453,-79.3806 -mapWidth "$width"
+          done
+          shoot m-oakville-6000 9 map -mapCenter 43.4553,-79.6828 -mapWidth 6000
+          shoot m-oakville-20000 9 map -mapCenter 43.4553,-79.6828 -mapWidth 20000
+          shoot m-brampton-12000 9 map -mapCenter 43.6900,-79.7500 -mapWidth 12000
+          shoot m-hamilton-25000 9 map -mapCenter 43.2900,-79.8300 -mapWidth 25000
+          shoot m-markham-15000 9 map -mapCenter 43.8700,-79.2900 -mapWidth 15000
+          shoot m-whitby-15000 9 map -mapCenter 43.8700,-78.9300 -mapWidth 15000
+          shoot m-barrie-15000 9 map -mapCenter 44.3600,-79.6900 -mapWidth 15000
+          xcrun simctl ui "$UDID" appearance light
+          shoot m-light-union-6000 9 map -mapCenter 43.6453,-79.3806 -mapWidth 6000
+          shoot m-light-union-40000 9 map -mapCenter 43.6453,-79.3806 -mapWidth 40000
+          shoot m-light-oakville-20000 9 map -mapCenter 43.4553,-79.6828 -mapWidth 20000
+          xcrun simctl ui "$UDID" appearance dark
+
           # Someone new: no home or work, no board opened yet (the hint bottom left).
           xcrun simctl terminate "$UDID" "$BUNDLE_ID" > /dev/null 2>&1 || true
           sleep 1
