@@ -129,10 +129,9 @@ final class MapController {
             let height = max(maxY - minY, minSize)
 
             let size = mapView.bounds.size
-            // Clear of what sits over the map: the Dynamic Island, with room for a home
-            // or work pin's balloon above a dot; the map buttons down the right side; and
-            // the sheet (or search results) at the bottom, with room for a station's
-            // name under its dot.
+            // Clear of what sits over the map: the Dynamic Island, with room for a
+            // station's tag standing above its dot; the map buttons down the right side;
+            // and the sheet (or search results) at the bottom, with room to spare.
             let top = Self.topInset(of: mapView) + 56
             let bottom = max(top + 80, size.height * (1 - coveredFraction) - 44)
             let left: CGFloat = 48
@@ -266,7 +265,6 @@ struct NetworkMapView: UIViewRepresentable {
         }
 
         mapView.register(StationAnnotationView.self, forAnnotationViewWithReuseIdentifier: StationAnnotationView.reuseID)
-        mapView.register(RolePinView.self, forAnnotationViewWithReuseIdentifier: RolePinView.reuseID)
         mapView.register(PlacePinView.self, forAnnotationViewWithReuseIdentifier: PlacePinView.reuseID)
         mapView.register(MKUserLocationView.self, forAnnotationViewWithReuseIdentifier: Coordinator.userLocationID)
         mapView.register(TrainAnnotationView.self, forAnnotationViewWithReuseIdentifier: TrainAnnotationView.reuseID)
@@ -274,7 +272,6 @@ struct NetworkMapView: UIViewRepresentable {
         mapView.addAnnotations(RailNetwork.shared.stations.map {
             StationAnnotation(station: $0, coordinate: coordinator.onTrack($0))
         })
-        coordinator.syncRolePins(in: mapView)
 
         let tap = UITapGestureRecognizer(target: coordinator, action: #selector(Coordinator.handleTap(_:)))
         tap.delegate = coordinator
@@ -316,7 +313,6 @@ struct NetworkMapView: UIViewRepresentable {
         let coordinator = context.coordinator
         coordinator.controller = controller
         if coordinator.update(from: self) {
-            coordinator.syncRolePins(in: mapView)
             coordinator.refreshStations(in: mapView)
             coordinator.placeNames(in: mapView)
         }
@@ -343,7 +339,6 @@ struct NetworkMapView: UIViewRepresentable {
         private var renderers: [ObjectIdentifier: MKPolylineRenderer] = [:]
         private var didInitialLayout = false
         private var didSetZoomRange = false
-        private var rolePins: [RoleAnnotation] = []
 
         /// Returns true when anything the station dots depend on changed.
         func update(from view: NetworkMapView) -> Bool {
@@ -413,22 +408,6 @@ struct NetworkMapView: UIViewRepresentable {
             return .plain
         }
 
-        /// Home and work get a pin above their station dot.
-        func syncRolePins(in mapView: MKMapView) {
-            let network = RailNetwork.shared
-            var wanted: [(Station, StationRole)] = []
-            if let home = homeCode.flatMap(network.station) { wanted.append((home, .home)) }
-            if let work = workCode.flatMap(network.station) { wanted.append((work, .work)) }
-
-            let current = rolePins.map { "\($0.station.code)|\($0.role)" }
-            let next = wanted.map { "\($0.0.code)|\($0.1)" }
-            guard current != next else { return }
-
-            mapView.removeAnnotations(rolePins)
-            rolePins = wanted.map { RoleAnnotation(station: $0.0, role: $0.1, coordinate: onTrack($0.0)) }
-            mapView.addAnnotations(rolePins)
-        }
-
         /// Shows, moves or removes the search pin.
         func syncPlace(_ place: SearchPlace?, in mapView: MKMapView) {
             if let current = placePin, let place, current.place == place { return }
@@ -443,36 +422,27 @@ struct NetworkMapView: UIViewRepresentable {
             }
         }
 
-        private func configure(_ view: RolePinView, for pin: RoleAnnotation) {
-            let isSelected = pin.station.code == selectedCode
-            let dotSize = isSelected ? min(22, max(12, zoom.dotSize + 7)) : zoom.dotSize
-            // Home and work at the same station: place the two pins side by side.
-            let shared = homeCode != nil && homeCode == workCode
-            let xOffset: CGFloat = shared ? (pin.role == .home ? -17 : 17) : 0
-            view.configure(role: pin.role, tipGap: dotSize / 2 + 1, xOffset: xOffset)
-        }
-
         private func configure(_ view: StationAnnotationView, for station: Station) {
             view.configure(
                 zoom: zoom,
                 isSelected: station.code == selectedCode,
                 role: role(for: station),
-                name: station.name,
+                station: station,
                 place: namePlaces[station.code]
             )
         }
 
-        // MARK: Station names
+        // MARK: Station tags
 
-        /// Where each station's name goes on the map as it stands (none: no room).
-        private var namePlaces: [String: StationNamePlace] = [:]
+        /// Where each station's tag goes on the map as it stands (none: no room).
+        private var namePlaces: [String: StationTagPlace] = [:]
 
         /// Stations at the ends of the lines' runs.
         private static let lineEnds = Set(RailNetwork.shared.lines.flatMap { line in
             line.patterns.flatMap { [$0.first, $0.last].compactMap { $0 } }
         })
 
-        /// Which names matter most, and get the room first: the open station, home and
+        /// Which tags matter most, and get the room first: the open station, home and
         /// work, Union, then where lines meet and where they end, then the rest.
         private func nameRank(_ station: Station) -> Int {
             if station.code == selectedCode { return 0 }
@@ -487,63 +457,59 @@ struct NetworkMapView: UIViewRepresentable {
             station.code == selectedCode ? min(22, max(12, zoom.dotSize + 7)) : zoom.dotSize
         }
 
-        /// Names every station on screen where there's room: the ones that matter most
-        /// first, each beside its dot (to the right, as on a line map, else left, below
-        /// or above) where it covers no other name, dot or home/work pin, stays on
-        /// screen and keeps clear of the map buttons down the right side. Trains don't
-        /// count: they move, and the names shouldn't come and go as they pass. Zoomed
-        /// right out, only the names that matter most.
+        /// Gives every station on screen a tag, a pin with its name standing on its dot,
+        /// where there's room: the ones that matter most first, each above its dot
+        /// (centred, else running right or left of its point) where it covers no other
+        /// tag or dot, stays on screen below the status bar and keeps clear of the map
+        /// buttons down the right side. Trains don't count: they move, and the tags
+        /// shouldn't come and go as they pass. Zoomed right out, only the tags that
+        /// matter most.
         func placeNames(in mapView: MKMapView) {
             let bounds = mapView.bounds
             let screen = bounds.insetBy(dx: -60, dy: -30)
-            let usable = CGRect(x: 4, y: 0,
+            let top = max(mapView.window?.safeAreaInsets.top ?? 0, mapView.safeAreaInsets.top) + 4
+            let usable = CGRect(x: 4, y: top,
                                 width: bounds.width - 4 - (BottomBarMetrics.controlsTrailingInset + 48 + 12),
-                                height: bounds.height)
+                                height: bounds.height - top)
             var dots: [String: CGRect] = [:]
-            var pins: [CGRect] = []
             var onScreen: [(station: Station, point: CGPoint)] = []
             for station in RailNetwork.shared.stations {
                 let point = mapView.convert(onTrack(station), toPointTo: mapView)
                 guard screen.contains(point) else { continue }
                 let radius = dotSize(for: station) / 2 + 1
                 dots[station.code] = CGRect(x: point.x - radius, y: point.y - radius, width: radius * 2, height: radius * 2)
-                if role(for: station) != .plain {
-                    // The pin's balloon above the dot.
-                    pins.append(CGRect(x: point.x - 18, y: point.y - radius - 40, width: 36, height: 40))
-                }
                 onScreen.append((station, point))
             }
 
-            var places: [String: StationNamePlace] = [:]
-            var names: [CGRect] = []
+            var places: [String: StationTagPlace] = [:]
+            var tags: [CGRect] = []
             let ordered = onScreen.sorted {
                 (nameRank($0.station), $0.station.name) < (nameRank($1.station), $1.station.name)
             }
             for (station, point) in ordered {
                 let rank = nameRank(station)
                 if zoom == .province, rank > 4 { continue }
-                let size = StationAnnotationView.nameSize(station.name, zoom: zoom, isSelected: rank == 0)
+                let size = StationTag.size(name: station.name,
+                                           font: StationAnnotationView.tagFont(zoom: zoom, isSelected: rank == 0),
+                                           hasGlyph: role(for: station) != .plain)
                 let radius = dotSize(for: station) / 2
-                let options: [StationNamePlace] = role(for: station) == .plain
-                    ? [.right, .left, .below, .above] : [.right, .left, .below]
-                func frame(_ place: StationNamePlace) -> CGRect {
-                    StationAnnotationView.nameFrame(size: size, radius: radius, place: place)
+                func frame(_ place: StationTagPlace) -> CGRect {
+                    StationAnnotationView.tagRect(size: size, radius: radius, place: place)
                         .offsetBy(dx: point.x, dy: point.y)
                 }
-                var chosen = options.first { place in
+                var chosen = StationTagPlace.allCases.first { place in
                     let rect = frame(place)
                     return usable.contains(rect)
-                        && !names.contains { $0.intersects(rect) }
-                        && !pins.contains { $0.intersects(rect) }
+                        && !tags.contains { $0.intersects(rect) }
                         && !dots.contains { $0.key != station.code && $0.value.intersects(rect) }
                 }
                 // The open station, home and work always have theirs: on screen if it can be.
                 if chosen == nil, rank <= 1 {
-                    chosen = options.first { usable.contains(frame($0)) } ?? .below
+                    chosen = StationTagPlace.allCases.first { usable.contains(frame($0)) } ?? .centre
                 }
                 if let chosen {
                     places[station.code] = chosen
-                    names.append(frame(chosen))
+                    tags.append(frame(chosen))
                 }
             }
             guard places != namePlaces else { return }
@@ -556,9 +522,6 @@ struct NetworkMapView: UIViewRepresentable {
                 if let annotation = annotation as? StationAnnotation,
                    let view = mapView.view(for: annotation) as? StationAnnotationView {
                     configure(view, for: annotation.station)
-                } else if let pin = annotation as? RoleAnnotation,
-                          let view = mapView.view(for: pin) as? RolePinView {
-                    configure(view, for: pin)
                 }
             }
         }
@@ -578,11 +541,13 @@ struct NetworkMapView: UIViewRepresentable {
                 onSelectRunningTrain(hit.0, hit.1)
                 return
             }
-            for pin in rolePins {
-                guard let view = mapView.view(for: pin) else { continue }
-                let frame = view.convert(view.bounds, to: mapView).insetBy(dx: -8, dy: -8)
-                if frame.contains(point) {
-                    onSelect(pin.station)
+            // A station's tag, a pin with its name, opens it.
+            for annotation in mapView.annotations {
+                guard let annotation = annotation as? StationAnnotation,
+                      let view = mapView.view(for: annotation) as? StationAnnotationView,
+                      let tag = view.tagFrame else { continue }
+                if view.convert(tag, to: mapView).insetBy(dx: -4, dy: -4).contains(point) {
+                    onSelect(annotation.station)
                     return
                 }
             }
@@ -640,12 +605,6 @@ struct NetworkMapView: UIViewRepresentable {
             }
             if let place = annotation as? PlaceAnnotation {
                 return mapView.dequeueReusableAnnotationView(withIdentifier: PlacePinView.reuseID, for: place)
-            }
-            if let pin = annotation as? RoleAnnotation {
-                let view = mapView.dequeueReusableAnnotationView(withIdentifier: RolePinView.reuseID, for: pin)
-                guard let pinView = view as? RolePinView else { return view }
-                configure(pinView, for: pin)
-                return pinView
             }
             guard let annotation = annotation as? StationAnnotation else { return nil }
             let view = mapView.dequeueReusableAnnotationView(withIdentifier: StationAnnotationView.reuseID, for: annotation)
@@ -1444,14 +1403,18 @@ final class PlacePinView: MKMarkerAnnotationView {
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 }
 
-/// A station dot with an optional name tag. It never takes touches: the map
-/// handles every gesture and picks stations on tap.
+/// A station dot with its tag, a pin with the station's name, standing on it where
+/// there's room. It never takes touches: the map handles every gesture, and opens
+/// a station on a tap on its tag or near its dot.
 final class StationAnnotationView: MKAnnotationView {
     static let reuseID = "station"
     private static let ink = UIColor(red: 0x1C / 255, green: 0x1C / 255, blue: 0x1E / 255, alpha: 1)
 
     private let dot = CAShapeLayer()
-    private let nameTag = HaloLabel()
+    private let pin = StationTag()
+
+    /// The tag's frame in this view, while it shows.
+    var tagFrame: CGRect? { pin.isHidden ? nil : pin.frame }
 
     override init(annotation: MKAnnotation?, reuseIdentifier: String?) {
         super.init(annotation: annotation, reuseIdentifier: reuseIdentifier)
@@ -1469,8 +1432,8 @@ final class StationAnnotationView: MKAnnotationView {
         dot.shadowOffset = CGSize(width: 0, height: 0.5)
         layer.addSublayer(dot)
 
-        nameTag.isHidden = true
-        addSubview(nameTag)
+        pin.isHidden = true
+        addSubview(pin)
     }
 
     @available(*, unavailable)
@@ -1478,7 +1441,7 @@ final class StationAnnotationView: MKAnnotationView {
         fatalError("init(coder:) is not supported")
     }
 
-    func configure(zoom: MapZoom, isSelected: Bool, role: StationRole, name: String, place: StationNamePlace?) {
+    func configure(zoom: MapZoom, isSelected: Bool, role: StationRole, station: Station, place: StationTagPlace?) {
         isUserInteractionEnabled = false
 
         let size = isSelected ? min(22, max(12, zoom.dotSize + 7)) : zoom.dotSize
@@ -1496,59 +1459,87 @@ final class StationAnnotationView: MKAnnotationView {
         dot.shadowRadius = zoom <= .city ? 1.5 : 0.8
         CATransaction.commit()
 
-        nameTag.isHidden = place == nil
+        pin.isHidden = place == nil
         if let place {
-            nameTag.text = name
-            nameTag.font = Self.nameFont(zoom: zoom, isSelected: isSelected)
-            let tagSize = Self.nameSize(name, zoom: zoom, isSelected: isSelected)
-            nameTag.frame = Self.nameFrame(size: tagSize, radius: size / 2, place: place)
-                .offsetBy(dx: size / 2, dy: size / 2)
+            let font = Self.tagFont(zoom: zoom, isSelected: isSelected)
+            let style: StationTag.Style = switch role {
+            case .home: .home
+            case .work: .work
+            case .plain: isSelected ? .open : .plain(Self.lineColor(of: station))
+            }
+            let tagSize = StationTag.size(name: station.name, font: font, hasGlyph: role != .plain)
+            let frame = Self.tagRect(size: tagSize, radius: size / 2, place: place)
+            pin.frame = frame.offsetBy(dx: size / 2, dy: size / 2)
+            pin.set(name: station.name, font: font, style: style, hasGlyph: role != .plain,
+                    pointX: -frame.minX)
         }
 
         zPriority = MKAnnotationViewZPriority(rawValue: isSelected ? 900 : (role == .plain ? 500 : 600))
-        accessibilityLabel = name
+        accessibilityLabel = station.name
     }
 
-    static func nameFont(zoom: MapZoom, isSelected: Bool) -> UIFont {
-        if isSelected { return .systemFont(ofSize: 13, weight: .bold) }
+    /// The station's line colour for its tag's bullet (the app's green at Union, where all meet).
+    private static func lineColor(of station: Station) -> UIColor {
+        if station.isUnion { return UIColor(named: "AccentColor") ?? .systemGreen }
+        return station.lineCodes.first.flatMap { RailNetwork.shared.line(code: $0) }
+            .map { UIColor(hexString: $0.hex) } ?? .systemGray
+    }
+
+    static func tagFont(zoom: MapZoom, isSelected: Bool) -> UIFont {
+        if isSelected { return .systemFont(ofSize: 14, weight: .bold) }
         switch zoom {
-        case .street: return .systemFont(ofSize: 12.5, weight: .semibold)
-        case .city: return .systemFont(ofSize: 12, weight: .semibold)
-        case .region: return .systemFont(ofSize: 11.5, weight: .semibold)
-        case .network, .province: return .systemFont(ofSize: 11, weight: .semibold)
+        case .street, .city: return .systemFont(ofSize: 13, weight: .semibold)
+        case .region: return .systemFont(ofSize: 12.5, weight: .semibold)
+        case .network, .province: return .systemFont(ofSize: 12, weight: .semibold)
         }
     }
 
-    /// The name's size, with room for its halo.
-    static func nameSize(_ name: String, zoom: MapZoom, isSelected: Bool) -> CGSize {
-        let text = (name as NSString).size(withAttributes: [.font: nameFont(zoom: zoom, isSelected: isSelected)])
-        return CGSize(width: ceil(text.width) + 2 * HaloLabel.inset, height: ceil(text.height) + 2 * HaloLabel.inset)
-    }
-
-    /// Where the name goes, relative to the dot's centre.
-    static func nameFrame(size: CGSize, radius: CGFloat, place: StationNamePlace) -> CGRect {
-        switch place {
-        case .below: CGRect(x: -size.width / 2, y: radius, width: size.width, height: size.height)
-        case .above: CGRect(x: -size.width / 2, y: -radius - size.height, width: size.width, height: size.height)
-        case .right: CGRect(x: radius + 1, y: -size.height / 2, width: size.width, height: size.height)
-        case .left: CGRect(x: -radius - 1 - size.width, y: -size.height / 2, width: size.width, height: size.height)
+    /// Where the tag goes, relative to the dot's centre: above it, its point on the dot.
+    static func tagRect(size: CGSize, radius: CGFloat, place: StationTagPlace) -> CGRect {
+        let pointX: CGFloat = switch place {
+        case .centre: size.width / 2
+        case .runningRight: min(size.width / 2, StationTag.pointInset)
+        case .runningLeft: max(size.width / 2, size.width - StationTag.pointInset)
         }
+        return CGRect(x: -pointX, y: -radius - size.height, width: size.width, height: size.height)
     }
 }
 
-/// Which side of its dot a station's name goes.
-enum StationNamePlace {
-    case below, right, left, above
+/// How a station's tag stands on its dot: centred over it, or running off to the
+/// right or left of its point (where the room is).
+enum StationTagPlace: CaseIterable {
+    case centre, runningRight, runningLeft
 }
 
-/// A station's name as maps write place names: text in a halo of the map's
-/// background colour, so it reads over lines and streets in light and dark.
-final class HaloLabel: UIView {
-    /// Room around the text for the halo.
-    static let inset: CGFloat = 2.5
+/// A station on the map as a pin, so it reads as something to tap: a rounded tag
+/// with the station's name and a small point at the bottom standing on its dot.
+/// Home and work are in their colours with a house or briefcase; the open station
+/// is the map's ink colour turned round; the rest are in the map's own colours,
+/// with a bullet in the line's colour.
+final class StationTag: UIView {
+    enum Style {
+        case plain(UIColor), open, home, work
+    }
 
-    var text = "" { didSet { setNeedsDisplay() } }
-    var font: UIFont = .systemFont(ofSize: 12, weight: .semibold) { didSet { setNeedsDisplay() } }
+    static let pointLength: CGFloat = 6
+    /// How far from the tag's end its point sits, when the tag runs off to one side.
+    static let pointInset: CGFloat = 15
+    private static let padding: CGFloat = 8
+    private static let gap: CGFloat = 5
+
+    private var name = ""
+    private var font = UIFont.systemFont(ofSize: 13, weight: .semibold)
+    private var style = Style.plain(.systemGray)
+    private var hasGlyph = false
+    private var pointX: CGFloat = 0
+
+    /// The tag's size for a name: its body, and the point under it.
+    static func size(name: String, font: UIFont, hasGlyph: Bool) -> CGSize {
+        let text = (name as NSString).size(withAttributes: [.font: font])
+        let mark = hasGlyph ? font.pointSize + 1 : 8
+        let body = ceil(max(text.height, mark)) + 9
+        return CGSize(width: ceil(text.width) + mark + gap + 2 * padding, height: body + pointLength)
+    }
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -1556,8 +1547,12 @@ final class HaloLabel: UIView {
         backgroundColor = .clear
         contentMode = .redraw
         isUserInteractionEnabled = false
-        registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (label: HaloLabel, _: UITraitCollection) in
-            label.setNeedsDisplay()
+        layer.shadowColor = UIColor.black.cgColor
+        layer.shadowOffset = CGSize(width: 0, height: 1)
+        layer.shadowRadius = 2.5
+        registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (view: StationTag, _: UITraitCollection) in
+            view.setNeedsDisplay()
+            view.updateShadow()
         }
     }
 
@@ -1566,119 +1561,104 @@ final class HaloLabel: UIView {
         fatalError("init(coder:) is not supported")
     }
 
-    override func draw(_ rect: CGRect) {
-        let origin = CGPoint(x: Self.inset, y: Self.inset)
-        let halo = UIColor.systemBackground.resolvedColor(with: traitCollection).withAlphaComponent(0.9)
-        let ink = UIColor.label.resolvedColor(with: traitCollection)
-        let text = self.text as NSString
-        // A wide outline of the letters in the halo colour, then the letters over it.
-        text.draw(at: origin, withAttributes: [.font: font, .strokeColor: halo, .strokeWidth: 30])
-        text.draw(at: origin, withAttributes: [.font: font, .foregroundColor: ink])
-    }
-}
-
-final class RoleAnnotation: NSObject, MKAnnotation {
-    let station: Station
-    let role: StationRole
-    let coordinate: CLLocationCoordinate2D
-
-    init(station: Station, role: StationRole, coordinate: CLLocationCoordinate2D? = nil) {
-        self.station = station
-        self.role = role
-        self.coordinate = coordinate ?? station.coordinate
+    func set(name: String, font: UIFont, style: Style, hasGlyph: Bool, pointX: CGFloat) {
+        self.name = name
+        self.font = font
+        self.style = style
+        self.hasGlyph = hasGlyph
+        self.pointX = pointX
+        setNeedsDisplay()
+        updateShadow()
     }
 
-    var title: String? { role == .home ? "Home: \(station.name)" : "Work: \(station.name)" }
-}
-
-/// A round home/work badge with a small triangle pointing down at the station dot.
-/// Same size at every zoom level. Like the dots it never takes touches; the map's
-/// tap handler checks pins first.
-/// The home/work marker: Apple Maps' balloon pin (a round head with a point
-/// underneath), blue for home and brown for work, with a white glyph. It stays
-/// the same size at every zoom, and its point sits just above the station dot.
-final class RolePinView: MKAnnotationView {
-    static let reuseID = "role"
-    private static let headSize: CGFloat = 30
-    private static let pointLength: CGFloat = 7
-
-    private let balloon = CAShapeLayer()
-    private let icon = UIImageView()
-    private var role: StationRole = .home
-
-    override init(annotation: MKAnnotation?, reuseIdentifier: String?) {
-        super.init(annotation: annotation, reuseIdentifier: reuseIdentifier)
-        isUserInteractionEnabled = false
-        isEnabled = false
-        canShowCallout = false
-        displayPriority = .required
-        collisionMode = .none
-        backgroundColor = .clear
-
-        let side = Self.headSize
-        bounds = CGRect(x: 0, y: 0, width: side, height: side + Self.pointLength)
-
-        balloon.path = Self.balloonPath().cgPath
-        balloon.strokeColor = UIColor.black.withAlphaComponent(0.12).cgColor
-        balloon.lineWidth = 0.5
-        layer.addSublayer(balloon)
-
-        icon.frame = CGRect(x: 0, y: 0, width: side, height: side)
-        icon.contentMode = .center
-        icon.tintColor = .white
-        addSubview(icon)
-
-        layer.shadowColor = UIColor.black.cgColor
-        layer.shadowOpacity = 0.28
-        layer.shadowRadius = 2.5
-        layer.shadowOffset = CGSize(width: 0, height: 1.5)
-        layer.shadowPath = balloon.path
-
-        // Layer colours don't follow light/dark mode by themselves.
-        registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (pin: RolePinView, _) in
-            pin.applyColor()
-        }
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        updateShadow()
     }
 
-    @available(*, unavailable)
-    required init?(coder aDecoder: NSCoder) {
-        fatalError("init(coder:) is not supported")
+    private func updateShadow() {
+        layer.shadowPath = outline().cgPath
+        layer.shadowOpacity = traitCollection.userInterfaceStyle == .dark ? 0.55 : 0.28
     }
 
-    /// A circle with its two tangents meeting at a point below it.
-    private static func balloonPath() -> UIBezierPath {
-        let radius = headSize / 2
-        let center = CGPoint(x: radius, y: radius)
-        let point = CGPoint(x: radius, y: headSize + pointLength)
-        let reach = radius + pointLength
-        // Where the tangent lines from the point touch the circle.
-        let spread = CGFloat.pi / 2 - asin(radius / reach)
-        let right = CGFloat.pi / 2 - spread
-        let left = CGFloat.pi / 2 + spread
+    private var body: CGRect {
+        CGRect(x: 0.5, y: 0.5, width: bounds.width - 1, height: bounds.height - Self.pointLength - 1)
+    }
 
+    /// The body and its point, as one shape.
+    private func outline() -> UIBezierPath {
+        let body = self.body
+        let path = UIBezierPath(roundedRect: body, cornerRadius: body.height / 2)
+        path.append(point())
+        return path
+    }
+
+    private func point() -> UIBezierPath {
+        let body = self.body
+        let x = min(max(pointX, body.minX + body.height / 2), body.maxX - body.height / 2)
         let path = UIBezierPath()
-        path.move(to: point)
-        path.addLine(to: CGPoint(x: center.x + radius * cos(right), y: center.y + radius * sin(right)))
-        path.addArc(withCenter: center, radius: radius, startAngle: right, endAngle: left, clockwise: false)
+        path.move(to: CGPoint(x: x - 5.5, y: body.maxY - 1))
+        path.addLine(to: CGPoint(x: pointX, y: bounds.maxY - 0.5))
+        path.addLine(to: CGPoint(x: x + 5.5, y: body.maxY - 1))
         path.close()
         return path
     }
 
-    /// Puts the balloon's point `tipGap` points above the station's centre.
-    func configure(role: StationRole, tipGap: CGFloat, xOffset: CGFloat) {
-        isUserInteractionEnabled = false
-        self.role = role
-        applyColor()
-        icon.image = UIImage(
-            systemName: role.symbolName,
-            withConfiguration: UIImage.SymbolConfiguration(pointSize: 14, weight: .semibold)
-        )
-        centerOffset = CGPoint(x: xOffset, y: -(bounds.height / 2 + tipGap))
-        zPriority = MKAnnotationViewZPriority(rawValue: 800)
-        accessibilityLabel = role == .work ? "Work station" : "Home station"
-    }
+    override func draw(_ rect: CGRect) {
+        let dark = traitCollection.userInterfaceStyle == .dark
+        let fill: UIColor, text: UIColor, border: UIColor?
+        var mark: (glyph: String?, color: UIColor)
+        switch style {
+        case .plain(let line):
+            fill = dark ? UIColor(white: 0.13, alpha: 0.97) : UIColor(white: 1, alpha: 0.97)
+            text = dark ? .white : UIColor(white: 0.1, alpha: 1)
+            border = dark ? UIColor(white: 1, alpha: 0.22) : UIColor(white: 0, alpha: 0.12)
+            mark = (nil, line)
+        case .open:
+            fill = dark ? .white : UIColor(white: 0.1, alpha: 1)
+            text = dark ? UIColor(white: 0.08, alpha: 1) : .white
+            border = nil
+            mark = (nil, UIColor(named: "AccentColor") ?? .systemGreen)
+        case .home:
+            fill = .systemBlue
+            text = .white
+            border = nil
+            mark = ("house.fill", .white)
+        case .work:
+            fill = .systemBrown
+            text = .white
+            border = nil
+            mark = ("briefcase.fill", .white)
+        }
+        if !hasGlyph { mark.glyph = nil }
 
-    private func applyColor() {
-        balloon.fillColor = role.uiColor.resolvedColor(with: traitCollection).cgColor
+        let body = self.body
+        let rounded = UIBezierPath(roundedRect: body, cornerRadius: body.height / 2)
+        fill.setFill()
+        rounded.fill()
+        if let border {
+            border.setStroke()
+            rounded.lineWidth = 1
+            rounded.stroke()
+        }
+        // The point over the border where it meets the body.
+        point().fill()
+
+        let size = hasGlyph ? font.pointSize + 1 : 8
+        var x = Self.padding
+        if let glyph = mark.glyph,
+           let image = UIImage(systemName: glyph, withConfiguration: UIImage.SymbolConfiguration(pointSize: font.pointSize - 1, weight: .bold))?
+               .withTintColor(mark.color, renderingMode: .alwaysOriginal) {
+            image.draw(at: CGPoint(x: x + (size - image.size.width) / 2, y: body.midY - image.size.height / 2))
+        } else {
+            // A bullet in the line's colour, ringed like the station dots.
+            let bullet = UIBezierPath(ovalIn: CGRect(x: x, y: body.midY - 4, width: 8, height: 8))
+            mark.color.setFill()
+            bullet.fill()
+        }
+        x += size + Self.gap
+        let label = name as NSString
+        let height = label.size(withAttributes: [.font: font]).height
+        label.draw(at: CGPoint(x: x, y: body.midY - height / 2), withAttributes: [.font: font, .foregroundColor: text])
     }
 }
