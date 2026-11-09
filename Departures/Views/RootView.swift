@@ -28,6 +28,8 @@ struct RootView: View {
     /// Bottom edge of the area the floating UI lives in: just above the search
     /// field (which itself rides above the keyboard while typing).
     @State private var floatingBottom: CGFloat = 0
+    /// The tracked train's button or the hint, bottom left: how tall it is.
+    @State private var leadingHeight: CGFloat = 0
 
     private let network = RailNetwork.shared
 
@@ -245,6 +247,7 @@ struct RootView: View {
             onSelectTrain: { openTrackedTrip() },
             runningTrips: settings.showsAllTrains ? runningTrips : [],
             onSelectRunningTrain: { trip, next in openRunningTrain(trip, at: next) },
+            attributionLift: attributionLift,
             onSelect: { station in select(station, detent: .medium) }
         )
         .ignoresSafeArea()
@@ -277,6 +280,17 @@ struct RootView: View {
                 try? await Task.sleep(for: .seconds(5))
             }
         }
+    }
+
+    /// Apple's logo and Legal link sit just above the search bar, bottom left: while
+    /// the tracked train's button or the hint is there, they go up above it instead
+    /// (they must stay in sight). Going by whether there's one, not whether it shows
+    /// right now, so the map doesn't shift as the sheet comes and goes.
+    private var attributionLift: CGFloat {
+        guard TripTracker.shared.trip != nil || showsMapHint else { return 0 }
+        // Its height, and a little room (they sit a few points below the buttons'
+        // bottom edge otherwise).
+        return (leadingHeight > 0 ? leadingHeight : 48) + 10
     }
 
     /// Someone new (no home or work, and no board opened yet, say with location off or
@@ -327,7 +341,8 @@ struct RootView: View {
             if showsControls {
                 // The tracked trip bottom left; the map buttons bottom right.
                 HStack(alignment: .bottom, spacing: 12) {
-                    // Above Apple's Maps logo and Legal link (behind the sheet when one's open).
+                    // Level with the map buttons; Apple's Maps logo and Legal link move
+                    // up above it (see `attributionLift`).
                     Group {
                         if let trip = TripTracker.shared.trip {
                             TrackedTripButton(trip: trip) { openTrackedTrip() }
@@ -337,8 +352,8 @@ struct RootView: View {
                                 .transition(.opacity)
                         }
                     }
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { leadingHeight = $0 }
                     .padding(.leading, BottomBarMetrics.controlsTrailingInset)
-                    .padding(.bottom, selected == nil ? BottomBarMetrics.legalRoom : 0)
                     Spacer(minLength: 0)
                     controls
                         .padding(.trailing, BottomBarMetrics.controlsTrailingInset)

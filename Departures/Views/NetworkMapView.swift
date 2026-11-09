@@ -147,10 +147,11 @@ final class MapController {
             // Clear of what sits over the map: the Dynamic Island, with room for a
             // station's tag standing above its dot; the map buttons down the right side;
             // and the sheet (or search results) at the bottom, with room to spare.
+            // (Sideways, room for a station's tag centred over its dot too.)
             let top = Self.topInset(of: mapView) + 56
             let bottom = max(top + 80, size.height * (1 - coveredFraction) - 44)
-            let left: CGFloat = 48
-            let right = size.width - (BottomBarMetrics.controlsTrailingInset + 48 + 24)
+            let left: CGFloat = 64
+            let right = size.width - (BottomBarMetrics.controlsTrailingInset + 48 + 64)
             let mapPerPoint = max(width / Double(right - left), height / Double(bottom - top))
             let target = CGPoint(x: (left + right) / 2, y: (top + bottom) / 2)
             self.place(MKMapPoint(x: (minX + maxX) / 2, y: (minY + maxY) / 2), at: target,
@@ -171,6 +172,30 @@ final class MapController {
         }
     }
     #endif
+
+    /// Puts Apple's logo and Legal link (which sit on the map's bottom layout margin)
+    /// `bottom` points above the map's bottom edge, leaving the map where it is.
+    /// MapKit takes the margins for covered space and re-centres the map on what's
+    /// left when they change, so measure where the middle went and put it back. (A
+    /// camera move under way still lands where it should: see `checkPlacement`.)
+    fileprivate func setAttributionRoom(_ bottom: CGFloat) {
+        guard let mapView, abs(mapView.layoutMargins.bottom - bottom) > 0.5 else { return }
+        let middle = CGPoint(x: mapView.bounds.midX, y: mapView.bounds.midY)
+        let anchor = mapView.convert(middle, toCoordinateFrom: mapView)
+        mapView.layoutMargins.bottom = bottom
+        mapView.layoutIfNeeded()
+        guard goal == nil, !isTouching, !mapView.bounds.isEmpty else { return }
+        let moved = mapView.convert(anchor, toPointTo: mapView)
+        let dx = Double(moved.x - middle.x), dy = Double(moved.y - middle.y)
+        guard abs(dx) > 0.5 || abs(dy) > 0.5, dx.isFinite, dy.isFinite else { return }
+        // Map units per point, measured across the middle of the screen.
+        let left = MKMapPoint(mapView.convert(CGPoint(x: 0, y: middle.y), toCoordinateFrom: mapView))
+        let right = MKMapPoint(mapView.convert(CGPoint(x: mapView.bounds.width, y: middle.y), toCoordinateFrom: mapView))
+        let mapPerPoint = (right.x - left.x) / Double(mapView.bounds.width)
+        guard mapPerPoint > 0, mapPerPoint.isFinite else { return }
+        mapView.setVisibleMapRect(mapView.visibleMapRect.offsetBy(dx: dx * mapPerPoint, dy: dy * mapPerPoint),
+                                  animated: false)
+    }
 
     /// The status bar / Dynamic Island inset, whatever safe area SwiftUI gives the map.
     private static func topInset(of mapView: MKMapView) -> CGFloat {
@@ -260,6 +285,9 @@ struct NetworkMapView: UIViewRepresentable {
     var runningTrips: [ScheduleStore.RunningTrip] = []
     /// One of those was tapped: the trip, and the index of the stop it's heading for.
     var onSelectRunningTrain: (ScheduleStore.RunningTrip, Int) -> Void = { _, _ in }
+    /// How much higher Apple's logo and Legal link go than just above the search
+    /// bar: above the button or hint bottom left, while one's there.
+    var attributionLift: CGFloat = 0
     let onSelect: (Station) -> Void
 
     func makeCoordinator() -> Coordinator {
@@ -315,12 +343,14 @@ struct NetworkMapView: UIViewRepresentable {
         }
 
         // Apple's logo and Legal link sit inside the layout margins: keep them just
-        // above the search bar. These margins never change afterwards, because
-        // MapKit treats them as covered space and re-centres the map when they do.
+        // above the search bar (or the button bottom left). MapKit treats margins
+        // as covered space and re-centres the map when they change, so they don't
+        // follow the sheet, and a change keeps the map still (see
+        // `MapController.setAttributionRoom`).
         mapView.insetsLayoutMarginsFromSafeArea = false
         mapView.layoutMargins = UIEdgeInsets(
             top: 8, left: 8,
-            bottom: BottomBarMetrics.maximumRoom,
+            bottom: BottomBarMetrics.maximumRoom + attributionLift,
             right: 8
         )
 
@@ -348,6 +378,7 @@ struct NetworkMapView: UIViewRepresentable {
         coordinator.syncPlace(place, in: mapView)
         coordinator.syncTrip(trackedTrip, in: mapView)
         coordinator.syncRunning(runningTrips, in: mapView)
+        controller.setAttributionRoom(BottomBarMetrics.maximumRoom + attributionLift)
     }
 
     // MARK: Coordinator
@@ -536,6 +567,17 @@ struct NetworkMapView: UIViewRepresentable {
             let farthest = spans.to.map { CGFloat($0 * MapZoom.overshoot) * perDegree }
                 ?? CGFloat(RailNetwork.maxVisibleWidth) / size.width
             return (closest, max(closest, farthest))
+        }
+
+        /// The degrees of latitude the whole map spans, top to bottom. (MapKit's region
+        /// leaves out the layout margins, which grow while there's a button bottom
+        /// left: the zoom steps shouldn't change with them.)
+        private static func fullSpan(of mapView: MKMapView) -> Double {
+            let x = mapView.bounds.midX
+            let top = mapView.convert(CGPoint(x: x, y: 0), toCoordinateFrom: mapView)
+            let bottom = mapView.convert(CGPoint(x: x, y: mapView.bounds.height), toCoordinateFrom: mapView)
+            let span = top.latitude - bottom.latitude
+            return span.isFinite && span > 0 ? span : mapView.region.span.latitudeDelta
         }
 
         /// Where a coordinate lies, in metres east and south of the middle of the
@@ -823,7 +865,7 @@ struct NetworkMapView: UIViewRepresentable {
 
             // Only re-render when the zoom crosses a step (and not back and forth as a
             // pinch hovers at one).
-            let newZoom = MapZoom(span: mapView.region.span.latitudeDelta, keeping: zoom)
+            let newZoom = MapZoom(span: Self.fullSpan(of: mapView), keeping: zoom)
             guard newZoom != zoom else { return }
             zoom = newZoom
             // This step's tags, then this step's sizes: each tag changes once.
