@@ -489,10 +489,29 @@ struct RootView: View {
             }
             return
         }
-        guard let here = await LocationProvider.shared.currentLocation(maxAge: 30) else { return }
-        if RailNetwork.isInServiceArea(here.coordinate) {
+        guard let here = await LocationProvider.shared.currentLocation(maxAge: 30),
+              RailNetwork.isInServiceArea(here.coordinate) else { return }
+        // As at start-up: you and the station you'd most likely want, its board open.
+        let choice = await StartupStation.choose(at: here, home: settings.homeCode,
+                                                 work: settings.workCode, now: AppClock.now)
+        let board = choice?.station.flatMap(network.station) ?? bestStation(near: here)
+        // (A train's stops are up: no board on top of them, but both in view.)
+        show(you: here, board: board, opensBoard: trackedSelection == nil && !showSettings, asked: true)
+    }
+
+    /// You and `board`'s station, both in view above the half-height sheet (the
+    /// station is often a few kilometres off), its board open; just you without one.
+    private func show(you here: CLLocation, board: Station?, opensBoard: Bool = true, asked: Bool = false) {
+        guard let board else {
             center(on: here.coordinate, sheetOpen: selected != nil)
+            return
         }
+        if opensBoard {
+            detent = .medium
+            selected = board
+        }
+        mapController.frame([here.coordinate, board.coordinate], minWidth: 3_000, coveredFraction: 0.55,
+                            asked: asked)
     }
 
     /// Opens the tracked trip's details (closing the station sheet or Settings first).
@@ -574,15 +593,7 @@ struct RootView: View {
         if showSettings || trackedSelection != nil { board = nil }
 
         if let here, RailNetwork.isInServiceArea(here.coordinate) {
-            if let board {
-                detent = .medium
-                selected = board
-                // You and the board's station, both in view above the half-height sheet
-                // (the station is often a few kilometres off).
-                mapController.frame([here.coordinate, board.coordinate], minWidth: 3_000, coveredFraction: 0.55)
-            } else {
-                center(on: here.coordinate, sheetOpen: false)
-            }
+            show(you: here, board: board)
         } else if let board {
             select(board, detent: .medium)
         }

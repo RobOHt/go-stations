@@ -130,11 +130,12 @@ final class MapController {
     }
 
     /// Fits all `coordinates` in the part of the map above the bottom `coveredFraction`
-    /// (search results or a sheet), at least `minWidth` metres across.
+    /// (search results or a sheet), at least `minWidth` metres across. `asked`: a
+    /// button asked for it, so it goes ahead even right after a pinch or drag.
     func frame(_ coordinates: [CLLocationCoordinate2D], minWidth: CLLocationDistance = 3_000,
-               coveredFraction: CGFloat = 0.45) {
+               coveredFraction: CGFloat = 0.45, asked: Bool = false) {
         // Search results arriving never yank the map out from under a pinch or drag.
-        guard let first = coordinates.first, userIsIdle else { return }
+        guard let first = coordinates.first, asked || userIsIdle else { return }
         perform { mapView in
             let points = coordinates.map { MKMapPoint($0) }
             let minX = points.map(\.x).min() ?? 0, maxX = points.map(\.x).max() ?? 0
