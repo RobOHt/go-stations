@@ -61,6 +61,15 @@ enum StationRole {
     var symbolName: String { self == .work ? "briefcase.fill" : "house.fill" }
 }
 
+/// What the app puts over the map, in window coordinates, for the stations' tags to
+/// keep clear of: a tag half under a button or a sheet's edge looks broken.
+struct MapCover: Equatable {
+    /// Buttons and cards floating over the map.
+    var floating: [CGRect] = []
+    /// The top edge of the station's sheet, while it's up: the map below is hidden.
+    var sheetTop: CGFloat?
+}
+
 // MARK: - Camera control from SwiftUI
 
 /// Lets SwiftUI move the map's camera. Commands sent before the map has a size
@@ -231,6 +240,8 @@ struct NetworkMapView: UIViewRepresentable {
     var runningTrips: [ScheduleStore.RunningTrip] = []
     /// One of those was tapped: the trip, and the index of the stop it's heading for.
     var onSelectRunningTrain: (ScheduleStore.RunningTrip, Int) -> Void = { _, _ in }
+    /// The buttons, cards and sheet over the map, which the station tags keep clear of.
+    var cover = MapCover()
     let onSelect: (Station) -> Void
 
     func makeCoordinator() -> Coordinator {
@@ -265,13 +276,12 @@ struct NetworkMapView: UIViewRepresentable {
         }
 
         mapView.register(StationAnnotationView.self, forAnnotationViewWithReuseIdentifier: StationAnnotationView.reuseID)
+        mapView.register(StationTagView.self, forAnnotationViewWithReuseIdentifier: StationTagView.reuseID)
         mapView.register(PlacePinView.self, forAnnotationViewWithReuseIdentifier: PlacePinView.reuseID)
         mapView.register(MKUserLocationView.self, forAnnotationViewWithReuseIdentifier: Coordinator.userLocationID)
         mapView.register(TrainAnnotationView.self, forAnnotationViewWithReuseIdentifier: TrainAnnotationView.reuseID)
         coordinator.installOverlays(on: mapView)
-        mapView.addAnnotations(RailNetwork.shared.stations.map {
-            StationAnnotation(station: $0, coordinate: coordinator.onTrack($0))
-        })
+        coordinator.installStations(on: mapView)
 
         let tap = UITapGestureRecognizer(target: coordinator, action: #selector(Coordinator.handleTap(_:)))
         tap.delegate = coordinator
@@ -312,10 +322,9 @@ struct NetworkMapView: UIViewRepresentable {
     func updateUIView(_ mapView: LayoutAwareMapView, context: Context) {
         let coordinator = context.coordinator
         coordinator.controller = controller
-        if coordinator.update(from: self) {
-            coordinator.refreshStations(in: mapView)
-            coordinator.placeNames(in: mapView)
-        }
+        let changed = coordinator.update(from: self)
+        if changed.stations { coordinator.refreshStations(in: mapView) }
+        if changed.stations || changed.cover { coordinator.placeNames(in: mapView) }
         coordinator.syncPlace(place, in: mapView)
         coordinator.syncTrip(trackedTrip, in: mapView)
         coordinator.syncRunning(runningTrips, in: mapView)
@@ -336,12 +345,14 @@ struct NetworkMapView: UIViewRepresentable {
         private var homeCode: String?
         private var workCode: String?
         private var zoom = MapZoom(span: RailNetwork.overviewRegion.span.latitudeDelta)
+        private var cover = MapCover()
         private var renderers: [ObjectIdentifier: MKPolylineRenderer] = [:]
         private var didInitialLayout = false
         private var didSetZoomRange = false
 
-        /// Returns true when anything the station dots depend on changed.
-        func update(from view: NetworkMapView) -> Bool {
+        /// What changed: anything the stations' dots and tags look like (`stations`),
+        /// or only what's over the map, so where the tags fit (`cover`).
+        func update(from view: NetworkMapView) -> (stations: Bool, cover: Bool) {
             onSelect = view.onSelect
             onTapMap = view.onTapMap
             onSelectTrain = view.onSelectTrain
@@ -349,10 +360,12 @@ struct NetworkMapView: UIViewRepresentable {
             let changed = selectedCode != view.selectedCode
                 || homeCode != view.homeCode
                 || workCode != view.workCode
+            let coverChanged = cover != view.cover
             selectedCode = view.selectedCode
             homeCode = view.homeCode
             workCode = view.workCode
-            return changed
+            cover = view.cover
+            return (changed, coverChanged)
         }
 
         // MARK: Setup
@@ -362,6 +375,15 @@ struct NetworkMapView: UIViewRepresentable {
             // White casing first so overlapping lines stay readable.
             mapView.addOverlays(paths.map { TrackPolyline.make($0, casing: true) }, level: .aboveRoads)
             mapView.addOverlays(paths.map { TrackPolyline.make($0, casing: false) }, level: .aboveRoads)
+        }
+
+        /// A dot for every station, and its tag: a separate marker, so the tags can sit
+        /// above the trains (which would hide the names) while the dots stay below them.
+        func installStations(on mapView: MKMapView) {
+            let stations = RailNetwork.shared.stations
+            stationTags = stations.map { StationTagAnnotation(station: $0, coordinate: onTrack($0)) }
+            mapView.addAnnotations(stations.map { StationAnnotation(station: $0, coordinate: onTrack($0)) })
+            mapView.addAnnotations(stationTags)
         }
 
         func mapDidLayout(_ mapView: MKMapView) {
@@ -423,16 +445,24 @@ struct NetworkMapView: UIViewRepresentable {
         }
 
         private func configure(_ view: StationAnnotationView, for station: Station) {
+            view.configure(zoom: zoom, isSelected: station.code == selectedCode, role: role(for: station),
+                           station: station)
+        }
+
+        private func configure(_ view: StationTagView, for station: Station) {
             view.configure(
                 zoom: zoom,
                 isSelected: station.code == selectedCode,
                 role: role(for: station),
                 station: station,
+                dotSize: dotSize(for: station),
                 place: namePlaces[station.code]
             )
         }
 
         // MARK: Station tags
+
+        private var stationTags: [StationTagAnnotation] = []
 
         /// Where each station's tag goes on the map as it stands (none: no room).
         private var namePlaces: [String: StationTagPlace] = [:]
@@ -460,17 +490,27 @@ struct NetworkMapView: UIViewRepresentable {
         /// Gives every station on screen a tag, a pin with its name standing on its dot,
         /// where there's room: the ones that matter most first, each above its dot
         /// (centred, else running right or left of its point) where it covers no other
-        /// tag or dot, stays on screen below the status bar and keeps clear of the map
-        /// buttons down the right side. Trains don't count: they move, and the tags
-        /// shouldn't come and go as they pass. Zoomed right out, only the tags that
-        /// matter most.
+        /// tag or dot, stays on screen below the status bar and above Apple's logo,
+        /// the search bar or the sheet, and keeps clear of the map buttons and cards.
+        /// Trains don't count: they move, and the tags shouldn't come and go as they
+        /// pass (the tags sit above them instead). Zoomed right out, only the tags
+        /// that matter most.
         func placeNames(in mapView: MKMapView) {
             let bounds = mapView.bounds
             let screen = bounds.insetBy(dx: -60, dy: -30)
             let top = max(mapView.window?.safeAreaInsets.top ?? 0, mapView.safeAreaInsets.top) + 4
-            let usable = CGRect(x: 4, y: top,
-                                width: bounds.width - 4 - (BottomBarMetrics.controlsTrailingInset + 48 + 12),
-                                height: bounds.height - top)
+            // Apple's logo and Legal link (which must stay readable) sit on the map's
+            // bottom layout margin, just above the search bar; a sheet hides the rest.
+            var bottom = bounds.height - (BottomBarMetrics.maximumRoom + 30)
+            if let sheetTop = cover.sheetTop {
+                bottom = min(bottom, mapView.convert(CGPoint(x: 0, y: sheetTop), from: nil).y - 6)
+            }
+            let visible = CGRect(x: 4, y: top, width: bounds.width - 8, height: max(0, bottom - top))
+            // The map buttons and anything else floating over the map, with a little room.
+            let floating = cover.floating.map { mapView.convert($0, from: nil).insetBy(dx: -6, dy: -6) }
+            func isClear(_ rect: CGRect) -> Bool {
+                visible.contains(rect) && !floating.contains { $0.intersects(rect) }
+            }
             var dots: [String: CGRect] = [:]
             var onScreen: [(station: Station, point: CGPoint)] = []
             for station in RailNetwork.shared.stations {
@@ -490,22 +530,25 @@ struct NetworkMapView: UIViewRepresentable {
                 let rank = nameRank(station)
                 if zoom == .province, rank > 4 { continue }
                 let size = StationTag.size(name: station.name,
-                                           font: StationAnnotationView.tagFont(zoom: zoom, isSelected: rank == 0),
+                                           font: StationTagView.font(zoom: zoom, isSelected: rank == 0),
                                            hasGlyph: role(for: station) != .plain)
                 let radius = dotSize(for: station) / 2
                 func frame(_ place: StationTagPlace) -> CGRect {
-                    StationAnnotationView.tagRect(size: size, radius: radius, place: place)
+                    StationTagView.rect(size: size, radius: radius, place: place)
                         .offsetBy(dx: point.x, dy: point.y)
                 }
                 var chosen = StationTagPlace.allCases.first { place in
                     let rect = frame(place)
-                    return usable.contains(rect)
+                    return isClear(rect)
                         && !tags.contains { $0.intersects(rect) }
                         && !dots.contains { $0.key != station.code && $0.value.intersects(rect) }
                 }
-                // The open station, home and work always have theirs: on screen if it can be.
+                // The open station, home and work have theirs even over other dots, or
+                // under a button, as long as it's on screen: a tag cut off at the edge
+                // would look broken.
                 if chosen == nil, rank <= 1 {
-                    chosen = StationTagPlace.allCases.first { usable.contains(frame($0)) } ?? .centre
+                    chosen = StationTagPlace.allCases.first { isClear(frame($0)) }
+                        ?? StationTagPlace.allCases.first { visible.contains(frame($0)) }
                 }
                 if let chosen {
                     places[station.code] = chosen
@@ -513,14 +556,23 @@ struct NetworkMapView: UIViewRepresentable {
                 }
             }
             guard places != namePlaces else { return }
+            let moved = Set(places.keys).union(namePlaces.keys).filter { places[$0] != namePlaces[$0] }
             namePlaces = places
-            refreshStations(in: mapView)
+            for annotation in stationTags where moved.contains(annotation.station.code) {
+                if let view = mapView.view(for: annotation) as? StationTagView {
+                    configure(view, for: annotation.station)
+                }
+            }
+            keepOrder(in: mapView)
         }
 
         func refreshStations(in mapView: MKMapView) {
             for annotation in mapView.annotations {
                 if let annotation = annotation as? StationAnnotation,
                    let view = mapView.view(for: annotation) as? StationAnnotationView {
+                    configure(view, for: annotation.station)
+                } else if let annotation = annotation as? StationTagAnnotation,
+                          let view = mapView.view(for: annotation) as? StationTagView {
                     configure(view, for: annotation.station)
                 }
             }
@@ -537,19 +589,26 @@ struct NetworkMapView: UIViewRepresentable {
                     return
                 }
             }
+            // A station's tag, a pin with its name, opens it. Tags sit above the other
+            // trains, so they come first; a tap just outside one counts, unless it's
+            // nearer another.
+            var tagged: (station: Station, miss: CGFloat)?
+            for annotation in stationTags {
+                guard let view = mapView.view(for: annotation), !view.isHidden else { continue }
+                let frame = view.convert(view.bounds, to: mapView)
+                let miss = hypot(max(frame.minX - point.x, 0, point.x - frame.maxX),
+                                 max(frame.minY - point.y, 0, point.y - frame.maxY))
+                if miss <= 5, miss < (tagged?.miss ?? .greatestFiniteMagnitude) {
+                    tagged = (annotation.station, miss)
+                }
+            }
+            if let tagged {
+                onSelect(tagged.station)
+                return
+            }
             if let hit = runningTrain(at: point, in: mapView) {
                 onSelectRunningTrain(hit.0, hit.1)
                 return
-            }
-            // A station's tag, a pin with its name, opens it.
-            for annotation in mapView.annotations {
-                guard let annotation = annotation as? StationAnnotation,
-                      let view = mapView.view(for: annotation) as? StationAnnotationView,
-                      let tag = view.tagFrame else { continue }
-                if view.convert(tag, to: mapView).insetBy(dx: -4, dy: -4).contains(point) {
-                    onSelect(annotation.station)
-                    return
-                }
             }
             var best: (station: Station, distance: CGFloat)?
             for station in RailNetwork.shared.stations {
@@ -605,6 +664,11 @@ struct NetworkMapView: UIViewRepresentable {
             }
             if let place = annotation as? PlaceAnnotation {
                 return mapView.dequeueReusableAnnotationView(withIdentifier: PlacePinView.reuseID, for: place)
+            }
+            if let tag = annotation as? StationTagAnnotation {
+                let view = mapView.dequeueReusableAnnotationView(withIdentifier: StationTagView.reuseID, for: tag)
+                if let tagView = view as? StationTagView { configure(tagView, for: tag.station) }
+                return view
             }
             guard let annotation = annotation as? StationAnnotation else { return nil }
             let view = mapView.dequeueReusableAnnotationView(withIdentifier: StationAnnotationView.reuseID, for: annotation)
@@ -796,6 +860,7 @@ struct NetworkMapView: UIViewRepresentable {
                 else { continue }
                 (view as? TrainAnnotationView)?.fadeIn()
             }
+            keepOrder(in: mapView)
         }
 
         /// The timer runs once there's a map: it moves the trains on it, and works
@@ -816,7 +881,7 @@ struct NetworkMapView: UIViewRepresentable {
                 updateRoute(in: mapView, now: now)
             }
             moveWatched(now: now)
-            keepTrainsOnTop(in: mapView)
+            keepOrder(in: mapView)
         }
 
         /// The trains drawn this tick, by trip number (the tracked one too).
@@ -1079,15 +1144,20 @@ struct NetworkMapView: UIViewRepresentable {
             return (best.trip, spot.next)
         }
 
-        /// Trains above the station dots (MapKit doesn't always keep annotation
-        /// views in z-priority order), the tracked one above the others, and your
-        /// location above them all.
-        private func keepTrainsOnTop(in mapView: MKMapView) {
-            for marker in running.values {
-                if let view = mapView.view(for: marker) { view.superview?.bringSubviewToFront(view) }
+        /// Keeps the markers stacked as their z-priorities say (MapKit doesn't always
+        /// keep annotation views in that order): the other trains above the station
+        /// dots, the stations' tags above those trains so no name is hidden, then the
+        /// tracked train, a searched place, and your location above them all.
+        private func keepOrder(in mapView: MKMapView) {
+            func lift(_ annotation: MKAnnotation) {
+                guard let view = mapView.view(for: annotation), !view.isHidden else { return }
+                view.superview?.bringSubviewToFront(view)
             }
-            if let train, let view = mapView.view(for: train) { view.superview?.bringSubviewToFront(view) }
-            if let view = mapView.view(for: mapView.userLocation) { view.superview?.bringSubviewToFront(view) }
+            for marker in running.values { lift(marker) }
+            for tag in stationTags { lift(tag) }
+            if let train { lift(train) }
+            if let placePin { lift(placePin) }
+            lift(mapView.userLocation)
         }
 
         /// The stretch still to travel is a little bolder than the line, with the
@@ -1368,6 +1438,18 @@ final class StationAnnotation: NSObject, MKAnnotation {
     var title: String? { station.name }
 }
 
+/// Where a station's tag stands: on its dot, like the station's own annotation, but
+/// a marker of its own so it can sit above the trains while the dot stays below them.
+final class StationTagAnnotation: NSObject, MKAnnotation {
+    let station: Station
+    let coordinate: CLLocationCoordinate2D
+
+    init(station: Station, coordinate: CLLocationCoordinate2D) {
+        self.station = station
+        self.coordinate = coordinate
+    }
+}
+
 final class PlaceAnnotation: NSObject, MKAnnotation {
     let place: SearchPlace
     let coordinate: CLLocationCoordinate2D
@@ -1395,7 +1477,7 @@ final class PlacePinView: MKMarkerAnnotationView {
         subtitleVisibility = .hidden
         displayPriority = .required
         // Above everything but your location.
-        zPriority = MKAnnotationViewZPriority(rawValue: 950)
+        zPriority = MKAnnotationViewZPriority(rawValue: 995)
         animatesWhenAdded = true
     }
 
@@ -1403,18 +1485,14 @@ final class PlacePinView: MKMarkerAnnotationView {
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 }
 
-/// A station dot with its tag, a pin with the station's name, standing on it where
-/// there's room. It never takes touches: the map handles every gesture, and opens
-/// a station on a tap on its tag or near its dot.
+/// A station's dot, on its line. Its name is on a tag standing on the dot, a marker
+/// of its own (`StationTagView`). Neither takes touches: the map handles every
+/// gesture, and opens a station on a tap on its tag or near its dot.
 final class StationAnnotationView: MKAnnotationView {
     static let reuseID = "station"
     private static let ink = UIColor(red: 0x1C / 255, green: 0x1C / 255, blue: 0x1E / 255, alpha: 1)
 
     private let dot = CAShapeLayer()
-    private let pin = StationTag()
-
-    /// The tag's frame in this view, while it shows.
-    var tagFrame: CGRect? { pin.isHidden ? nil : pin.frame }
 
     override init(annotation: MKAnnotation?, reuseIdentifier: String?) {
         super.init(annotation: annotation, reuseIdentifier: reuseIdentifier)
@@ -1431,9 +1509,6 @@ final class StationAnnotationView: MKAnnotationView {
         dot.shadowColor = UIColor.black.cgColor
         dot.shadowOffset = CGSize(width: 0, height: 0.5)
         layer.addSublayer(dot)
-
-        pin.isHidden = true
-        addSubview(pin)
     }
 
     @available(*, unavailable)
@@ -1441,7 +1516,7 @@ final class StationAnnotationView: MKAnnotationView {
         fatalError("init(coder:) is not supported")
     }
 
-    func configure(zoom: MapZoom, isSelected: Bool, role: StationRole, station: Station, place: StationTagPlace?) {
+    func configure(zoom: MapZoom, isSelected: Bool, role: StationRole, station: Station) {
         isUserInteractionEnabled = false
 
         let size = isSelected ? min(22, max(12, zoom.dotSize + 7)) : zoom.dotSize
@@ -1459,23 +1534,67 @@ final class StationAnnotationView: MKAnnotationView {
         dot.shadowRadius = zoom <= .city ? 1.5 : 0.8
         CATransaction.commit()
 
-        pin.isHidden = place == nil
-        if let place {
-            let font = Self.tagFont(zoom: zoom, isSelected: isSelected)
-            let style: StationTag.Style = switch role {
-            case .home: .home
-            case .work: .work
-            case .plain: isSelected ? .open : .plain(Self.lineColor(of: station))
-            }
-            let tagSize = StationTag.size(name: station.name, font: font, hasGlyph: role != .plain)
-            let frame = Self.tagRect(size: tagSize, radius: size / 2, place: place)
-            pin.frame = frame.offsetBy(dx: size / 2, dy: size / 2)
-            pin.set(name: station.name, font: font, style: style, hasGlyph: role != .plain,
-                    pointX: -frame.minX)
-        }
-
-        zPriority = MKAnnotationViewZPriority(rawValue: isSelected ? 900 : (role == .plain ? 500 : 600))
+        // Below the trains (a train at a station covers its dot); the tags go above them.
+        zPriority = MKAnnotationViewZPriority(rawValue: isSelected ? 700 : (role == .plain ? 500 : 600))
         accessibilityLabel = station.name
+    }
+}
+
+/// A station's tag: a pin with its name, standing on the station's dot where
+/// there's room (the map works out where, see `placeNames`). It sits above the
+/// other trains, so a passing train never hides a name, and below the tracked one.
+final class StationTagView: MKAnnotationView {
+    static let reuseID = "station-tag"
+
+    private let pin = StationTag()
+
+    override init(annotation: MKAnnotation?, reuseIdentifier: String?) {
+        super.init(annotation: annotation, reuseIdentifier: reuseIdentifier)
+        isUserInteractionEnabled = false
+        isEnabled = false
+        canShowCallout = false
+        displayPriority = .required
+        clipsToBounds = false
+        backgroundColor = .clear
+        // The dot under it already reads the station's name.
+        isAccessibilityElement = false
+        isHidden = true
+        addSubview(pin)
+    }
+
+    @available(*, unavailable)
+    required init?(coder aDecoder: NSCoder) {
+        fatalError("init(coder:) is not supported")
+    }
+
+    /// `dotSize`: the dot's size as drawn, so the tag's point stands on its edge.
+    func configure(zoom: MapZoom, isSelected: Bool, role: StationRole, station: Station,
+                   dotSize: CGFloat, place: StationTagPlace?) {
+        isUserInteractionEnabled = false
+        guard let place else {
+            isHidden = true
+            return
+        }
+        let font = Self.font(zoom: zoom, isSelected: isSelected)
+        let style: StationTag.Style = switch role {
+        case .home: .home
+        case .work: .work
+        case .plain: isSelected ? .open : .plain(Self.lineColor(of: station))
+        }
+        let size = StationTag.size(name: station.name, font: font, hasGlyph: role != .plain)
+        let rect = Self.rect(size: size, radius: dotSize / 2, place: place)
+
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        bounds = CGRect(origin: .zero, size: size)
+        pin.frame = bounds
+        // The view's centre sits on the station; move it so the point lands on the dot.
+        centerOffset = CGPoint(x: rect.midX, y: rect.midY)
+        CATransaction.commit()
+        pin.set(name: station.name, font: font, style: style, hasGlyph: role != .plain, pointX: -rect.minX)
+
+        zPriority = MKAnnotationViewZPriority(rawValue: isSelected ? 987 : (role == .plain ? 985 : 986))
+        isHidden = false
     }
 
     /// The station's line colour for its tag's bullet (the app's green at Union, where all meet).
@@ -1485,7 +1604,7 @@ final class StationAnnotationView: MKAnnotationView {
             .map { UIColor(hexString: $0.hex) } ?? .systemGray
     }
 
-    static func tagFont(zoom: MapZoom, isSelected: Bool) -> UIFont {
+    static func font(zoom: MapZoom, isSelected: Bool) -> UIFont {
         if isSelected { return .systemFont(ofSize: 14, weight: .bold) }
         switch zoom {
         case .street, .city: return .systemFont(ofSize: 13, weight: .semibold)
@@ -1495,7 +1614,7 @@ final class StationAnnotationView: MKAnnotationView {
     }
 
     /// Where the tag goes, relative to the dot's centre: above it, its point on the dot.
-    static func tagRect(size: CGSize, radius: CGFloat, place: StationTagPlace) -> CGRect {
+    static func rect(size: CGSize, radius: CGFloat, place: StationTagPlace) -> CGRect {
         let pointX: CGFloat = switch place {
         case .centre: size.width / 2
         case .runningRight: min(size.width / 2, StationTag.pointInset)

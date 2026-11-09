@@ -28,6 +28,11 @@ struct RootView: View {
     /// Bottom edge of the area the floating UI lives in: just above the search
     /// field (which itself rides above the keyboard while typing).
     @State private var floatingBottom: CGFloat = 0
+    /// Where the map buttons, the button or hint bottom left, and the search results
+    /// are on screen, for the stations' tags to keep clear of.
+    @State private var controlsFrame: CGRect = .zero
+    @State private var leadingFrame: CGRect = .zero
+    @State private var resultsFrame: CGRect = .zero
 
     private let network = RailNetwork.shared
 
@@ -245,6 +250,7 @@ struct RootView: View {
             onSelectTrain: { openTrackedTrip() },
             runningTrips: settings.showsAllTrains ? runningTrips : [],
             onSelectRunningTrain: { trip, next in openRunningTrain(trip, at: next) },
+            cover: mapCover,
             onSelect: { station in select(station, detent: .medium) }
         )
         .ignoresSafeArea()
@@ -277,6 +283,23 @@ struct RootView: View {
                 try? await Task.sleep(for: .seconds(5))
             }
         }
+    }
+
+    /// What's over the map as it shows now: the buttons and cards floating on it, and
+    /// the station's sheet.
+    private var mapCover: MapCover {
+        var floating: [CGRect] = []
+        if showsControls {
+            if !controlsFrame.isEmpty { floating.append(controlsFrame) }
+            // (Its frame isn't updated once it's gone.)
+            if TripTracker.shared.trip != nil || showsMapHint, !leadingFrame.isEmpty {
+                floating.append(leadingFrame)
+            }
+        }
+        if selected == nil, searchActive, !resultsFrame.isEmpty {
+            floating.append(resultsFrame)
+        }
+        return MapCover(floating: floating, sheetTop: selected == nil ? nil : sheetTop)
     }
 
     /// Someone new (no home or work, and no board opened yet, say with location off or
@@ -337,10 +360,12 @@ struct RootView: View {
                                 .transition(.opacity)
                         }
                     }
+                    .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { leadingFrame = $0 }
                     .padding(.leading, BottomBarMetrics.controlsTrailingInset)
                     .padding(.bottom, selected == nil ? BottomBarMetrics.legalRoom : 0)
                     Spacer(minLength: 0)
                     controls
+                        .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { controlsFrame = $0 }
                         .padding(.trailing, BottomBarMetrics.controlsTrailingInset)
                 }
                 .transition(.scale(scale: 0.85, anchor: .bottom).combined(with: .opacity))
@@ -352,6 +377,7 @@ struct RootView: View {
                     onStation: { station in openFromSearch(station) },
                     onPickPlace: { searchFocused = false }
                 )
+                .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { resultsFrame = $0 }
                 .padding(.horizontal, 16)
                 .layoutPriority(1)
             }
