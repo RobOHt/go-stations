@@ -24,9 +24,9 @@ enum MapZoom: Int, Comparable {
         switch self {
         case .street: return 16
         case .city: return 13
-        case .region: return 9
-        case .network: return 6.5
-        case .province: return 5
+        case .region: return 10
+        case .network: return 8
+        case .province: return 6.5
         }
     }
 
@@ -35,8 +35,8 @@ enum MapZoom: Int, Comparable {
         case .street: return 3.5
         case .city: return 3
         case .region: return 2
-        case .network: return 1.5
-        case .province: return 1.2
+        case .network: return 2
+        case .province: return 1.6
         }
     }
 
@@ -252,6 +252,9 @@ struct NetworkMapView: UIViewRepresentable {
         configuration.showsTraffic = false
         mapView.preferredConfiguration = configuration
 
+        // Your location in iOS's usual blue: in the app's green it passed for a station
+        // or a Kitchener line train.
+        mapView.tintColor = .systemBlue
         mapView.isRotateEnabled = false
         mapView.isPitchEnabled = false
         mapView.showsCompass = false
@@ -315,6 +318,7 @@ struct NetworkMapView: UIViewRepresentable {
         if coordinator.update(from: self) {
             coordinator.syncRolePins(in: mapView)
             coordinator.refreshStations(in: mapView)
+            coordinator.placeNames(in: mapView)
         }
         coordinator.syncPlace(place, in: mapView)
         coordinator.syncTrip(trackedTrip, in: mapView)
@@ -453,8 +457,90 @@ struct NetworkMapView: UIViewRepresentable {
                 zoom: zoom,
                 isSelected: station.code == selectedCode,
                 role: role(for: station),
-                name: station.name
+                name: station.name,
+                place: namePlaces[station.code]
             )
+        }
+
+        // MARK: Station names
+
+        /// Where each station's name goes on the map as it stands (none: no room).
+        private var namePlaces: [String: StationNamePlace] = [:]
+
+        /// Stations at the ends of the lines' runs.
+        private static let lineEnds = Set(RailNetwork.shared.lines.flatMap { line in
+            line.patterns.flatMap { [$0.first, $0.last].compactMap { $0 } }
+        })
+
+        /// Which names matter most, and get the room first: the open station, home and
+        /// work, Union, then where lines meet and where they end, then the rest.
+        private func nameRank(_ station: Station) -> Int {
+            if station.code == selectedCode { return 0 }
+            if station.code == homeCode || station.code == workCode { return 1 }
+            if station.isUnion { return 2 }
+            if station.lineCodes.count > 1 { return 3 }
+            if Self.lineEnds.contains(station.code) { return 4 }
+            return 5
+        }
+
+        private func dotSize(for station: Station) -> CGFloat {
+            station.code == selectedCode ? min(22, max(12, zoom.dotSize + 7)) : zoom.dotSize
+        }
+
+        /// Names every station on screen where there's room: the ones that matter most
+        /// first, each beside its dot (below, else right, left or above) where it covers
+        /// no other name, dot or home/work pin. Trains don't count: they move, and the
+        /// names shouldn't come and go as they pass. Zoomed right out, only the names
+        /// that matter most.
+        func placeNames(in mapView: MKMapView) {
+            let screen = mapView.bounds.insetBy(dx: -60, dy: -30)
+            var taken: [CGRect] = []
+            var onScreen: [(station: Station, point: CGPoint)] = []
+            for station in RailNetwork.shared.stations {
+                let point = mapView.convert(onTrack(station), toPointTo: mapView)
+                guard screen.contains(point) else { continue }
+                let radius = dotSize(for: station) / 2 + 1
+                taken.append(CGRect(x: point.x - radius, y: point.y - radius, width: radius * 2, height: radius * 2))
+                if role(for: station) != .plain {
+                    // The pin's balloon above the dot.
+                    taken.append(CGRect(x: point.x - 18, y: point.y - radius - 40, width: 36, height: 40))
+                }
+                onScreen.append((station, point))
+            }
+
+            var places: [String: StationNamePlace] = [:]
+            let ordered = onScreen.sorted {
+                (nameRank($0.station), $0.station.name) < (nameRank($1.station), $1.station.name)
+            }
+            for (station, point) in ordered {
+                let rank = nameRank(station)
+                if zoom == .province, rank > 4 { continue }
+                let size = StationAnnotationView.nameSize(station.name, zoom: zoom, isSelected: rank == 0)
+                let radius = dotSize(for: station) / 2
+                let options: [StationNamePlace] = role(for: station) == .plain
+                    ? [.below, .right, .left, .above] : [.below, .right, .left]
+                var chosen: (place: StationNamePlace, frame: CGRect)?
+                for place in options {
+                    let frame = StationAnnotationView.nameFrame(size: size, radius: radius, place: place)
+                        .offsetBy(dx: point.x, dy: point.y)
+                    if !taken.contains(where: { $0.intersects(frame) }) {
+                        chosen = (place, frame)
+                        break
+                    }
+                }
+                // The open station, home and work always have theirs.
+                if chosen == nil, rank <= 1 {
+                    chosen = (.below, StationAnnotationView.nameFrame(size: size, radius: radius, place: .below)
+                        .offsetBy(dx: point.x, dy: point.y))
+                }
+                if let chosen {
+                    places[station.code] = chosen.place
+                    taken.append(chosen.frame)
+                }
+            }
+            guard places != namePlaces else { return }
+            namePlaces = places
+            refreshStations(in: mapView)
         }
 
         func refreshStations(in mapView: MKMapView) {
@@ -596,6 +682,7 @@ struct NetworkMapView: UIViewRepresentable {
 
         func mapView(_ mapView: MKMapView, regionDidChangeAnimated animated: Bool) {
             controller?.checkPlacement(mapView)
+            placeNames(in: mapView)
         }
 
         func mapViewDidChangeVisibleRegion(_ mapView: MKMapView) {
@@ -610,6 +697,7 @@ struct NetworkMapView: UIViewRepresentable {
             guard newZoom != zoom else { return }
             zoom = newZoom
             refreshStations(in: mapView)
+            placeNames(in: mapView)
             for marker in running.values {
                 guard let view = mapView.view(for: marker) as? TrainAnnotationView, let trip = marker.running else { continue }
                 view.configure(color: lineColor(trip.lineCode), animatesPointer: false, isOnBoard: false, scale: runningScale)
@@ -1004,8 +1092,8 @@ struct NetworkMapView: UIViewRepresentable {
         private var runningScale: CGFloat {
             switch zoom {
             case .street, .city: return 0.85
-            case .region: return 0.75
-            case .network, .province: return 0.62
+            case .region: return 0.68
+            case .network, .province: return 0.55
             }
         }
 
@@ -1355,7 +1443,7 @@ final class StationAnnotationView: MKAnnotationView {
     private static let ink = UIColor(red: 0x1C / 255, green: 0x1C / 255, blue: 0x1E / 255, alpha: 1)
 
     private let dot = CAShapeLayer()
-    private let nameTag = PaddedLabel()
+    private let nameTag = HaloLabel()
 
     override init(annotation: MKAnnotation?, reuseIdentifier: String?) {
         super.init(annotation: annotation, reuseIdentifier: reuseIdentifier)
@@ -1373,10 +1461,7 @@ final class StationAnnotationView: MKAnnotationView {
         dot.shadowOffset = CGSize(width: 0, height: 0.5)
         layer.addSublayer(dot)
 
-        nameTag.textColor = .label
-        nameTag.backgroundColor = UIColor.systemBackground.withAlphaComponent(0.85)
-        nameTag.layer.cornerRadius = 5
-        nameTag.layer.masksToBounds = true
+        nameTag.isHidden = true
         addSubview(nameTag)
     }
 
@@ -1385,7 +1470,7 @@ final class StationAnnotationView: MKAnnotationView {
         fatalError("init(coder:) is not supported")
     }
 
-    func configure(zoom: MapZoom, isSelected: Bool, role: StationRole, name: String) {
+    func configure(zoom: MapZoom, isSelected: Bool, role: StationRole, name: String, place: StationNamePlace?) {
         isUserInteractionEnabled = false
 
         let size = isSelected ? min(22, max(12, zoom.dotSize + 7)) : zoom.dotSize
@@ -1403,18 +1488,84 @@ final class StationAnnotationView: MKAnnotationView {
         dot.shadowRadius = zoom <= .city ? 1.5 : 0.8
         CATransaction.commit()
 
-        let showsName = isSelected || zoom <= .city
-        nameTag.isHidden = !showsName
-        if showsName {
+        nameTag.isHidden = place == nil
+        if let place {
             nameTag.text = name
-            nameTag.font = .systemFont(ofSize: isSelected ? 12 : 11, weight: isSelected ? .bold : .semibold)
-            let tagSize = nameTag.intrinsicContentSize
-            nameTag.frame = CGRect(x: (size - tagSize.width) / 2, y: size + 3,
-                                   width: tagSize.width, height: tagSize.height)
+            nameTag.font = Self.nameFont(zoom: zoom, isSelected: isSelected)
+            let tagSize = Self.nameSize(name, zoom: zoom, isSelected: isSelected)
+            nameTag.frame = Self.nameFrame(size: tagSize, radius: size / 2, place: place)
+                .offsetBy(dx: size / 2, dy: size / 2)
         }
 
         zPriority = MKAnnotationViewZPriority(rawValue: isSelected ? 900 : (role == .plain ? 500 : 600))
         accessibilityLabel = name
+    }
+
+    static func nameFont(zoom: MapZoom, isSelected: Bool) -> UIFont {
+        if isSelected { return .systemFont(ofSize: 13, weight: .bold) }
+        switch zoom {
+        case .street: return .systemFont(ofSize: 12.5, weight: .semibold)
+        case .city: return .systemFont(ofSize: 12, weight: .semibold)
+        case .region: return .systemFont(ofSize: 11.5, weight: .semibold)
+        case .network, .province: return .systemFont(ofSize: 11, weight: .semibold)
+        }
+    }
+
+    /// The name's size, with room for its halo.
+    static func nameSize(_ name: String, zoom: MapZoom, isSelected: Bool) -> CGSize {
+        let text = (name as NSString).size(withAttributes: [.font: nameFont(zoom: zoom, isSelected: isSelected)])
+        return CGSize(width: ceil(text.width) + 2 * HaloLabel.inset, height: ceil(text.height) + 2 * HaloLabel.inset)
+    }
+
+    /// Where the name goes, relative to the dot's centre.
+    static func nameFrame(size: CGSize, radius: CGFloat, place: StationNamePlace) -> CGRect {
+        switch place {
+        case .below: CGRect(x: -size.width / 2, y: radius, width: size.width, height: size.height)
+        case .above: CGRect(x: -size.width / 2, y: -radius - size.height, width: size.width, height: size.height)
+        case .right: CGRect(x: radius + 1, y: -size.height / 2, width: size.width, height: size.height)
+        case .left: CGRect(x: -radius - 1 - size.width, y: -size.height / 2, width: size.width, height: size.height)
+        }
+    }
+}
+
+/// Which side of its dot a station's name goes.
+enum StationNamePlace {
+    case below, right, left, above
+}
+
+/// A station's name as maps write place names: text in a halo of the map's
+/// background colour, so it reads over lines and streets in light and dark.
+final class HaloLabel: UIView {
+    /// Room around the text for the halo.
+    static let inset: CGFloat = 2.5
+
+    var text = "" { didSet { setNeedsDisplay() } }
+    var font: UIFont = .systemFont(ofSize: 12, weight: .semibold) { didSet { setNeedsDisplay() } }
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        isOpaque = false
+        backgroundColor = .clear
+        contentMode = .redraw
+        isUserInteractionEnabled = false
+        registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (label: HaloLabel, _: UITraitCollection) in
+            label.setNeedsDisplay()
+        }
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) is not supported")
+    }
+
+    override func draw(_ rect: CGRect) {
+        let origin = CGPoint(x: Self.inset, y: Self.inset)
+        let halo = UIColor.systemBackground.resolvedColor(with: traitCollection).withAlphaComponent(0.9)
+        let ink = UIColor.label.resolvedColor(with: traitCollection)
+        let text = self.text as NSString
+        // A wide outline of the letters in the halo colour, then the letters over it.
+        text.draw(at: origin, withAttributes: [.font: font, .strokeColor: halo, .strokeWidth: 30])
+        text.draw(at: origin, withAttributes: [.font: font, .foregroundColor: ink])
     }
 }
 
@@ -1521,20 +1672,5 @@ final class RolePinView: MKAnnotationView {
 
     private func applyColor() {
         balloon.fillColor = role.uiColor.resolvedColor(with: traitCollection).cgColor
-    }
-}
-
-/// A label with a little padding, used for station name tags.
-final class PaddedLabel: UILabel {
-    private let insets = UIEdgeInsets(top: 2, left: 5, bottom: 2, right: 5)
-
-    override func drawText(in rect: CGRect) {
-        super.drawText(in: rect.inset(by: insets))
-    }
-
-    override var intrinsicContentSize: CGSize {
-        let size = super.intrinsicContentSize
-        return CGSize(width: size.width + insets.left + insets.right,
-                      height: size.height + insets.top + insets.bottom)
     }
 }
