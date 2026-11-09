@@ -488,27 +488,34 @@ struct NetworkMapView: UIViewRepresentable {
         }
 
         /// Names every station on screen where there's room: the ones that matter most
-        /// first, each beside its dot (below, else right, left or above) where it covers
-        /// no other name, dot or home/work pin. Trains don't count: they move, and the
-        /// names shouldn't come and go as they pass. Zoomed right out, only the names
-        /// that matter most.
+        /// first, each beside its dot (to the right, as on a line map, else left, below
+        /// or above) where it covers no other name, dot or home/work pin, stays on
+        /// screen and keeps clear of the map buttons down the right side. Trains don't
+        /// count: they move, and the names shouldn't come and go as they pass. Zoomed
+        /// right out, only the names that matter most.
         func placeNames(in mapView: MKMapView) {
-            let screen = mapView.bounds.insetBy(dx: -60, dy: -30)
-            var taken: [CGRect] = []
+            let bounds = mapView.bounds
+            let screen = bounds.insetBy(dx: -60, dy: -30)
+            let usable = CGRect(x: 4, y: 0,
+                                width: bounds.width - 4 - (BottomBarMetrics.controlsTrailingInset + 48 + 12),
+                                height: bounds.height)
+            var dots: [String: CGRect] = [:]
+            var pins: [CGRect] = []
             var onScreen: [(station: Station, point: CGPoint)] = []
             for station in RailNetwork.shared.stations {
                 let point = mapView.convert(onTrack(station), toPointTo: mapView)
                 guard screen.contains(point) else { continue }
                 let radius = dotSize(for: station) / 2 + 1
-                taken.append(CGRect(x: point.x - radius, y: point.y - radius, width: radius * 2, height: radius * 2))
+                dots[station.code] = CGRect(x: point.x - radius, y: point.y - radius, width: radius * 2, height: radius * 2)
                 if role(for: station) != .plain {
                     // The pin's balloon above the dot.
-                    taken.append(CGRect(x: point.x - 18, y: point.y - radius - 40, width: 36, height: 40))
+                    pins.append(CGRect(x: point.x - 18, y: point.y - radius - 40, width: 36, height: 40))
                 }
                 onScreen.append((station, point))
             }
 
             var places: [String: StationNamePlace] = [:]
+            var names: [CGRect] = []
             let ordered = onScreen.sorted {
                 (nameRank($0.station), $0.station.name) < (nameRank($1.station), $1.station.name)
             }
@@ -518,24 +525,25 @@ struct NetworkMapView: UIViewRepresentable {
                 let size = StationAnnotationView.nameSize(station.name, zoom: zoom, isSelected: rank == 0)
                 let radius = dotSize(for: station) / 2
                 let options: [StationNamePlace] = role(for: station) == .plain
-                    ? [.below, .right, .left, .above] : [.below, .right, .left]
-                var chosen: (place: StationNamePlace, frame: CGRect)?
-                for place in options {
-                    let frame = StationAnnotationView.nameFrame(size: size, radius: radius, place: place)
+                    ? [.right, .left, .below, .above] : [.right, .left, .below]
+                func frame(_ place: StationNamePlace) -> CGRect {
+                    StationAnnotationView.nameFrame(size: size, radius: radius, place: place)
                         .offsetBy(dx: point.x, dy: point.y)
-                    if !taken.contains(where: { $0.intersects(frame) }) {
-                        chosen = (place, frame)
-                        break
-                    }
                 }
-                // The open station, home and work always have theirs.
+                var chosen = options.first { place in
+                    let rect = frame(place)
+                    return usable.contains(rect)
+                        && !names.contains { $0.intersects(rect) }
+                        && !pins.contains { $0.intersects(rect) }
+                        && !dots.contains { $0.key != station.code && $0.value.intersects(rect) }
+                }
+                // The open station, home and work always have theirs: on screen if it can be.
                 if chosen == nil, rank <= 1 {
-                    chosen = (.below, StationAnnotationView.nameFrame(size: size, radius: radius, place: .below)
-                        .offsetBy(dx: point.x, dy: point.y))
+                    chosen = options.first { usable.contains(frame($0)) } ?? .below
                 }
                 if let chosen {
-                    places[station.code] = chosen.place
-                    taken.append(chosen.frame)
+                    places[station.code] = chosen
+                    names.append(frame(chosen))
                 }
             }
             guard places != namePlaces else { return }
