@@ -498,6 +498,9 @@ struct NetworkMapView: UIViewRepresentable {
         private var trainsAt: [String: Int] = [:]
         /// The timetable's counts are in (or took too long): names can go up.
         private var namesReady = false
+        /// The map is moving (a pinch, a drag, the camera on its way somewhere): tags
+        /// stay put until it stops, rather than shuffle on the way.
+        private var isMoving = false
 
         /// Stations at the ends of the lines' runs.
         private static let lineEnds = Set(RailNetwork.shared.lines.flatMap { line in
@@ -523,28 +526,33 @@ struct NetworkMapView: UIViewRepresentable {
         /// Gives every station on screen a tag, a pin with its name standing on its dot,
         /// where there's room: the ones that matter most first, each above its dot
         /// (centred, else running right or left of its point) where it covers no other
-        /// tag or dot, stays on screen below the status bar and above Apple's logo,
-        /// the search bar or the sheet, and keeps clear of the map buttons and cards.
-        /// Trains don't count: they move, and the tags shouldn't come and go as they
-        /// pass (the tags sit above them instead). Zoomed right out, only the tags
-        /// that matter most. A tag keeps its side of the dot while it still fits there,
-        /// so tags only move when they have to, and every change animates.
+        /// tag or dot, stays on screen below the status bar and above Apple's logo and
+        /// the search bar, isn't cut in two by the sheet's edge, and keeps clear of the
+        /// map buttons and cards. Trains don't count: they move, and the tags shouldn't
+        /// come and go as they pass (the tags sit above them instead). Zoomed right
+        /// out, only the tags that matter most.
+        ///
+        /// So that tags only move when they have to: each keeps its side of the dot
+        /// while it still fits there, and nothing moves while the map does (a pinch, a
+        /// drag, the camera going somewhere), only once it stops. Every change animates.
         func placeNames(in mapView: MKMapView) {
-            guard namesReady else { return }
+            guard namesReady, !isMoving else { return }
             let bounds = mapView.bounds
             let screen = bounds.insetBy(dx: -60, dy: -30)
             let top = max(mapView.window?.safeAreaInsets.top ?? 0, mapView.safeAreaInsets.top) + 4
             // Apple's logo and Legal link (which must stay readable) sit on the map's
-            // bottom layout margin, just above the search bar; a sheet hides the rest.
-            var bottom = bounds.height - (BottomBarMetrics.maximumRoom + 30)
-            if let sheetTop = cover.sheetTop {
-                bottom = min(bottom, mapView.convert(CGPoint(x: 0, y: sheetTop), from: nil).y - 6)
-            }
+            // bottom layout margin, just above the search bar.
+            let bottom = bounds.height - (BottomBarMetrics.maximumRoom + 30)
             let visible = CGRect(x: 4, y: top, width: bounds.width - 8, height: max(0, bottom - top))
             // The map buttons and anything else floating over the map, with a little room.
             let floating = cover.floating.map { mapView.convert($0, from: nil).insetBy(dx: -6, dy: -6) }
+            // The sheet's top edge, while it's up: a tag there would be cut in two. (One
+            // wholly under the sheet just waits there, hidden, for the sheet to go.)
+            let sheetEdge = cover.sheetTop.map { mapView.convert(CGPoint(x: 0, y: $0), from: nil).y }
             func isClear(_ rect: CGRect) -> Bool {
-                visible.contains(rect) && !floating.contains { $0.intersects(rect) }
+                guard visible.contains(rect), !floating.contains(where: { $0.intersects(rect) }) else { return false }
+                guard let sheetEdge else { return true }
+                return !(rect.minY - 6 ..< rect.maxY + 6).contains(sheetEdge)
             }
             // Your location's blue dot, drawn over everything: no tag's name goes under it.
             var you: CGRect?
@@ -780,7 +788,12 @@ struct NetworkMapView: UIViewRepresentable {
             controller?.userGesture(recognizer.state)
         }
 
+        func mapView(_ mapView: MKMapView, regionWillChangeAnimated animated: Bool) {
+            isMoving = true
+        }
+
         func mapView(_ mapView: MKMapView, regionDidChangeAnimated animated: Bool) {
+            isMoving = false
             controller?.checkPlacement(mapView)
             placeNames(in: mapView)
         }
@@ -797,7 +810,8 @@ struct NetworkMapView: UIViewRepresentable {
             let newZoom = MapZoom(span: mapView.region.span.latitudeDelta, keeping: zoom)
             guard newZoom != zoom else { return }
             zoom = newZoom
-            // Where the tags go at this zoom, then how they look: each tag changes once.
+            // The dots and tags take this zoom's sizes now; where the tags go waits for
+            // the map to stop (see `placeNames`).
             placeNames(in: mapView)
             refreshStations(in: mapView)
             for marker in running.values {
