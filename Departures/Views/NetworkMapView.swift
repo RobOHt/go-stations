@@ -511,6 +511,13 @@ struct NetworkMapView: UIViewRepresentable {
             func isClear(_ rect: CGRect) -> Bool {
                 visible.contains(rect) && !floating.contains { $0.intersects(rect) }
             }
+            // Your location's blue dot, drawn over everything: no tag's name goes under it.
+            var you: CGRect?
+            if !isOnBoard, let location = mapView.userLocation.location {
+                let point = mapView.convert(location.coordinate, toPointTo: mapView)
+                you = CGRect(x: point.x - 11, y: point.y - 11, width: 22, height: 22)
+            }
+            let above: [StationTagPlace] = [.centre, .runningRight, .runningLeft]
             var dots: [String: CGRect] = [:]
             var onScreen: [(station: Station, point: CGPoint)] = []
             for station in RailNetwork.shared.stations {
@@ -537,18 +544,35 @@ struct NetworkMapView: UIViewRepresentable {
                     StationTagView.rect(size: size, radius: radius, place: place)
                         .offsetBy(dx: point.x, dy: point.y)
                 }
-                var chosen = StationTagPlace.allCases.first { place in
+                // A tag hanging below for you stays there until there's clear room
+                // above, so it doesn't flip back and forth as your location wobbles.
+                let youRoom: CGFloat = namePlaces[station.code] == .below ? 6 : 0
+                func coversYou(_ place: StationTagPlace) -> Bool {
+                    guard let you else { return false }
+                    // The tag's body, that is: your dot on its point is fine.
+                    var body = frame(place)
+                    body.size.height -= StationTag.pointLength
+                    if place == .below { body.origin.y += StationTag.pointLength }
+                    return you.insetBy(dx: -youRoom, dy: -youRoom).intersects(body)
+                }
+                func fits(_ place: StationTagPlace) -> Bool {
                     let rect = frame(place)
-                    return isClear(rect)
+                    return isClear(rect) && !coversYou(place)
                         && !tags.contains { $0.intersects(rect) }
                         && !dots.contains { $0.key != station.code && $0.value.intersects(rect) }
+                }
+                var chosen = above.first(where: fits)
+                // You're where its tag would stand (at the station, say): it hangs below.
+                if chosen == nil, above.contains(where: coversYou), fits(.below) {
+                    chosen = .below
                 }
                 // The open station, home and work have theirs even over other dots, or
                 // under a button, as long as it's on screen: a tag cut off at the edge
                 // would look broken.
                 if chosen == nil, rank <= 1 {
-                    chosen = StationTagPlace.allCases.first { isClear(frame($0)) }
-                        ?? StationTagPlace.allCases.first { visible.contains(frame($0)) }
+                    chosen = (above + [.below]).first { isClear(frame($0)) && !coversYou($0) }
+                        ?? above.first { isClear(frame($0)) }
+                        ?? above.first { visible.contains(frame($0)) }
                 }
                 if let chosen {
                     places[station.code] = chosen
@@ -700,6 +724,8 @@ struct NetworkMapView: UIViewRepresentable {
 
         func mapView(_ mapView: MKMapView, didUpdate userLocation: MKUserLocation) {
             self.userLocation = userLocation.location
+            // The tags make way for your location as you move.
+            placeNames(in: mapView)
             guard trip != nil else { return }
             let wasOnBoard = isOnBoard
             updateOnBoard(in: mapView, now: Date())
@@ -1591,7 +1617,8 @@ final class StationTagView: MKAnnotationView {
         // The view's centre sits on the station; move it so the point lands on the dot.
         centerOffset = CGPoint(x: rect.midX, y: rect.midY)
         CATransaction.commit()
-        pin.set(name: station.name, font: font, style: style, hasGlyph: role != .plain, pointX: -rect.minX)
+        pin.set(name: station.name, font: font, style: style, hasGlyph: role != .plain,
+                pointX: -rect.minX, pointsUp: place == .below)
 
         zPriority = MKAnnotationViewZPriority(rawValue: isSelected ? 987 : (role == .plain ? 985 : 986))
         isHidden = false
@@ -1613,28 +1640,31 @@ final class StationTagView: MKAnnotationView {
         }
     }
 
-    /// Where the tag goes, relative to the dot's centre: above it, its point on the dot.
+    /// Where the tag goes, relative to the dot's centre: above it (below it when it
+    /// hangs), its point on the dot.
     static func rect(size: CGSize, radius: CGFloat, place: StationTagPlace) -> CGRect {
         let pointX: CGFloat = switch place {
-        case .centre: size.width / 2
+        case .centre, .below: size.width / 2
         case .runningRight: min(size.width / 2, StationTag.pointInset)
         case .runningLeft: max(size.width / 2, size.width - StationTag.pointInset)
         }
-        return CGRect(x: -pointX, y: -radius - size.height, width: size.width, height: size.height)
+        let y = place == .below ? radius : -radius - size.height
+        return CGRect(x: -pointX, y: y, width: size.width, height: size.height)
     }
 }
 
 /// How a station's tag stands on its dot: centred over it, or running off to the
-/// right or left of its point (where the room is).
+/// right or left of its point (where the room is). Where your location covers the
+/// room above, it hangs centred below the dot instead, its point up.
 enum StationTagPlace: CaseIterable {
-    case centre, runningRight, runningLeft
+    case centre, runningRight, runningLeft, below
 }
 
 /// A station on the map as a pin, so it reads as something to tap: a rounded tag
-/// with the station's name and a small point at the bottom standing on its dot.
-/// Home and work are in their colours with a house or briefcase; the open station
-/// is the map's ink colour turned round; the rest are in the map's own colours,
-/// with a bullet in the line's colour.
+/// with the station's name and a small point at the bottom standing on its dot (at
+/// the top when it hangs below the dot). Home and work are in their colours with a
+/// house or briefcase; the open station is the map's ink colour turned round; the
+/// rest are in the map's own colours, with a bullet in the line's colour.
 final class StationTag: UIView {
     enum Style {
         case plain(UIColor), open, home, work
@@ -1651,6 +1681,7 @@ final class StationTag: UIView {
     private var style = Style.plain(.systemGray)
     private var hasGlyph = false
     private var pointX: CGFloat = 0
+    private var pointsUp = false
 
     /// The tag's size for a name: its body, and the point under it.
     static func size(name: String, font: UIFont, hasGlyph: Bool) -> CGSize {
@@ -1680,12 +1711,13 @@ final class StationTag: UIView {
         fatalError("init(coder:) is not supported")
     }
 
-    func set(name: String, font: UIFont, style: Style, hasGlyph: Bool, pointX: CGFloat) {
+    func set(name: String, font: UIFont, style: Style, hasGlyph: Bool, pointX: CGFloat, pointsUp: Bool = false) {
         self.name = name
         self.font = font
         self.style = style
         self.hasGlyph = hasGlyph
         self.pointX = pointX
+        self.pointsUp = pointsUp
         setNeedsDisplay()
         updateShadow()
     }
@@ -1701,7 +1733,8 @@ final class StationTag: UIView {
     }
 
     private var body: CGRect {
-        CGRect(x: 0.5, y: 0.5, width: bounds.width - 1, height: bounds.height - Self.pointLength - 1)
+        CGRect(x: 0.5, y: pointsUp ? Self.pointLength + 0.5 : 0.5,
+               width: bounds.width - 1, height: bounds.height - Self.pointLength - 1)
     }
 
     /// The body and its point, as one shape.
@@ -1715,10 +1748,13 @@ final class StationTag: UIView {
     private func point() -> UIBezierPath {
         let body = self.body
         let x = min(max(pointX, body.minX + body.height / 2), body.maxX - body.height / 2)
+        // Where the point leaves the body (just inside it), and its tip on the dot.
+        let base = pointsUp ? body.minY + 1 : body.maxY - 1
+        let tip = pointsUp ? bounds.minY + 0.5 : bounds.maxY - 0.5
         let path = UIBezierPath()
-        path.move(to: CGPoint(x: x - 5.5, y: body.maxY - 1))
-        path.addLine(to: CGPoint(x: pointX, y: bounds.maxY - 0.5))
-        path.addLine(to: CGPoint(x: x + 5.5, y: body.maxY - 1))
+        path.move(to: CGPoint(x: x - 5.5, y: base))
+        path.addLine(to: CGPoint(x: pointX, y: tip))
+        path.addLine(to: CGPoint(x: x + 5.5, y: base))
         path.close()
         return path
     }
