@@ -114,7 +114,7 @@ final class TripAlerts: NSObject {
         if (trip.legIndex ?? 0) == 0, !atStation.contains(trip.activityID),
            let departure = trip.departure, departure.addingTimeInterval(-Self.lead) > now,
            let station = network.station(trip.boardingCode), !isNear(station) {
-            let line = network.line(code: trip.lineCode)?.name.map { "\($0) line" } ?? "\(trip.lineCode) line"
+            let line = network.line(code: trip.lineCode).map { "\($0.name) line" } ?? "\(trip.lineCode) line"
             alerts.append(Alert(
                 id: Self.leaveID,
                 date: departure.addingTimeInterval(-Self.lead),
