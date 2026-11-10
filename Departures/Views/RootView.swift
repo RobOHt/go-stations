@@ -104,9 +104,10 @@ struct RootView: View {
         }
         .onChange(of: TripTracker.shared.trip?.startedAt) { _, started in
             // A newly tracked trip: show where the train is and where it goes (behind
-            // the sheets until they close).
+            // the sheets until they close); all of a trip planned from search.
             guard started != nil, let trip = TripTracker.shared.trip else { return }
-            var coordinates = [trip.boardingCode, trip.destinationCode].compactMap { network.station($0)?.coordinate }
+            let stations = trip.route.map { $0.flatMap(\.stops) } ?? [trip.boardingCode, trip.destinationCode]
+            var coordinates = stations.compactMap { network.station($0)?.coordinate }
             if let train = trip.position(at: Date(), on: StartupStation.geometry) {
                 let place = TrackGeometry.coordinate(train)
                 coordinates.append(CLLocationCoordinate2D(latitude: place.latitude, longitude: place.longitude))

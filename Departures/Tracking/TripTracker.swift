@@ -40,6 +40,10 @@ struct TrackedTrip: Codable, Equatable, Sendable {
     /// Alerts for this trip: before it leaves, before changes, before your stop.
     /// Nil until you say: on if you've allowed them before.
     var alerts: Bool? = nil
+    /// The whole trip planned from search, train by train from where you get on
+    /// to where you get off: what the map shows of it (nil: tracked from a board,
+    /// which shows the train's whole line).
+    var route: [RouteStretch]? = nil
 
     var hasStartingStop: Bool { startsAtStop ?? false }
 
@@ -181,6 +185,7 @@ struct TrackedTrip: Codable, Equatable, Sendable {
         next.legCount = seen.legCount
         next.legStartedAt = seen.legStartedAt
         next.alerts = seen.alerts
+        next.route = seen.route
         for (index, stop) in next.stops.enumerated() {
             guard let old = seen.stops.first(where: { $0.code == stop.code }) else { continue }
             next.stops[index].arrived = old.arrived
@@ -214,6 +219,7 @@ struct TrackedTrip: Codable, Equatable, Sendable {
         trip.legCount = legCount
         trip.legStartedAt = now
         trip.alerts = alerts
+        trip.route = route
         return trip
     }
 
@@ -273,6 +279,13 @@ struct TrackedTrip: Codable, Equatable, Sendable {
             return nil
         }
     }
+}
+
+/// One train's stretch of a trip planned from search: its stops from where you
+/// get on to where you get off.
+struct RouteStretch: Codable, Equatable, Sendable {
+    let lineCode: String
+    let stops: [String]
 }
 
 /// A train you'll change to, on a trip with changes.
@@ -360,6 +373,9 @@ final class TripTracker {
         trip.journeyKey = journey.id
         trip.legIndex = 0
         trip.legCount = journey.legs.count
+        trip.route = journey.legs.map { leg in
+            RouteStretch(lineCode: leg.lineCode, stops: Array(leg.stops[leg.board...leg.alight]))
+        }
         set(trip)
         TripActivityController.shared.start(trip)
     }

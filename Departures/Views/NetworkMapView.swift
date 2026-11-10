@@ -1425,8 +1425,9 @@ struct NetworkMapView: UIViewRepresentable {
             return RailNetwork.shared.trackPaths.first { $0.lineCode == line }?.uiColor ?? .systemGray
         }
 
-        /// While a trip is tracked, its line stands out: the others fade. A trip
-        /// planned from search is drawn over the network, which fades all over.
+        /// While a train is tracked, its line stands out: the others fade. A trip
+        /// planned from search (on the trip card, or tracked) is drawn over the
+        /// network, which fades all over: only the trip stands out.
         private func lineAlpha(_ track: TrackPolyline) -> CGFloat {
             if journeyID != nil { return 0.25 }
             guard let trip else { return 1 }
@@ -1444,16 +1445,28 @@ struct NetworkMapView: UIViewRepresentable {
 
         /// Draws a trip planned from search (or stops drawing one): each train's
         /// stretch from where you get on to where you get off, in its line's colour
-        /// over the dimmed network.
-        func syncJourney(_ journey: Journey?, in mapView: MKMapView) {
-            guard journey?.id != journeyID else { return }
-            journeyID = journey?.id
+        /// over the dimmed network, and nothing else of the lines. The trip on the
+        /// trip card while it's up (`preview`), otherwise a tracked one, whose train
+        /// moves along it.
+        func syncJourney(_ preview: Journey?, in mapView: MKMapView) {
+            let shown: (id: String, stretches: [RouteStretch])?
+            if let preview {
+                shown = ("card-\(preview.id)", preview.legs.map {
+                    RouteStretch(lineCode: $0.lineCode, stops: Array($0.stops[$0.board...$0.alight]))
+                })
+            } else if let trip, let route = trip.route, !route.isEmpty {
+                shown = ("tracked-\(trip.journeyKey ?? trip.activityID)", route)
+            } else {
+                shown = nil
+            }
+            guard shown?.id != journeyID else { return }
+            journeyID = shown?.id
             let old = journeyRoute
             var casings: [TrainRouteOverlay] = []
             var lines: [TrainRouteOverlay] = []
-            for leg in journey?.legs ?? [] {
-                let code = RailNetwork.shared.line(code: leg.lineCode)?.code ?? leg.lineCode
-                let points = geometry.route(line: code, stops: leg.stops, from: leg.board, to: leg.alight)
+            for stretch in shown?.stretches ?? [] where stretch.stops.count >= 2 {
+                let code = RailNetwork.shared.line(code: stretch.lineCode)?.code ?? stretch.lineCode
+                let points = geometry.route(line: code, stops: stretch.stops, from: 0, to: stretch.stops.count - 1)
                 guard points.count >= 2 else { continue }
                 let coordinates = points.map { Self.coordinate($0) }
                 casings.append(TrainRouteOverlay.make(coordinates, color: lineColor(code), casing: true))
@@ -1464,7 +1477,9 @@ struct NetworkMapView: UIViewRepresentable {
             mapView.removeOverlays(old)
             for overlay in old { routeRenderers[ObjectIdentifier(overlay)] = nil }
             dimLines()
-            let stations = Set(journey.map { [$0.originCode] + $0.changeCodes + [$0.endStation] } ?? [])
+            // Where you get on and off each train.
+            let ends = (shown?.stretches ?? []).flatMap { [$0.stops.first, $0.stops.last].compactMap { $0 } }
+            let stations = Set(ends)
             if stations != journeyStations {
                 journeyStations = stations
                 placeNames(in: mapView)
@@ -1523,7 +1538,9 @@ struct NetworkMapView: UIViewRepresentable {
         /// only when it reaches the next one: its ends sit under the station dots,
         /// and the train moves along it.
         private func updateRoute(in mapView: MKMapView, now: Date) {
-            guard let trip else { return }
+            // A trip planned from search shows just its own stretches instead (see
+            // `syncJourney`), not the train's line up to where you get on.
+            guard let trip, trip.route == nil else { return }
             // From the last stop the train has reached where it's drawn.
             let start = trackedSpot?.reached ?? trip.state(at: now).reached(stopCount: trip.stops.count)
             guard start != routeStart else { return }
