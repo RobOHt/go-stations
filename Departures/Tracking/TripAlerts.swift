@@ -154,7 +154,7 @@ final class TripAlerts: NSObject {
     }
 
     /// The reminder to set off: "The 12:06 Lakeshore West line train from
-    /// Exhibition, eastbound to Union Station." Which way it goes when that's
+    /// Port Credit, eastbound to Union Station." Which way it goes when that's
     /// known (as its Live Activity has it), and where to when that is.
     static func leaveBody(time: Date, line: String, from station: String, direction: String?,
                           terminus: String?) -> String {

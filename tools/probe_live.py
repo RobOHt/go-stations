@@ -313,11 +313,116 @@ def timeline(polls, gap):
                       "dep", fmt(stop.get("departure")), stop.get("schedule_relationship"))
 
 
+NETWORK = os.path.join(os.path.dirname(__file__), "..", "Departures", "Resources", "network.json")
+WORKER = "https://go-stations.robinzhongsh2.workers.dev/v1/live/trains"
+
+
+def metres(lat1, lon1, lat2, lon2):
+    """Distance between two points, in metres."""
+    from math import asin, cos, radians, sin, sqrt
+    dlat, dlon = radians(lat2 - lat1), radians(lon2 - lon1)
+    a = sin(dlat / 2) ** 2 + cos(radians(lat1)) * cos(radians(lat2)) * sin(dlon / 2) ** 2
+    return 2 * 6371000 * asin(sqrt(a))
+
+
+def worker_trains():
+    """The Worker's /v1/live/trains (what the app gets), by trip number, or {}."""
+    request = Request(WORKER, headers={"Accept": "application/json", "User-Agent": "go-stations-probe"})
+    try:
+        with urlopen(request, timeout=20) as response:
+            return {t["trip"]: t for t in json.loads(response.read()).get("trains", [])}
+    except Exception:  # noqa: BLE001 - report as nothing and carry on
+        return {}
+
+
+def approach(code, polls, gap):
+    """Trains coming into one station (e.g. UN), poll by poll, as both feeds and the
+    Worker (what the app gets) have them: the stop each says it's at or on its way
+    to, how late, how far out, and how old the report is. Then, for each train that
+    got in while polling, when it was first reported standing there (and how late
+    then), its timetabled time there, and the longest gap between its reports."""
+    stations = {s["code"]: s for s in json.load(open(NETWORK))["stations"]}
+    target = stations[code]
+    section(f"Trains into {target['name']} ({code}): {polls} polls, {gap:.0f} s apart")
+    rows = {}  # trip number -> [(clock, distance, glance, vehicle, app)]
+    due = {}  # trip number -> (arrival time, delay) at the station, by TripUpdates
+    odd = {}  # stop codes reported near the station that aren't stations
+    for poll in range(polls):
+        started = time.time()
+        _, _, glance, _ = get("/ServiceataGlance/Trains/All")
+        _, _, vehicles, _ = get("/Gtfs/Feed/VehiclePosition")
+        app = worker_trains()
+        if poll % 4 == 0:
+            _, _, feed, _ = get("/Gtfs/Feed/TripUpdates")
+            for entity in find_list(feed or {}, "entity"):
+                for stop in (entity.get("trip_update") or {}).get("stop_time_update") or []:
+                    if stop.get("stop_id") == code and (stop.get("arrival") or {}).get("time"):
+                        due[number_of(entity)] = (stop["arrival"]["time"], stop["arrival"].get("delay"))
+        trips = {str(t.get("TripNumber")): t for t in find_list(glance or {}, "Trips.Trip") if isinstance(t, dict)}
+        trains = {number_of(e): e for e in find_list(vehicles or {}, "entity") if is_train(e) or number_of(e) in trips}
+        clock = datetime.now(TORONTO).strftime("%H:%M:%S")
+        for number in set(trips) | set(trains):
+            g = trips.get(number, {})
+            v = (trains.get(number) or {}).get("vehicle") or {}
+            position = v.get("position") or {}
+            lat = position.get("latitude") or g.get("Latitude")
+            lon = position.get("longitude") or g.get("Longitude")
+            if lat is None or lon is None:
+                continue
+            distance = metres(lat, lon, target["lat"], target["lon"])
+            if distance > 8000:
+                continue
+            stop = v.get("stop_id")
+            if stop and stop not in stations and distance < 4000:
+                odd[stop] = odd.get(stop, 0) + 1
+            rows.setdefault(number, []).append((clock, started, distance, g, v, app.get(number) or {}))
+        if poll + 1 < polls:
+            time.sleep(max(0, gap - (time.time() - started)))
+
+    print("stop codes reported within 4 km that aren't stations:", json.dumps(odd) if odd else "none")
+    came_in = [n for n, r in rows.items() if r[0][2] > 1200 and min(x[2] for x in r) < 400]
+    print(f"trains seen within 8 km: {len(rows)}; came in while polling: {came_in}")
+    for number in came_in:
+        print(f"\ntrain {number} ({rows[number][0][3].get('Display') or rows[number][0][3].get('LineCode')}):")
+        last = None
+        stamps = []
+        for clock, started, distance, g, v, a in rows[number]:
+            stamp = v.get("timestamp")
+            if stamp:
+                stamps.append(stamp)
+            line = (f"{distance:6.0f} m | glance {g.get('ModifiedDate', '')[11:]} at {g.get('AtStationCode')} "
+                    f"{g.get('PrevStopCode')}->{g.get('NextStopCode')} delay {g.get('DelaySeconds')} "
+                    f"{'moving' if g.get('IsInMotion') else 'still'} | gtfs "
+                    f"{datetime.fromtimestamp(stamp, TORONTO).strftime('%H:%M:%S') if stamp else '-'} "
+                    f"{v.get('current_status')} {v.get('stop_id')} | app {a.get('status')} {a.get('stop')} "
+                    f"delay {a.get('delay')} age {started - a['time']:.0f}s" if a.get("time") else
+                    f"{distance:6.0f} m | glance {g.get('ModifiedDate', '')[11:]} at {g.get('AtStationCode')} "
+                    f"{g.get('PrevStopCode')}->{g.get('NextStopCode')} delay {g.get('DelaySeconds')} | gtfs "
+                    f"{datetime.fromtimestamp(stamp, TORONTO).strftime('%H:%M:%S') if stamp else '-'} "
+                    f"{v.get('current_status')} {v.get('stop_id')} | app: none")
+            if line != last:
+                print("  ", clock, line)
+            last = line
+        gaps = [b - a for a, b in zip(stamps, stamps[1:]) if b != a]
+        standing = next((x for x in rows[number] if (x[4].get("current_status") == "STOPPED_AT"
+                                                      and x[4].get("stop_id") == code)
+                         or x[3].get("AtStationCode") == code), None)
+        arrival = due.get(number)
+        print("   timetabled here:",
+              datetime.fromtimestamp(arrival[0] - (arrival[1] or 0), TORONTO).strftime("%H:%M:%S") if arrival else "?",
+              "| TripUpdates expected:",
+              datetime.fromtimestamp(arrival[0], TORONTO).strftime("%H:%M:%S") if arrival else "?",
+              f"({arrival[1]} s)" if arrival else "",
+              "| first reported standing here:", standing[0] if standing else "never",
+              f"delay then {standing[3].get('DelaySeconds')}" if standing else "",
+              "| longest gap between GTFS reports:", f"{max(gaps):.0f} s" if gaps else "-")
+
+
 def worker(polls, gap):
     """The app's view: the Worker's /v1/live/trains, poll by poll, with the cache's
     headers, and whether each train's report moved on."""
     section(f"Worker /v1/live/trains: {polls} polls, {gap:.0f} s apart")
-    url = "https://go-stations.robinzhongsh2.workers.dev/v1/live/trains"
+    url = WORKER
     before = {}
     for poll in range(polls):
         started = time.time()
@@ -350,10 +455,14 @@ def main():
     parser.add_argument("--timeline", action="store_true", help="trains only, side by side over time")
     parser.add_argument("--worker", action="store_true", help="the Worker's /v1/live/trains, as the app sees it")
     parser.add_argument("--trip", help="DAY/NUMBER: one trip's Schedule/Trip stops, in the order Metrolinx gives them")
+    parser.add_argument("--approach", help="STATION: trains coming into it (e.g. UN), as the feeds and the Worker have them")
     args = parser.parse_args()
     print("Now:", datetime.now(TORONTO).isoformat(timespec="seconds"))
     if args.worker:
         worker(args.polls, args.gap)
+        return
+    if args.approach:
+        approach(args.approach, args.polls, args.gap)
         return
     if args.trip:
         status, seconds, body, size = get(f"/Schedule/Trip/{args.trip}")

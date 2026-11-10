@@ -1,5 +1,5 @@
 // Tests for journeys with changes and alerts in src/live.js: a made-up trip from
-// Exhibition to Danforth, changing at Union. Run with: node --test worker/test/*.test.js
+// Mimico to Danforth, changing at Union. Run with: node --test worker/test/*.test.js
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { ALERT_BEFORE, alertFor, alertTime, arrivalAt, follow, nextLeg, torontoClock, watchWindow } from "../src/live.js";
@@ -10,11 +10,11 @@ const at = (clock) => {
   return Date.UTC(2026, 10, 10, h + 5, m, s) / 1000;
 };
 
-// The first train: Lakeshore West 1306, Exhibition 07:25 to Union 07:34.
+// The first train: Lakeshore West 1306, Mimico 07:25 to Union 07:34.
 const first = {
-  codes: ["AL", "BU", "EX", "UN"],
+  codes: ["AL", "BU", "MI", "UN"],
   planned: ["06:50", "07:00", "07:25", "07:34"].map(at),
-  names: ["Aldershot", "Burlington", "Exhibition", "Union"],
+  names: ["Aldershot", "Burlington", "Mimico", "Union"],
 };
 // The second: Lakeshore East 9206, Union 07:39 to Danforth 07:51 (and on to Oshawa).
 const second = {
@@ -59,7 +59,7 @@ test("Toronto clock times", () => {
 test("the change alert comes 5 minutes before Union, once, on the train", () => {
   const trip = job();
   const due = arrivalAt(trip.state.stops, 3);
-  // Waiting at Exhibition: nothing yet, however close Union is on paper.
+  // Waiting at Mimico: nothing yet, however close Union is on paper.
   assert.equal(alertFor(trip, trip.state, at("07:24:00")), null);
   // On the train, more than 5 minutes out: not yet.
   const riding = { ...trip.state, hasDeparted: true };

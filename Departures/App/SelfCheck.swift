@@ -25,16 +25,16 @@ enum SelfCheck {
     private static func leaveReminder() {
         let time = date("12:06")
         check("leave reminder: direction and terminus",
-              TripAlerts.leaveBody(time: time, line: "Lakeshore West", from: "Exhibition", direction: "eastbound",
+              TripAlerts.leaveBody(time: time, line: "Lakeshore West", from: "Port Credit", direction: "eastbound",
                                    terminus: "Union Station")
-                  == "The 12:06 Lakeshore West line train from Exhibition, eastbound to Union Station.")
+                  == "The 12:06 Lakeshore West line train from Port Credit, eastbound to Union Station.")
         check("leave reminder: no direction",
-              TripAlerts.leaveBody(time: time, line: "Lakeshore West", from: "Exhibition", direction: nil,
+              TripAlerts.leaveBody(time: time, line: "Lakeshore West", from: "Port Credit", direction: nil,
                                    terminus: "Union Station")
-                  == "The 12:06 Lakeshore West line train from Exhibition to Union Station.")
+                  == "The 12:06 Lakeshore West line train from Port Credit to Union Station.")
         check("leave reminder: nothing known about where it goes",
-              TripAlerts.leaveBody(time: time, line: "Lakeshore West", from: "Exhibition", direction: nil, terminus: nil)
-                  == "The 12:06 Lakeshore West line train from Exhibition.")
+              TripAlerts.leaveBody(time: time, line: "Lakeshore West", from: "Port Credit", direction: nil, terminus: nil)
+                  == "The 12:06 Lakeshore West line train from Port Credit.")
         // The real thing, from a tracked train: its Live Activity's direction.
         let trip = lakeshore(boarding: 4, destination: 10)
         let shown = TripActivityController.attributes(for: trip)

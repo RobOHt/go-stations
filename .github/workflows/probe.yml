@@ -19,23 +19,31 @@ on:
       trip:
         description: "DAY/NUMBER (e.g. 20261106/3837): just that trip's Schedule/Trip stops, as Metrolinx gives them"
         default: ""
+      approach:
+        description: "STATION (e.g. UN): trains coming into it, as the feeds and the worker have them"
+        default: ""
 
 jobs:
   probe:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 25
     env:
       METROLINX_API_KEY: ${{ secrets.METROLINX_API_KEY }}
       POLLS: ${{ inputs.polls }}
       GAP: ${{ inputs.gap }}
       MODE: ${{ inputs.mode }}
       TRIP: ${{ inputs.trip }}
+      APPROACH: ${{ inputs.approach }}
     steps:
       - uses: actions/checkout@v5
       - name: Probe
         run: |
           if [ -n "$TRIP" ]; then
             python3 tools/probe_live.py --trip "$TRIP"
+            exit 0
+          fi
+          if [ -n "$APPROACH" ]; then
+            python3 tools/probe_live.py --approach "$APPROACH" --polls "${POLLS:-4}" --gap "${GAP:-15}"
             exit 0
           fi
           if [ "$MODE" = "worker" ]; then
