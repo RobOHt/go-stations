@@ -16,6 +16,8 @@ struct RootView: View {
     /// on the map).
     @State private var tripPlan: TripPlanModel?
     @State private var planDetent: PresentationDetent = .medium
+    /// How far up a train's stops are: half way when they open.
+    @State private var tripDetent: PresentationDetent = .medium
     @State private var backgroundedAt: Date?
     /// With Show All Trains on: the trains running now, from the timetable.
     @State private var runningTrips: [ScheduleStore.RunningTrip] = []
@@ -78,7 +80,7 @@ struct RootView: View {
         .sheet(item: $trackedSelection) { selection in
             TripSheet(selection: selection)
                 .environment(settings)
-                .presentationDetents([.medium, .large])
+                .presentationDetents([.medium, .large], selection: $tripDetent)
                 .presentationBackgroundInteraction(.enabled(upThrough: .medium))
                 .presentationDragIndicator(.visible)
         }
@@ -159,7 +161,7 @@ struct RootView: View {
                 // The Live Activity takes over: bring it up to date as the app goes.
                 TripTracker.shared.dropIfFinished()
                 #if DEBUG
-                if DebugScene.current == .liveActivity {
+                if DebugScene.current == .liveActivity || DebugScene.current == .trackedJourney {
                     TripActivityController.shared.alertForScreenshot()
                 }
                 #endif
@@ -608,6 +610,11 @@ struct RootView: View {
     /// Shows a train's stops (closing the station sheet, the trip card or Settings first).
     private func openTrip(_ selection: TripSelection) {
         searchFocused = false
+        tripDetent = .medium
+        #if DEBUG
+        // `-tripLarge YES`: at full height, for a screenshot.
+        if UserDefaults.standard.bool(forKey: "tripLarge") { tripDetent = .large }
+        #endif
         guard selected != nil || showSettings || tripPlan != nil else {
             trackedSelection = selection
             return
@@ -760,7 +767,7 @@ struct RootView: View {
         case .tripPlan, .trackedJourney:
             await planDebugTrip(scene)
         case .selfCheck:
-            SelfCheck.run()
+            break  // Run at launch (AppDelegate).
         case .activityGallery:
             break  // DeparturesApp shows the gallery in place of the map.
         }
@@ -793,6 +800,12 @@ struct RootView: View {
         let now = AppClock.now
         if let journey = plan.recommended ?? plan.journeys.first(where: { model.canTrack($0, at: now) }) {
             await model.track(journey)
+        }
+        // `-openTripAfter <seconds>`: then the tracked train's stops, with the rest of the trip.
+        let wait = defaults.double(forKey: "openTripAfter")
+        if wait > 0 {
+            try? await Task.sleep(for: .seconds(wait))
+            openTrackedTrip()
         }
     }
 

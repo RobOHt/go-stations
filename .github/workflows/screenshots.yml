@@ -173,7 +173,7 @@ jobs:
           rm -f "$results"
           sleep 1
           xcrun simctl launch "$UDID" "$BUNDLE_ID" -debugScene selfCheck > /dev/null < /dev/null
-          for i in $(seq 1 60); do
+          for i in $(seq 1 120); do
             grep -q '^done' "$results" 2> /dev/null && break
             sleep 1
           done
@@ -182,6 +182,15 @@ jobs:
           if ! grep -q '^done' "$results" 2> /dev/null; then
             echo "::error title=Self-checks::They didn't finish"
             failed=1
+            # Why: what the app logged, a crash report if there is one, and its folder.
+            echo "--- The app's log"
+            xcrun simctl spawn "$UDID" log show --last 4m --style compact \
+              --predicate 'process == "Departures"' 2> /dev/null | tail -80 || true
+            echo "--- Crash reports"
+            newest=$(ls -t ~/Library/Logs/DiagnosticReports/Departures* 2> /dev/null | head -1)
+            if [ -n "$newest" ]; then head -c 6000 "$newest"; else echo "none"; fi
+            echo "--- Its data folder"
+            ls -la "$container" "$container/Documents" 2> /dev/null || true
           fi
           while IFS= read -r line; do
             echo "::error title=Self-check failed::${line#FAIL }"
@@ -279,7 +288,7 @@ jobs:
 
           # Trip cards (a station picked in search), on the next weekday morning so
           # there are trains: from Union to Oakville (offered, track or not), the
-          # trip opened at full height, from Exhibition to Unionville (a change at
+          # trip opened at full height, from Port Credit to Unionville (a change at
           # Union), two days ahead (the day's trips only), and the offered trip
           # tracked (the question about alerts, the train on the map).
           MORNING=$(python3 -c "
@@ -292,12 +301,28 @@ jobs:
           echo "Trip cards at $MORNING"
           shoot 15-trip-plan 14 tripPlan -debugNow "$MORNING"
           shoot 15b-trip-plan-open 14 tripPlan -debugNow "$MORNING" -planOpenFirst YES -planLarge YES
-          shoot 15c-trip-change 14 tripPlan -debugNow "$MORNING" -planTo UI -debugLocation 43.6365,-79.4186 \
+          shoot 15c-trip-change 14 tripPlan -debugNow "$MORNING" -planTo UI -debugLocation 43.5560,-79.5869 \
             -planOpenFirst YES
-          shoot 15d-trip-change-large 14 tripPlan -debugNow "$MORNING" -planTo UI -debugLocation 43.6365,-79.4186 \
+          shoot 15d-trip-change-large 14 tripPlan -debugNow "$MORNING" -planTo UI -debugLocation 43.5560,-79.5869 \
             -planOpenFirst YES -planLarge YES
           shoot 15e-trip-later-day 14 tripPlan -planDaysAhead 2 -planLarge YES
-          shoot 15f-tracked-journey 22 trackedJourney -debugNow "$MORNING" -debugLocation 43.6365,-79.4186
+          shoot 15f-tracked-journey 22 trackedJourney -debugNow "$MORNING" -debugLocation 43.5560,-79.5869
+          # The tracked train's stops then show the rest of the trip: where you
+          # change, and the next train to where you get off.
+          shoot 15h-tracked-journey-stops 24 trackedJourney -debugNow "$MORNING" -debugLocation 43.5560,-79.5869 \
+            -openTripAfter 6 -tripLarge YES
+          shoot 15i-tracked-journey-rest 24 trackedJourney -debugNow "$MORNING" -debugLocation 43.5560,-79.5869 \
+            -openTripAfter 6 -tripLarge YES -tripScrollToEnd YES
+          # Its Live Activity in the island (the alert a few seconds after the switch
+          # to Settings expands it): the sentence, the stops and the change.
+          xcrun simctl launch "$UDID" com.apple.Preferences > /dev/null
+          sleep 3
+          for i in 1 2 3 4 5 6; do
+            xcrun simctl io "$UDID" screenshot --type=png "shots/15g-journey-island-$i.png" > /dev/null 2>&1
+            sleep 0.5
+          done
+          xcrun simctl terminate "$UDID" com.apple.Preferences > /dev/null 2>&1 || true
+          echo 15g-journey-island
 
           # The tracked train's Live Activity: track one, then switch to Settings. The
           # simulator's screenshots only caught the island while the app's alert
@@ -318,6 +343,9 @@ jobs:
           # Its views drawn in the app: Lock Screen, compact, minimal, expanded.
           shoot 13-activity-gallery 8 activityGallery
           shoot 13b-activity-lock-screen 8 activityGallery -galleryLockScreen YES
+          # A trip with a change at each point of it: Lock Screen, then the island.
+          shoot 13c-activity-journey 8 activityGallery -gallerySection journey
+          shoot 13d-activity-journey-island 8 activityGallery -gallerySection journeyIsland
 
       - name: Trace the tracked train's motion
         if: always() && steps.sim.outputs.udid != '' && inputs.checks_only != 'true'

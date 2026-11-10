@@ -68,6 +68,8 @@ struct TripSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var detail: TripDetail?
     @State private var openStation: Station?
+    /// The trains after this one on the tracked trip, live when Metrolinx has them.
+    @State private var onwardDetails: [String: TripDetail] = [:]
 
     private let network = RailNetwork.shared
 
@@ -83,6 +85,11 @@ struct TripSheet: View {
             VStack(alignment: .leading, spacing: 18) {
                 if let detail {
                     stopList(detail)
+                    // On a trip with changes, the rest of it: where you change, and each
+                    // train after this one to where you get off.
+                    if let trip = plannedTrip, trip.hasOnward {
+                        restOfTrip(trip)
+                    }
                     sourceNote(detail)
                 } else {
                     ProgressView()
@@ -94,11 +101,23 @@ struct TripSheet: View {
             .padding(.bottom, 32)
         }
         .scrollIndicators(.hidden)
+        #if DEBUG
+        // `-tripScrollToEnd YES`: at the end, for a screenshot of the rest of a trip.
+        .defaultScrollAnchor(Self.debugAnchor)
+        .defaultScrollAnchor(Self.debugAnchor, for: .sizeChanges)
+        #endif
         // The train's line, terminus and close button stay pinned over the stops.
         .pinnedHeader(bottomRoom: PinnedHeaderMetrics.tripBottom) { header }
         .environment(\.glassBackdrop, .sheet)
         .task {
             detail = await BoardService.shared.tripDetail(for: row, from: selection.station)
+        }
+        .task(id: plannedTrip?.onward?.map(\.row.id)) {
+            // The trains after this one, live when Metrolinx has them (platforms too).
+            for leg in plannedTrip?.onward ?? [] where onwardDetails[leg.row.id] == nil {
+                guard let station = network.station(leg.boardingCode) else { continue }
+                onwardDetails[leg.row.id] = await BoardService.shared.tripDetail(for: leg.row, from: station)
+            }
         }
         .task {
             // Where the train really is, while its stops are open.
@@ -258,6 +277,12 @@ struct TripSheet: View {
 
     private func stopList(_ detail: TripDetail) -> some View {
         let originIndex = detail.stops.firstIndex { $0.code == selection.station.code } ?? 0
+        // On a trip from search, where you get off: to change to the next train, or there.
+        let trip = plannedTrip
+        let offIndex = trip.flatMap { trip in
+            detail.stops.first { $0.index > originIndex && $0.code == trip.destinationCode }?.index
+        }
+        let offTag = trip?.hasOnward == true ? "Change" : "Your stop"
         return TimelineView(.periodic(from: .now, by: 10)) { context in
             let state = trainState(detail, at: context.date)
             VStack(alignment: .leading, spacing: 12) {
@@ -286,7 +311,8 @@ struct TripSheet: View {
                                     isEnd: stop.index == 0 || stop.index == detail.stops.count - 1,
                                     // Dimmed once the train has left it.
                                     isDimmed: state.hasPassed(stop.index, stopCount: detail.stops.count),
-                                    lineColor: lineColor
+                                    lineColor: lineColor,
+                                    tag: stop.index == offIndex ? offTag : nil
                                 )
                             }
                             .buttonStyle(StopRowButtonStyle())
@@ -305,6 +331,59 @@ struct TripSheet: View {
         if code == settings.homeCode { return .home }
         if code == settings.workCode { return .work }
         return .plain
+    }
+
+    // MARK: The rest of the trip
+
+    #if DEBUG
+    private static var debugAnchor: UnitPoint? {
+        UserDefaults.standard.bool(forKey: "tripScrollToEnd") ? .bottom : nil
+    }
+    #endif
+
+    /// The tracked trip, when this is its train and it's a trip from search (which
+    /// can go on after this train, with changes).
+    private var plannedTrip: TrackedTrip? {
+        guard let trip = tracker.trip, trip.matches(row), trip.journeyKey != nil else { return nil }
+        return trip
+    }
+
+    /// One train after this one: its stops from where you get on to where you get
+    /// off, live when Metrolinx has them, else the timetable's; and which they are.
+    private func stops(of leg: OnwardLeg) -> (stops: [TripDetail.Stop], isLive: Bool) {
+        func part(_ stops: [TripDetail.Stop]) -> [TripDetail.Stop]? {
+            guard let on = stops.firstIndex(where: { $0.code == leg.boardingCode }),
+                  let off = stops.indices.first(where: { $0 > on && stops[$0].code == leg.destinationCode })
+            else { return nil }
+            return Array(stops[on...off])
+        }
+        if let live = onwardDetails[leg.row.id], live.source == .live, let stops = part(live.stops) {
+            return (stops, true)
+        }
+        return (part(leg.stops) ?? [], false)
+    }
+
+    /// Where you change, and the train you change to, for each train after this one.
+    private func restOfTrip(_ trip: TrackedTrip) -> some View {
+        let legs = trip.onward ?? []
+        return VStack(alignment: .leading, spacing: 10) {
+            ForEach(Array(legs.enumerated()), id: \.offset) { index, leg in
+                let part = stops(of: leg)
+                // In where you change (as the train before is running), and away on this one.
+                let inAt = index == 0 ? trip.arrival
+                    : stops(of: legs[index - 1]).stops.last.flatMap { $0.expected ?? $0.time }
+                let leaves = part.stops.first.flatMap { $0.expected ?? $0.time }
+                ChangeRow(station: network.station(leg.boardingCode)?.name ?? leg.boardingCode,
+                          wait: inAt.flatMap { inAt in leaves.map { $0.timeIntervalSince(inAt) } },
+                          platform: part.stops.first?.platform)
+                if !part.stops.isEmpty {
+                    OnwardLegCard(leg: leg, stops: part.stops, isLive: part.isLive,
+                                  isLast: index == legs.count - 1, role: role(for:)) { code in
+                        if let station = network.station(code) { openStation = station }
+                    }
+                }
+            }
+        }
     }
 
     @ViewBuilder
@@ -526,6 +605,8 @@ private struct StopRow: View {
     let isEnd: Bool
     let isDimmed: Bool
     let lineColor: Color
+    /// A word beside the name: "Change" where you change trains, "Your stop".
+    var tag: String? = nil
 
     private var isDelayed: Bool {
         guard let time = stop.time, let expected = stop.expected else { return false }
@@ -560,10 +641,21 @@ private struct StopRow: View {
                         .accessibilityLabel(role == .home ? "Home" : "Work")
                 }
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(name)
-                        .font(role != .plain || isOrigin ? .body.weight(.bold) : .body)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
+                    HStack(spacing: 6) {
+                        Text(name)
+                            .font(role != .plain || isOrigin || tag != nil ? .body.weight(.bold) : .body)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
+                        if let tag {
+                            Text(tag)
+                                .font(.caption2.weight(.heavy))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(lineColor, in: Capsule())
+                                .fixedSize()
+                        }
+                    }
                     if let platform = stop.platform {
                         Text("Platform \(platform)")
                             .font(.caption)
@@ -593,6 +685,131 @@ private struct StopRow: View {
             .overlay(Circle().strokeBorder(isOrigin ? Color.white : lineColor, lineWidth: isOrigin ? 3 : 3.5))
             .frame(width: size, height: size)
             .opacity(isDimmed && !isOrigin ? 0.55 : 1)
+    }
+}
+
+// MARK: - The rest of a trip
+
+/// Where you change trains: "Change at Union Station", how long you have, and
+/// the platform the next train leaves from when that's known.
+private struct ChangeRow: View {
+    let station: String
+    /// From getting in to the next train leaving (negative: it leaves first).
+    let wait: TimeInterval?
+    let platform: String?
+
+    private var waitText: (text: String, color: Color)? {
+        guard let wait else { return nil }
+        if wait < 0 { return ("It leaves before you get in", .red) }
+        let minutes = Int((wait / 60).rounded(.down))
+        return ("\(DurationText.text(minutes: minutes)) to change", minutes < 3 ? .orange : .secondary)
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: "arrow.triangle.swap")
+                .font(.system(size: 15, weight: .bold))
+                .foregroundStyle(.secondary)
+                .frame(width: 30, height: 30)
+                .background(.background.secondary, in: Circle())
+                // Under the line of the trains' stops.
+                .padding(.leading, TripSheet.lineX - 15)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Change at \(station)")
+                    .font(.subheadline.weight(.semibold))
+                HStack(spacing: 6) {
+                    if let waitText {
+                        Text(waitText.text)
+                            .foregroundStyle(waitText.color)
+                    }
+                    if waitText != nil, platform != nil {
+                        Text("·").foregroundStyle(.tertiary)
+                    }
+                    if let platform {
+                        Text("Platform \(platform)")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .font(.footnote.weight(.medium))
+            }
+            .padding(.top, 5)
+            Spacer(minLength: 0)
+        }
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// A train you'll change to: its line and where it goes, then its stops from
+/// where you get on to where you get off, along its line in its colour.
+private struct OnwardLegCard: View {
+    let leg: OnwardLeg
+    let stops: [TripDetail.Stop]
+    let isLive: Bool
+    /// The last train of the trip: its last stop here is where the trip ends.
+    let isLast: Bool
+    let role: (String) -> StationRole
+    let open: (String) -> Void
+
+    private let network = RailNetwork.shared
+
+    var body: some View {
+        let line = network.line(code: leg.row.lineCode)
+        let color = line?.color ?? .gray
+        let terminus = leg.stops.last.flatMap { network.station($0.code)?.name } ?? leg.row.destination
+        VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 8) {
+                    LineBadge(code: line?.code ?? leg.row.lineCode)
+                    Text(line?.name ?? leg.row.lineName)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                    Spacer(minLength: 4)
+                    // Its times as planned, until Metrolinx has it live.
+                    if !isLive {
+                        Label("Timetable", systemImage: "calendar")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                Text("To \(terminus)")
+                    .font(.headline)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 14)
+            .padding(.bottom, 4)
+            stopList(color: color)
+        }
+        .padding(.bottom, 6)
+        .background(.background.secondary, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+    }
+
+    private func stopList(color: Color) -> some View {
+        ZStack(alignment: .topLeading) {
+            TripLine(stopCount: stops.count, state: .waiting(departs: stops.first?.time ?? .distantFuture),
+                     color: color)
+            VStack(spacing: 0) {
+                ForEach(Array(stops.enumerated()), id: \.element.id) { position, stop in
+                    Button {
+                        open(stop.code)
+                    } label: {
+                        StopRow(
+                            stop: stop,
+                            name: network.station(stop.code)?.name ?? stop.code,
+                            role: role(stop.code),
+                            isOrigin: position == 0,
+                            isEnd: position == stops.count - 1,
+                            isDimmed: false,
+                            lineColor: color,
+                            tag: position == stops.count - 1 ? (isLast ? "Your stop" : "Change") : nil
+                        )
+                    }
+                    .buttonStyle(StopRowButtonStyle())
+                }
+            }
+        }
     }
 }
 
