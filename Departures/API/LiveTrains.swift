@@ -85,6 +85,10 @@ final class LiveTrains {
         return train
     }
 
+    /// A train's latest report, however old (an old one can still say it got to
+    /// the end of its run: see `TrackedTrip.following`).
+    func latest(_ number: String) -> LiveTrain? { trains[number] }
+
     /// Fetches the list, unless it came in less than `maxAge` seconds ago.
     func refresh(maxAge: TimeInterval = 8) async {
         if let updatedAt, Date().timeIntervalSince(updatedAt) < maxAge { return }

@@ -94,12 +94,20 @@ final class TripActivityController {
     }
 
     /// Asks iOS to wake the app a little after the train is due at your stop, to
-    /// end the Live Activity there if the app hasn't been opened by then. (iOS
-    /// picks the moment; it may be a while later, or not at all.)
-    func scheduleRefresh(for trip: TrackedTrip) {
+    /// end the Live Activity there if the app hasn't been opened by then (and on a
+    /// trip from search, first a little after the first train leaves). (iOS picks
+    /// the moment; it may be a while later, or not at all.)
+    func scheduleRefresh(for trip: TrackedTrip, now: Date = Date()) {
         guard let arrival = trip.arrival else { return }
+        var earliest = arrival.addingTimeInterval(60)
+        // A trip from search: first, a few minutes after its first train leaves,
+        // whether it left without you (TripTracker.checkMissed).
+        if trip.journeyKey != nil, (trip.legIndex ?? 0) == 0, let departure = trip.departure {
+            let check = departure.addingTimeInterval(TrackedTrip.missedAfter + 60)
+            if check > now { earliest = min(earliest, check) }
+        }
         let request = BGAppRefreshTaskRequest(identifier: Self.refreshTaskID)
-        request.earliestBeginDate = arrival.addingTimeInterval(60)
+        request.earliestBeginDate = earliest
         try? BGTaskScheduler.shared.submit(request)
     }
 

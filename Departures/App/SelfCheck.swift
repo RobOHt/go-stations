@@ -18,6 +18,7 @@ enum SelfCheck {
         reportGap()
         changingTrains()
         earlyArrival()
+        missedTrain()
         lines.append("done")
         write()
         NSLog("SelfCheck: done")
@@ -78,6 +79,64 @@ enum SelfCheck {
         check("early: and isn't early at the end of its run yet", alongTheWay.stops[10].expected == date("12:00"))
         let late = trip.following(train(at: "UN", status: "to", time: date("11:59"), delay: 120), now: date("11:59:05"))
         check("early: a late train is still late", late.stops[10].expected == date("12:02"))
+        // The app opened a few minutes after it got in: the last report is old,
+        // but it still says the train got there.
+        let opened = trip.following(train(at: "UN", status: "at", time: date("11:57:10")), now: date("12:01:30"))
+        check("in: an old report of it at your stop still counts", opened.isSeenIn && opened.phase(at: date("12:01:30")) == .arrived,
+              "seen in \(opened.isSeenIn)")
+        check("in: when it got there", opened.stops[10].arrived == date("11:57:10"))
+        let away = trip.following(train(at: "EX", status: "to", time: date("11:50")), now: date("11:55"))
+        check("in: an old report short of your stop doesn't", away == trip)
+    }
+
+    /// #16: the first train of a trip from search left without you when you're
+    /// nowhere near the line where it is, a couple of minutes after it left.
+    private static func missedTrain() {
+        let geometry = StartupStation.geometry
+        // Oakville 11:36, Clarkson 11:40, … Union 12:00; planned from search.
+        var trip = lakeshore(boarding: 4, destination: 10)
+        trip.journeyKey = "journey"
+        func verdict(_ trip: TrackedTrip, _ clock: String, at code: String?, accuracy: Double = 20) -> String {
+            let now = date(clock)
+            let location = code.flatMap { RailNetwork.shared.station($0) }.map {
+                CLLocation(coordinate: $0.coordinate, altitude: 0, horizontalAccuracy: accuracy, verticalAccuracy: -1,
+                           timestamp: now)
+            }
+            return "\(trip.boarding(at: now, location: location, on: geometry))"
+        }
+        let coming = trip.following(train(at: "OA", status: "to", time: date("11:35")), now: date("11:35:05"))
+        check("missed: not before it leaves", verdict(coming, "11:35:10", at: "UN") == "notYet")
+        // Seen at Oakville, then on its way to Clarkson: left at 11:36:30.
+        let left = trip.following(train(at: "OA", status: "at", time: date("11:36")), now: date("11:36:05"))
+            .following(train(at: "CL", status: "to", time: date("11:36:30")), now: date("11:36:35"))
+        check("missed: seen leaving", left.leftBoarding(at: date("11:37")) == date("11:36:30"))
+        check("missed: not straight away", verdict(left, "11:37", at: "UN") == "unsure")
+        check("missed: far away when it's gone", verdict(left, "11:39", at: "UN") == "missed",
+              verdict(left, "11:39", at: "UN"))
+        check("missed: not when by the line where it is", verdict(left, "11:39", at: "CL") == "caught",
+              verdict(left, "11:39", at: "CL"))
+        check("missed: not on the platform just after", verdict(left, "11:39", at: "OA") == "caught")
+        check("missed: not without a fix", verdict(left, "11:39", at: nil) == "unsure")
+        check("missed: not on a rough fix", verdict(left, "11:39", at: "UN", accuracy: 2_000) == "unsure")
+        // Well on its way (to Mimico): back on that platform is nowhere near it.
+        let farOn = left.following(train(at: "MI", status: "to", time: date("11:52")), now: date("11:52:05"))
+        check("missed: still on the platform once it's well on", verdict(farOn, "11:52:30", at: "OA") == "missed",
+              verdict(farOn, "11:52:30", at: "OA"))
+        check("missed: on it, well on", verdict(farOn, "11:52:30", at: "LO") == "caught")
+        // Nothing live: taken to have left 5 minutes after its time.
+        check("missed: nothing live, not yet", verdict(trip, "11:40", at: "UN") == "notYet")
+        check("missed: nothing live, well after its time", verdict(trip, "11:42", at: "UN") == "missed",
+              verdict(trip, "11:42", at: "UN"))
+        // Not a trip from search (tracked from a board: maybe someone else's train).
+        var fromBoard = left
+        fromBoard.journeyKey = nil
+        check("missed: only trips from search", verdict(fromBoard, "11:39", at: "UN") == "notYet")
+        // A later train of the trip.
+        var later = left
+        later.legIndex = 1
+        check("missed: only the first train", verdict(later, "11:39", at: "UN") == "notYet")
+        check("missed: what it says", TripAlerts.missedTitle(time: date("12:06"), terminus: "Union Station")
+              == "You missed the 12:06 to Union Station")
     }
 
     /// A trip with a change goes on with the next train in the same Live Activity.

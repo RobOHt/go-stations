@@ -1,3 +1,4 @@
+import Observation
 import SwiftUI
 import UIKit
 
@@ -26,6 +27,15 @@ struct DeparturesApp: App {
             await TripTracker.shared.backgroundRefresh()
         }
     }
+}
+
+/// Where to go when something outside the views asks: a tapped notification.
+@MainActor
+@Observable
+final class AppRoute {
+    static let shared = AppRoute()
+    /// Open the trip card to this station (a missed train's notification).
+    var planTo: String?
 }
 
 /// Portrait only, like the boards themselves.

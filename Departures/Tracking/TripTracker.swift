@@ -134,7 +134,17 @@ struct TrackedTrip: Codable, Equatable, Sendable {
     /// never leaves a station early, whatever its delay says, but it can get to the
     /// end of its run early).
     func following(_ train: LiveTrain, now: Date) -> TrackedTrip {
-        guard train.isFresh(at: now), var fix = train.fix(in: stopCodes, from: live?.index ?? 0) else { return self }
+        guard train.time.timeIntervalSince(now) < 60, var fix = train.fix(in: stopCodes, from: live?.index ?? 0)
+        else { return self }
+        if !train.isFresh(at: now) {
+            // An old report says nothing about where the train is now; but one that
+            // has it at your stop, or past it, still says it got there. (Trains drop
+            // out of GO's feed soon after the end of their run, so opening the app a
+            // few minutes after getting in finds only an old report.)
+            let reached = fix.index > destinationIndex || (fix.isAt && fix.index == destinationIndex)
+            guard reached, !isSeenIn, train.time > (departure ?? startedAt).addingTimeInterval(-15 * 60)
+            else { return self }
+        }
         var stops = self.stops
         let before = live
         // Reports missed since the last one: when it left a station isn't known.
@@ -313,6 +323,8 @@ final class TripTracker {
     private(set) var trip: TrackedTrip?
     /// Stops tracking right when the trip ends, rather than at the next check.
     @ObservationIgnored private var expiry: Task<Void, Never>?
+    /// When it was last checked whether the first train left without you.
+    @ObservationIgnored private var missedCheckedAt: Date?
 
     private static let storageKey = "trackedTrip"
 
@@ -418,12 +430,35 @@ final class TripTracker {
 
     /// Takes in the tracked train's latest live report (see `TrackedTrip.following`).
     func follow(_ live: LiveTrains) {
-        guard let trip, let train = live.train(trip.tripNumber) else { return }
+        guard let trip, let train = live.latest(trip.tripNumber) else { return }
         let updated = trip.following(train, now: Date())
         guard updated != trip else { return }
         set(updated)
         if changeTrainsIfDue(now: Date()) { return }
         TripActivityController.shared.sync(updated)
+        // Seen leaving where you get on: with you on it?
+        if updated.leftBoarding(at: Date()) != nil { Task { await checkMissed() } }
+    }
+
+    /// Once the first train of a trip from search has left where you get on (see
+    /// `TrackedTrip.boarding(at:location:on:)`): when you're nowhere near it, you
+    /// missed it. Says so (with alerts on), and stops tracking: the Live Activity
+    /// ends, and no alerts come for the trip. At most about once a minute. True
+    /// when it stopped.
+    @discardableResult
+    func checkMissed(now: Date = Date()) async -> Bool {
+        guard let trip, trip.journeyKey != nil, let left = trip.leftBoarding(at: now),
+              now.timeIntervalSince(left) >= TrackedTrip.missedAfter else { return false }
+        if let missedCheckedAt, now.timeIntervalSince(missedCheckedAt) < 50 { return false }
+        missedCheckedAt = now
+        let location = await LocationProvider.shared.locationIfAllowed()
+        // (Still the same train, and still not on it.)
+        guard let current = self.trip, current.activityID == trip.activityID, current.legIndex == trip.legIndex,
+              current.boarding(at: Date(), location: location, on: StartupStation.geometry) == .missed
+        else { return false }
+        TripAlerts.shared.missed(current)
+        stop()
+        return true
     }
 
     /// At a change, once the train you're on is in where you change: the next one
@@ -460,7 +495,7 @@ final class TripTracker {
                                   startedAt: current.startedAt, startsAtStop: current.startsAtStop)
             .carrying(current)
         // Live times from its train's position outrank the board's.
-        if let train = LiveTrains.shared.train(current.tripNumber) {
+        if let train = LiveTrains.shared.latest(current.tripNumber) {
             updated = updated.following(train, now: Date())
         }
         guard updated != current else { return }
@@ -475,6 +510,12 @@ final class TripTracker {
     func backgroundRefresh() async {
         guard trip != nil else { return }
         await refresh()
+        if await checkMissed() {
+            // A moment for the Live Activity to end and the worker to hear, before iOS
+            // puts the app away again.
+            try? await Task.sleep(for: .seconds(3))
+            return
+        }
         dropIfFinished()
         if let trip, trip.phase(at: Date()) != .arrived {
             TripActivityController.shared.scheduleRefresh(for: trip)

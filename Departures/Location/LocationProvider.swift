@@ -1,4 +1,5 @@
 import CoreLocation
+import UIKit
 
 /// One-shot "where am I" with a short timeout. Uses a recent cached fix when available
 /// so opening the app feels instant.
@@ -55,6 +56,18 @@ final class LocationProvider: NSObject, CLLocationManagerDelegate {
                 }
             }
         }
+    }
+
+    /// Where you are, without ever asking for permission: nil when the app may
+    /// not know (in the background, only with Always).
+    func locationIfAllowed(maxAge: TimeInterval = 120, timeout: TimeInterval = 10) async -> CLLocation? {
+        #if DEBUG
+        if let fixed = DebugScene.fixedLocation { return fixed }
+        #endif
+        let status = manager.authorizationStatus
+        let inBackground = UIApplication.shared.applicationState == .background
+        guard status == .authorizedAlways || (status == .authorizedWhenInUse && !inBackground) else { return nil }
+        return await currentLocation(maxAge: maxAge, timeout: timeout)
     }
 
     /// The last known fix, only if it's fresh enough to trust.

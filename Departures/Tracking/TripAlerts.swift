@@ -25,6 +25,7 @@ final class TripAlerts: NSObject {
 
     private static let allowedKey = "tripAlertsAllowed"
     private static let leaveID = "trip.leave"
+    private static let missedID = "trip.missed"
     private static let legIDs = ["trip.leg.0", "trip.leg.1", "trip.leg.2"]
 
     private let center = UNUserNotificationCenter.current()
@@ -165,6 +166,29 @@ final class TripAlerts: NSObject {
         return "\(train), \(direction) to \(terminus)."
     }
 
+    /// The first train left without you (see `TripTracker.checkMissed`): "You
+    /// missed the 12:06 to Union Station. Open GO Stations to plan another trip
+    /// to Danforth." Tapping it opens the trip card there. Only with alerts on
+    /// for the trip.
+    func missed(_ trip: TrackedTrip) {
+        guard isOn(for: trip) else { return }
+        let network = RailNetwork.shared
+        let content = UNMutableNotificationContent()
+        content.title = Self.missedTitle(time: trip.departure ?? trip.row.scheduled,
+                                         terminus: TripActivityController.attributes(for: trip)?.terminusName)
+        let destination = network.station(trip.finalDestinationCode)?.name ?? trip.finalDestinationCode
+        content.body = "Open GO Stations to plan another trip to \(destination)."
+        content.sound = .default
+        content.userInfo = [planToKey: trip.finalDestinationCode]
+        center.add(UNNotificationRequest(identifier: Self.missedID, content: content, trigger: nil))
+    }
+
+    /// "You missed the 12:06 to Union Station", or without where it goes.
+    static func missedTitle(time: Date, terminus: String?) -> String {
+        let train = "You missed the \(TorontoTime.hourMinute(time))"
+        return terminus.map { "\(train) to \($0)" } ?? "\(train) train"
+    }
+
     /// You're at (or by) the station now, as far as the last fix says.
     private func isNear(_ station: Station) -> Bool {
         var location = manager.location
@@ -204,6 +228,8 @@ final class TripAlerts: NSObject {
 
 /// The region around the station you're setting off from.
 private let boardingRegionID = "trip.boarding"
+/// In a notification: the station to plan another trip to, when it's tapped.
+private let planToKey = "planTo"
 
 extension TripAlerts: CLLocationManagerDelegate {
     nonisolated func locationManager(_ manager: CLLocationManager, didEnterRegion region: CLRegion) {
@@ -231,5 +257,12 @@ extension TripAlerts: UNUserNotificationCenterDelegate {
                                             willPresent notification: UNNotification) async
         -> UNNotificationPresentationOptions {
         [.banner, .sound, .list]
+    }
+
+    /// Tapped: a missed train's opens the trip card, to plan another trip.
+    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter,
+                                            didReceive response: UNNotificationResponse) async {
+        guard let code = response.notification.request.content.userInfo[planToKey] as? String else { return }
+        await MainActor.run { AppRoute.shared.planTo = code }
     }
 }

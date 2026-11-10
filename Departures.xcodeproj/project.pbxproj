@@ -48,6 +48,7 @@
 		EE3334F2615D0AB27E4AF673 /* TripPlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2E15CB1F3D4880F761F13AC /* TripPlanner.swift */; };
 		BD9BA7D082C2FDFB36221F9F /* TripPlanSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBB587A54B5B6A160F048A39 /* TripPlanSheet.swift */; };
 		74EA24F31B8A8AA8145F8E51 /* TripAlerts.swift in Sources */ = {isa = PBXBuildFile; fileRef = E023D9E548548964A88EF91D /* TripAlerts.swift */; };
+		9C41D2A07B3E4F5A8D6E1F21 /* MissedTrain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C41D2A07B3E4F5A8D6E1F22 /* MissedTrain.swift */; };
 		E5A2EA19208E2D53947C3101 /* SelfCheck.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CE2E51E667A2647FC5E004A /* SelfCheck.swift */; };
 /* End PBXBuildFile section */
 
@@ -119,6 +120,7 @@
 		C2E15CB1F3D4880F761F13AC /* TripPlanner.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TripPlanner.swift; sourceTree = "<group>"; };
 		EBB587A54B5B6A160F048A39 /* TripPlanSheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TripPlanSheet.swift; sourceTree = "<group>"; };
 		E023D9E548548964A88EF91D /* TripAlerts.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TripAlerts.swift; sourceTree = "<group>"; };
+		9C41D2A07B3E4F5A8D6E1F22 /* MissedTrain.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MissedTrain.swift; sourceTree = "<group>"; };
 		2CE2E51E667A2647FC5E004A /* SelfCheck.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SelfCheck.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -308,6 +310,7 @@
 				A4E8597CF7576FE4AB1F4CDF /* TripActivityController.swift */,
 				B1DC09E48CBF703842B4962F /* TripActivityGallery.swift */,
 				E023D9E548548964A88EF91D /* TripAlerts.swift */,
+				9C41D2A07B3E4F5A8D6E1F22 /* MissedTrain.swift */,
 			);
 			name = Tracking;
 			path = Tracking;
@@ -438,6 +441,7 @@
 			files = (
 				E5A2EA19208E2D53947C3101 /* SelfCheck.swift in Sources */,
 				74EA24F31B8A8AA8145F8E51 /* TripAlerts.swift in Sources */,
+				9C41D2A07B3E4F5A8D6E1F21 /* MissedTrain.swift in Sources */,
 				BD9BA7D082C2FDFB36221F9F /* TripPlanSheet.swift in Sources */,
 				EE3334F2615D0AB27E4AF673 /* TripPlanner.swift in Sources */,
 				6187E3925EF1CE27D740E4C9 /* DeparturesApp.swift in Sources */,

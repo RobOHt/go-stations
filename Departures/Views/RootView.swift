@@ -122,8 +122,14 @@ struct RootView: View {
             while !Task.isCancelled {
                 await TripTracker.shared.refresh()
                 TripTracker.shared.dropIfFinished()
+                // Its first train gone without you: you're told, and it stops.
+                await TripTracker.shared.checkMissed()
                 try? await Task.sleep(for: .seconds(60))
             }
+        }
+        .onChange(of: AppRoute.shared.planTo) { _, code in
+            // A missed train's notification, tapped: plan another trip.
+            if code != nil { followRoute() }
         }
         .onOpenURL { url in
             // Tapping the Live Activity opens the trip.
@@ -152,6 +158,11 @@ struct RootView: View {
                 return
             }
             #endif
+            // Opened by tapping a missed train's notification: plan another trip.
+            if AppRoute.shared.planTo != nil {
+                followRoute()
+                return
+            }
             await autoSelect()
         }
         .onChange(of: scenePhase) { _, phase in
@@ -173,7 +184,10 @@ struct RootView: View {
                     BoardTime.shared.period = .allDay
                 }
                 TripTracker.shared.dropIfFinished()
-                Task { await TripTracker.shared.refresh() }
+                Task {
+                    await TripTracker.shared.refresh()
+                    await TripTracker.shared.checkMissed()
+                }
                 if wantsLiveTrains { Task { await LiveTrains.shared.refresh() } }
                 refreshTimetable()
                 if backgroundedAt != nil, TripTracker.shared.trip != nil, tripPlan == nil {
@@ -495,6 +509,14 @@ struct RootView: View {
 
     /// Opens the trip card to `destination` (closing any other sheet first), and
     /// keeps it in the search history.
+    /// Where a tapped notification asked to go: the trip card to its station.
+    private func followRoute() {
+        guard let code = AppRoute.shared.planTo else { return }
+        AppRoute.shared.planTo = nil
+        guard let station = network.station(code) else { return }
+        planTrip(to: PlanDestination(station: station))
+    }
+
     private func planTrip(to destination: PlanDestination) {
         searchFocused = false
         SearchHistory.shared.add(destination)
