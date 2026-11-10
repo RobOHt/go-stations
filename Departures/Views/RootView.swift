@@ -324,6 +324,8 @@ struct RootView: View {
                 .scrollDisabled(true)
                 .scrollIndicators(.hidden)
                 .scrollEdgeEffectStyle(.soft, for: .bottom)
+                // (Only behind the search bar: none under the status bar.)
+                .scrollEdgeEffectHidden(true, for: .top)
             }
             .ignoresSafeArea()
         } else {
