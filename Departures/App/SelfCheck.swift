@@ -1,6 +1,7 @@
 #if DEBUG
 import CoreLocation
 import Foundation
+import UIKit
 
 /// Debug builds only (`-debugScene selfCheck`): checks of the tracking logic, run
 /// on the simulator by the Screenshots workflow, which fails if any of them does.
@@ -19,6 +20,7 @@ enum SelfCheck {
         changingTrains()
         earlyArrival()
         missedTrain()
+        progressiveBlur()
         lines.append("done")
         write()
         NSLog("SelfCheck: done")
@@ -198,6 +200,42 @@ enum SelfCheck {
         check("changing trains: waits for the next train", second.hasStartingStop)
         check("changing trains: the whole trip stays on the map", second.route == first.route)
         check("changing trains: none after the last", second.changingTrains(at: date("12:40")) == nil)
+    }
+
+    /// #19: the blur behind the search bar is Core Animation's variable blur alone,
+    /// with none of UIKit's tint over it, in light and dark: the iOS it runs on
+    /// still has what it's made with.
+    private static func progressiveBlur() {
+        for style in [UIUserInterfaceStyle.light, .dark] {
+            let name = style == .dark ? "dark" : "light"
+            let view = UIVisualEffectView(effect: UIBlurEffect(style: .regular))
+            view.overrideUserInterfaceStyle = style
+            view.frame = CGRect(x: 0, y: 0, width: 400, height: 100)
+            view.updateTraitsIfNeeded()
+            let filter = ProgressiveBlurView.install(on: view, radius: 10, fullAt: 0.75)
+            check("blur (\(name)): the variable blur is there", filter != nil)
+            let backdrop = ProgressiveBlurView.backdrop(of: view)
+            let filters = backdrop?.layer.filters ?? []
+            check("blur (\(name)): it alone on the backdrop",
+                  filters.count == 1 && (filters.first as AnyObject?) === filter,
+                  "\(filters.count) filters: \(filters.map { String(describing: $0) })")
+            let shown = view.subviews.filter { $0 !== backdrop && $0 !== view.contentView && !$0.isHidden }
+            check("blur (\(name)): no tint over it", shown.isEmpty,
+                  shown.map { NSStringFromClass(type(of: $0)) }.joined(separator: ", "))
+        }
+        // How much of the radius, top to bottom: none at the top, all from three
+        // quarters down.
+        guard let mask = ProgressiveBlurView.mask(fullAt: 0.75), let data = mask.dataProvider?.data,
+              let bytes = CFDataGetBytePtr(data) else {
+            check("blur: its mask", false, "no mask")
+            return
+        }
+        func alpha(at fraction: Double) -> Int {
+            Int(bytes[Int(fraction * Double(mask.height - 1)) * mask.bytesPerRow + 3])
+        }
+        let shape = [0, 0.375, 0.75, 1].map(alpha)
+        check("blur: its mask", shape[0] == 0 && (100...155).contains(shape[1]) && shape[2] == 255 && shape[3] == 255,
+              "\(shape)")
     }
 
     // MARK: Made-up trips

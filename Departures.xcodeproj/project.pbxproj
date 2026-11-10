@@ -34,6 +34,7 @@
 		9622C81409924DE23AB13537 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55E96A0A4A812C9938B0E829 /* RootView.swift */; };
 		989E9B8E29A47B603985F044 /* BoardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26FA8B31A1F2728E021C5B6A /* BoardView.swift */; };
 		A29E9D60A166B42FD5174F50 /* GlassControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = F59BE7F9EC5EA81504DA78A5 /* GlassControls.swift */; };
+		9C41D2A07B3E4F5A8D6E1F31 /* ProgressiveBlur.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C41D2A07B3E4F5A8D6E1F32 /* ProgressiveBlur.swift */; };
 		B450E7F44E55F87E5F4E0E73 /* TrainOnMap.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A487C12E27216F9FEC37C51 /* TrainOnMap.swift */; };
 		CE70EDC808067237D9D9A7F2 /* TrainReplay.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB7643620730E0C36B367EB0 /* TrainReplay.swift */; };
 		BF4FAF1018F15829F06FF536 /* ScheduleStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEECCC300CF5D0431410FAAE /* ScheduleStore.swift */; };
@@ -114,6 +115,7 @@
 		ED83762207B3DD4083C6E973 /* TrackGeometry.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TrackGeometry.swift; sourceTree = "<group>"; };
 		F46A25BFC1C2C367380E4C69 /* Departures.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Departures.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		F59BE7F9EC5EA81504DA78A5 /* GlassControls.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GlassControls.swift; sourceTree = "<group>"; };
+		9C41D2A07B3E4F5A8D6E1F32 /* ProgressiveBlur.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProgressiveBlur.swift; sourceTree = "<group>"; };
 		FD88BB566A609617693A474D /* DeparturesWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = DeparturesWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		FEECCC300CF5D0431410FAAE /* ScheduleStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ScheduleStore.swift; sourceTree = "<group>"; };
 		C781E6E6E97C95A48D30EA53 /* LiveTrains.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LiveTrains.swift; sourceTree = "<group>"; };
@@ -246,6 +248,7 @@
 				3939C3EBFFD629B1B5AFB65B /* TripSheet.swift */,
 				4E4A5E2C07E880206D354461 /* SearchPanel.swift */,
 				F59BE7F9EC5EA81504DA78A5 /* GlassControls.swift */,
+				9C41D2A07B3E4F5A8D6E1F32 /* ProgressiveBlur.swift */,
 				5A487C12E27216F9FEC37C51 /* TrainOnMap.swift */,
 				EB7643620730E0C36B367EB0 /* TrainReplay.swift */,
 				EBB587A54B5B6A160F048A39 /* TripPlanSheet.swift */,
@@ -463,6 +466,7 @@
 				F84F4DE9239838E432A25741 /* TripSheet.swift in Sources */,
 				8FCB966F59164CF7F1FF5522 /* SearchPanel.swift in Sources */,
 				A29E9D60A166B42FD5174F50 /* GlassControls.swift in Sources */,
+				9C41D2A07B3E4F5A8D6E1F31 /* ProgressiveBlur.swift in Sources */,
 				DDBA1C3FB2F84B5999C6E4F4 /* DebugScene.swift in Sources */,
 				8DCAB47B9A0B106A3A3BF611 /* CommutePlanner.swift in Sources */,
 				30EE1E5E4015E0AC2D3074E9 /* StartupStation.swift in Sources */,

@@ -900,27 +900,22 @@ private struct MapHint: View {
     }
 }
 
-/// Behind the search bar along the bottom: the map blurred, fading in from just
-/// above the bar to the screen's edge, as tall as the bar (the safe area the bar
-/// takes, plus a little to fade in over). A material faded in by a gradient; it
-/// takes no touches, so the map still pans under it.
+/// Behind the search bar along the bottom: the map blurred, more and more from just
+/// above the bar down to about its bottom, as tall as the bar (the safe area the bar
+/// takes, plus a little to blur in over). No tint, so the map keeps its colours, in
+/// dark mode too (see `ProgressiveBlur`). It takes no touches, so the map still
+/// pans under it. With Reduce Transparency on, none.
 private struct SearchBarBlur: View {
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
     var body: some View {
         GeometryReader { proxy in
-            let height = proxy.safeAreaInsets.bottom + 14
             VStack(spacing: 0) {
                 Spacer(minLength: 0)
-                Rectangle()
-                    .fill(.ultraThinMaterial)
-                    .frame(height: height)
-                    .mask {
-                        LinearGradient(stops: [
-                            .init(color: .clear, location: 0),
-                            .init(color: .black.opacity(0.55), location: 0.35),
-                            .init(color: .black.opacity(0.9), location: 0.7),
-                            .init(color: .black, location: 1),
-                        ], startPoint: .top, endPoint: .bottom)
-                    }
+                if !reduceTransparency {
+                    ProgressiveBlur(radius: 10, fullAt: 0.75)
+                        .frame(height: proxy.safeAreaInsets.bottom + 14)
+                }
             }
             .ignoresSafeArea()
         }
