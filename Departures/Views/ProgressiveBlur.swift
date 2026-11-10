@@ -95,7 +95,7 @@ final class ProgressiveBlurView: UIView {
     /// doesn't offer it.
     @discardableResult
     static func install(on view: UIVisualEffectView, radius: CGFloat, fullAt: CGFloat) -> NSObject? {
-        guard let backdrop = backdrop(of: view), let filter = makeFilter?("variableBlur"),
+        guard let backdrop = backdrop(of: view), let filter = makeFilter("variableBlur", like: backdrop),
               let mask = mask(fullAt: fullAt) else { return nil }
         // The mask's alpha says how much of the radius, pixel by pixel.
         filter.setValue(radius, forKey: "inputRadius")
@@ -126,20 +126,18 @@ final class ProgressiveBlurView: UIView {
         }
     }
 
-    /// Makes a Core Animation filter by name. Its class isn't public, but UIKit's own
-    /// blur has an instance of it, whose class makes others; nil if not.
-    static let makeFilter: ((String) -> NSObject?)? = {
-        let probe = UIVisualEffectView(effect: UIBlurEffect(style: .regular))
-        guard let sample = ProgressiveBlurView.backdrop(of: probe)?.layer.filters?.first as? NSObject else {
-            return nil
+    /// Makes a Core Animation filter by name. Its class isn't public, but the
+    /// filters UIKit puts on a backdrop are of it, and it makes others; nil if not.
+    static func makeFilter(_ name: String, like backdrop: UIView) -> NSObject? {
+        if filterClass == nil, let sample = backdrop.layer.filters?.first as? NSObject {
+            filterClass = type(of: sample)
         }
-        let filterClass = type(of: sample)
         let selector = NSSelectorFromString(["Type:", "With", "filter"].reversed().joined())
-        guard filterClass.responds(to: selector) else { return nil }
-        return { name in
-            (filterClass as AnyObject).perform(selector, with: name)?.takeUnretainedValue() as? NSObject
-        }
-    }()
+        guard let filterClass = Self.filterClass, filterClass.responds(to: selector) else { return nil }
+        return (filterClass as AnyObject).perform(selector, with: name)?.takeUnretainedValue() as? NSObject
+    }
+
+    private static var filterClass: NSObject.Type?
 
     private static var masks: [CGFloat: CGImage] = [:]
 
