@@ -23,6 +23,9 @@ on:
       only:
         description: "Only these shots, by name (say 13c-activity-journey 15h-tracked-journey-stops; start for the start-up board check); empty for all"
         default: ""
+      sample:
+        description: "true: after each shot, the app's threads (sampled) and its log, as <shot>.sample.txt and <shot>.log.txt, for a hung or slow app"
+        default: ""
 
 permissions:
   contents: write
@@ -207,6 +210,7 @@ jobs:
         env:
           UDID: ${{ steps.sim.outputs.udid }}
           ONLY: ${{ inputs.only }}
+          SAMPLE: ${{ inputs.sample }}
         run: |
           mkdir -p shots
           # With `only`, just those shots (the recordings and bursts only without).
@@ -216,10 +220,22 @@ jobs:
             if ! everything && [[ " $ONLY " != *" $name "* ]]; then return 0; fi
             xcrun simctl terminate "$UDID" "$BUNDLE_ID" > /dev/null 2>&1 || true
             sleep 1
-            xcrun simctl launch "$UDID" "$BUNDLE_ID" -debugScene "$scene" \
-              -homeStation OA -workStation UN "$@" > /dev/null
+            launched=$(xcrun simctl launch "$UDID" "$BUNDLE_ID" -debugScene "$scene" \
+              -homeStation OA -workStation UN "$@")
             sleep "$wait"
             xcrun simctl io "$UDID" screenshot --type=png "shots/$name.png" > /dev/null 2>&1
+            if [ "$SAMPLE" = true ]; then
+              # Where each of its threads is (the simulator's apps are Mac processes), and what it logged.
+              pid=${launched##*: }
+              sudo -n sample "$pid" 2 -file "shots/$name.sample.txt" > /dev/null 2>&1 \
+                || sample "$pid" 2 -file "shots/$name.sample.txt" > /dev/null 2>&1 \
+                || echo "Couldn't sample $name ($pid)"
+              xcrun simctl spawn "$UDID" log show --last "$((wait + 5))s" --style compact \
+                --predicate 'process == "Departures"' > "shots/$name.log.txt" 2> /dev/null || true
+              # And the simulator's render server, which draws what the app sets up.
+              render=$(pgrep -f 'CoreSimulator.*/backboardd' | head -1)
+              [ -n "$render" ] && { sudo -n sample "$render" 2 -file "shots/$name.backboardd.txt" > /dev/null 2>&1 || true; }
+            fi
             echo "$name"
           }
           # The first launch also warms up map tiles.
