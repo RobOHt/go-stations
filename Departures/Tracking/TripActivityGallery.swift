@@ -274,6 +274,11 @@ struct TripActivityGallery: View {
     /// The expanded island: pill and countdown beside the camera, where the train
     /// is going under it, the stops around it along the bottom.
     private func expanded(_ sample: Sample) -> some View {
+        // (Measured: the island too has 160 pt.)
+        MeasuredCard(limit: 160) { expandedContent(sample) }
+    }
+
+    private func expandedContent(_ sample: Sample) -> some View {
         VStack(spacing: 10) {
             ZStack(alignment: .top) {
                 HStack(alignment: .top) {
@@ -286,7 +291,6 @@ struct TripActivityGallery: View {
                     .padding(.top, 42)
             }
             TripExpandedBottom(attributes: sample.drawn, state: sample.state, isStale: false)
-                .padding(.top, 6)
         }
         .padding(.horizontal, 18)
         .padding(.top, 14)

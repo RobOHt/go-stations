@@ -616,6 +616,11 @@ struct TripCountdown: View {
                    alignment: alignment == .trailing ? .trailing : .leading)
     }
 
+    /// A little smaller an hour or more out (h:mm:ss is wider than m:ss).
+    static func fontSize(until target: Date, regular: CGFloat, from now: Date = Date()) -> CGFloat {
+        target.timeIntervalSince(now) >= 3600 ? (regular * 0.8).rounded() : regular
+    }
+
     static func width(until target: Date, from now: Date, fontSize: CGFloat) -> CGFloat {
         let left = target.timeIntervalSince(now)
         let digits: CGFloat = left >= 3600 ? 5 : (left >= 600 ? 4 : 3)
@@ -725,14 +730,17 @@ struct TripTimeBlock: View {
 }
 
 /// Tracked from your station's board, before the train gets there: "Your
-/// Kitchener line 20:48 eastbound train to Union Station will arrive in 17
-/// minutes", the line's name in its colour, and the minutes counting down.
+/// Lakeshore East line 20:48 westbound train to Union Station will arrive in 17
+/// minutes", the line's name in its colour, and the minutes counting down. Or,
+/// leading into a big countdown beside it, ending "will arrive in".
 struct TripApproachSentence: View {
     let attributes: TripActivityAttributes
     let trip: TripActivityTrip
     let moment: TripMoment
     let onDark: Bool
     var fontSize: CGFloat = 15
+    /// Ends at "will arrive in" (or "will leave in"): the countdown's beside it.
+    var leadsIn = false
 
     var body: some View {
         sentence
@@ -756,6 +764,7 @@ struct TripApproachSentence: View {
         }
         text = text + Text("\(direction) train to ") + Text(attributes.terminusName).fontWeight(.bold)
         guard let target = moment.target else { return text }
+        if leadsIn { return text + Text(verb + "in") }
         return text + Text(verb)
             + Text(.currentDate, format: .reference(to: target, allowedFields: [.hour, .minute]))
                 .fontWeight(.bold)
@@ -816,6 +825,9 @@ struct TripStopStrip: View {
     let color: Color
     /// Smaller, one line per name: the expanded Dynamic Island.
     var compact = false
+    /// Each stop's time under its name (not in the island over a change line,
+    /// where there isn't room for both).
+    var showsTimes = true
 
     var body: some View {
         let shown = trip.strip(for: moment)
@@ -846,7 +858,7 @@ struct TripStopStrip: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
                 .multilineTextAlignment(.center)
-            if let time = stop.time {
+            if showsTimes, let time = stop.time {
                 Text(TripActivityFormat.time(time))
                     .font(.system(size: compact ? 10.5 : 11.5, weight: .medium).monospacedDigit())
                     .foregroundStyle(.secondary)
@@ -987,9 +999,14 @@ struct TripLockScreen: View {
                 HStack(alignment: .center, spacing: 10) {
                     TripLinePill(code: attributes.lineCode, color: attributes.lineColor, fontSize: 15, shape: Capsule())
                         .frame(height: 32)
+                    // "…will arrive in", and the countdown big at the right (#18).
                     TripApproachSentence(attributes: attributes, trip: trip, moment: moment, onDark: onDark,
-                                         fontSize: 14)
-                    Spacer(minLength: 0)
+                                         fontSize: 14, leadsIn: moment.target != nil)
+                    Spacer(minLength: 4)
+                    if let target = moment.target {
+                        TripCountdown(target: target, fontSize: TripCountdown.fontSize(until: target, regular: 26),
+                                      alignment: .trailing)
+                    }
                 }
             } else {
                 HStack(alignment: .center, spacing: 10) {
@@ -1162,6 +1179,10 @@ struct TripExpandedTrailing: View {
         let moment = trip.moment(at: Date(), isStale: isStale)
         if moment.kind != .approaching {
             TripTimeBlock(trip: trip, moment: moment, fontSize: 24)
+        } else if let target = moment.target {
+            // The sentence along the bottom leads into it, as on the Lock Screen.
+            TripCountdown(target: target, fontSize: TripCountdown.fontSize(until: target, regular: 26),
+                          alignment: .trailing)
         }
     }
 }
@@ -1179,8 +1200,12 @@ struct TripExpandedCenter: View {
         if moment.kind != .approaching {
             VStack(spacing: 2) {
                 TripTitle(attributes: attributes, trip: trip)
-                TripNextLine(attributes: attributes, trip: trip, moment: moment, change: state.change)
-                    .font(.subheadline)
+                // With a change line along the bottom, just the title: the island's
+                // 160 pt don't fit both (and the stops show the next one).
+                if state.change == nil || moment.kind == .arrived {
+                    TripNextLine(attributes: attributes, trip: trip, moment: moment, change: state.change)
+                        .font(.subheadline)
+                }
             }
             .minimumScaleFactor(0.8)
         }
@@ -1197,13 +1222,18 @@ struct TripExpandedBottom: View {
     var body: some View {
         let trip = TripActivityTrip(attributes, state)
         let moment = trip.moment(at: Date(), isStale: isStale)
+        // (All within the island's 160 pt: with a change line, the stops go without
+        // their times, which the Lock Screen has.)
+        let changeLine = moment.kind != .arrived ? state.change : nil
         VStack(alignment: .leading, spacing: 0) {
             if moment.kind == .approaching {
-                TripApproachSentence(attributes: attributes, trip: trip, moment: moment, onDark: true, fontSize: 14)
-                    .padding(.bottom, 8)
+                TripApproachSentence(attributes: attributes, trip: trip, moment: moment, onDark: true, fontSize: 13.5,
+                                     leadsIn: moment.target != nil)
+                    .padding(.bottom, 6)
             }
-            TripStopStrip(trip: trip, moment: moment, color: attributes.lineColorOnDark, compact: true)
-            if let change = state.change, moment.kind != .arrived {
+            TripStopStrip(trip: trip, moment: moment, color: attributes.lineColorOnDark, compact: true,
+                          showsTimes: changeLine == nil)
+            if let change = changeLine {
                 TripChangeLine(change: change, onDark: true, fontSize: 12)
                     .padding(.top, 6)
             }

@@ -38,7 +38,6 @@ struct TripLiveActivity: Widget {
                 DynamicIslandExpandedRegion(.bottom) {
                     TripExpandedBottom(attributes: attributes, state: context.state,
                                        isStale: context.isStale)
-                        .padding(.top, 6)
                 }
             } compactLeading: {
                 TripCompactLeading(attributes: attributes, state: context.state, isStale: context.isStale)
