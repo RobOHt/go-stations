@@ -35,6 +35,10 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         // Trip alerts show while the app is open, and getting to your station is
         // heard (it can wake the app to take back the reminder to set off).
         TripAlerts.shared.start()
+        #if DEBUG
+        // The self-checks run first thing, before anything else on screen.
+        if DebugScene.current == .selfCheck { Task { @MainActor in SelfCheck.run() } }
+        #endif
         return true
     }
 

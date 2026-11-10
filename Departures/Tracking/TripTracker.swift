@@ -131,7 +131,8 @@ struct TrackedTrip: Codable, Equatable, Sendable {
     /// The trip as its train's latest live report has it: where the train is among
     /// its stops (standing at one, or on its way to one), when it was seen pulling
     /// in at each and leaving, and its times ahead as late as it's running (it
-    /// never leaves a station early, whatever its delay says).
+    /// never leaves a station early, whatever its delay says, but it can get to the
+    /// end of its run early).
     func following(_ train: LiveTrain, now: Date) -> TrackedTrip {
         guard train.isFresh(at: now), var fix = train.fix(in: stopCodes, from: live?.index ?? 0) else { return self }
         var stops = self.stops
@@ -159,12 +160,15 @@ struct TrackedTrip: Codable, Equatable, Sendable {
         if fix.index > 0, let left = stops[fix.index - 1].departed, let planned = stops[fix.index - 1].time {
             extra = max(0, left.timeIntervalSince(planned) - late)
         }
+        // On its way to the end of its run ahead of time, though, it gets in early:
+        // the timetable leaves room on the last stretch (into Union, say).
+        let early = !fix.isAt && fix.index == stops.count - 1 ? min(0, delay ?? 0) : 0
         for index in stops.indices where index >= fix.index {
             let stop = stops[index]
             guard let planned = stop.time else { continue }
             stops[index] = TripDetail.Stop(index: stop.index, code: stop.code, time: stop.time,
-                                           expected: planned.addingTimeInterval(late + extra), platform: stop.platform,
-                                           arrived: stop.arrived, departed: stop.departed)
+                                           expected: planned.addingTimeInterval(early < 0 ? early : late + extra),
+                                           platform: stop.platform, arrived: stop.arrived, departed: stop.departed)
         }
         var next = self
         next.stops = stops

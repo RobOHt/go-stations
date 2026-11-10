@@ -133,3 +133,20 @@ test("following the first train: ends in at Union, and says where it stands on t
   assert.equal(end.push.event, "end");
   assert.ok(end.job.legs.length === 1);
 });
+
+test("into the end of its run early: it gets in early, but leaves stations along the way on time", () => {
+  // On its way to Union, its last stop, two and a half minutes early.
+  const report = { trip: "1306", line: "LW", lat: 43.6, lon: -79.4, status: "to", stop: "UN" };
+  const early = follow(job(), { ...report, time: at("07:29:00"), delay: -150 }, at("07:29:10"));
+  assert.equal(early.state.stops[3].time, at("07:31:30"));
+  assert.equal(early.state.arrival, at("07:31:30"));
+  // Early on its way to Mimico (where you get on): it still leaves on time, and
+  // nothing says yet that it gets to Union early.
+  const along = follow(job(), { ...report, stop: "MI", time: at("07:23:00"), delay: -90 }, at("07:23:10"));
+  assert.equal(along.state.stops[2].time, at("07:25"));
+  assert.equal(along.state.departure, at("07:25"));
+  assert.equal(along.state.stops[3].time, at("07:34"));
+  // Late is late, all the way.
+  const late = follow(job(), { ...report, time: at("07:33:00"), delay: 120 }, at("07:33:10"));
+  assert.equal(late.state.stops[3].time, at("07:36"));
+});

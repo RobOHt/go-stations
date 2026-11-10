@@ -206,6 +206,9 @@ export function follow(job, train, now) {
   // A train doesn't leave a station early, whatever its delay says.
   const late = Math.max(0, delay);
   const k = obs.k;
+  // On its way to the end of its run ahead of time, though, it gets in early: the
+  // timetable leaves room on the last stretch (into Union, say).
+  const early = k === count - 1 && !obs.at && delay < 0 ? delay : 0;
 
   const stops = base.stops.map((stop) => {
     const copy = { name: stop.name };
@@ -237,7 +240,7 @@ export function follow(job, train, now) {
       if (arr[i] != null && i > 0) stops[i].arrives = Math.min(arr[i], leaves);
       continue;
     }
-    stops[i].time = planned + late + extra;
+    stops[i].time = early < 0 && i === count - 1 ? planned + early : planned + late + extra;
   }
 
   // On its way to the next stop and late for it: due there any moment.

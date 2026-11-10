@@ -12,11 +12,15 @@ enum SelfCheck {
 
     static func run() {
         lines = []
+        NSLog("SelfCheck: starting")
+        write()
         leaveReminder()
         reportGap()
         changingTrains()
+        earlyArrival()
         lines.append("done")
         write()
+        NSLog("SelfCheck: done")
     }
 
     // MARK: The checks
@@ -55,6 +59,25 @@ enum SelfCheck {
         // Reports as they should come: left when seen leaving.
         let next = seen.following(train(at: "EX", status: "to", time: date("12:00:20")), now: date("12:00:25"))
         check("report gap: left Mimico when seen leaving", next.stops[8].departed == date("12:00:20"))
+    }
+
+    /// #17: on its way to the end of its run ahead of time, a train gets there
+    /// early; early for a station along the way, it still leaves that on time.
+    private static func earlyArrival() {
+        // Mimico 11:52, then 11:56, Union 12:00.
+        let trip = lakeshore(boarding: 8, destination: 10)
+        let intoUnion = trip.following(train(at: "UN", status: "to", time: date("11:57"), delay: -150),
+                                       now: date("11:57:05"))
+        check("early: in at the end of its run early", intoUnion.stops[10].expected == date("11:57:30"),
+              "expected \(intoUnion.stops[10].expected.map(TorontoTime.clock) ?? "nil")")
+        check("early: so the trip gets in early", intoUnion.arrival == date("11:57:30"))
+        let alongTheWay = trip.following(train(at: "EX", status: "to", time: date("11:54"), delay: -90),
+                                         now: date("11:54:05"))
+        check("early: still leaves a station along the way on time", alongTheWay.stops[9].expected == date("11:56"),
+              "expected \(alongTheWay.stops[9].expected.map(TorontoTime.clock) ?? "nil")")
+        check("early: and isn't early at the end of its run yet", alongTheWay.stops[10].expected == date("12:00"))
+        let late = trip.following(train(at: "UN", status: "to", time: date("11:59"), delay: 120), now: date("11:59:05"))
+        check("early: a late train is still late", late.stops[10].expected == date("12:02"))
     }
 
     /// A trip with a change goes on with the next train in the same Live Activity.
@@ -128,13 +151,22 @@ enum SelfCheck {
     // MARK: Results
 
     private static func check(_ name: String, _ passed: Bool, _ detail: @autoclosure () -> String = "") {
-        lines.append(passed ? "ok   \(name)" : "FAIL \(name)" + (detail().isEmpty ? "" : ": \(detail())"))
+        let line = passed ? "ok   \(name)" : "FAIL \(name)" + (detail().isEmpty ? "" : ": \(detail())")
+        lines.append(line)
+        NSLog("SelfCheck: %@", line)
+        // As it goes, so a crash part way shows how far it got.
+        write()
     }
 
     private static func write() {
         guard let directory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
-        let text = lines.joined(separator: "\n") + "\n"
-        try? text.write(to: directory.appendingPathComponent("self-check.txt"), atomically: true, encoding: .utf8)
+        do {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            let text = lines.joined(separator: "\n") + "\n"
+            try text.write(to: directory.appendingPathComponent("self-check.txt"), atomically: true, encoding: .utf8)
+        } catch {
+            NSLog("SelfCheck: couldn't write the results: %@", "\(error)")
+        }
     }
 }
 #endif
