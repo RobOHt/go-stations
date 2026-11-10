@@ -298,10 +298,11 @@ struct TripActivityGallery: View {
         .padding(.top, 14)
         .padding(.bottom, 18)
         .overlay(alignment: .top) {
+            // The camera, at the top of the island as on the phone.
             Capsule()
                 .fill(Color(white: 0.1))
-                .frame(width: 120, height: 36)
-                .padding(.top, 11)
+                .frame(width: 120, height: 34)
+                .padding(.top, 2)
         }
         .background(Color.black, in: RoundedRectangle(cornerRadius: 46, style: .continuous))
         .containerShape(RoundedRectangle(cornerRadius: 46, style: .continuous))
