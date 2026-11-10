@@ -189,7 +189,7 @@ struct TripActivityGallery: View {
         return trip
     }
 
-    /// Between Exhibition and Union, where you change.
+    /// Nearly at Union, where you change.
     private var changingRiding: Sample {
         var trip = sample("LW", ["AL", "BU", "AP", "BO", "OA", "CL", "PO", "LO", "MI", "EX", "UN"],
                           minutes: [-45, -40, -35, -31, -27, -23, -19, -15, -11, -3, 4],
