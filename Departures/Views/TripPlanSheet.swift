@@ -272,6 +272,12 @@ struct TripPlanSheet: View {
 
     // MARK: The offer, and alerts
 
+    /// The buttons in the offer and alerts cards, and the room around them: the
+    /// cards' corners run concentric with the buttons' round ends.
+    static let buttonHeight: CGFloat = 48
+    static let cardPadding: CGFloat = 16
+    static var cardRadius: CGFloat { buttonHeight / 2 + cardPadding }
+
     /// "This trip will get you to Union Station in 1 h 5 min": take it?
     private func offerCard(_ journey: Journey) -> some View {
         let now = AppClock.now
@@ -304,7 +310,7 @@ struct TripPlanSheet: View {
                     .font(.body.weight(.semibold))
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 48)
+                    .frame(height: Self.buttonHeight)
                     .contentShape(Capsule())
                 }
                 .buttonStyle(.plain)
@@ -319,15 +325,15 @@ struct TripPlanSheet: View {
                         .font(.body.weight(.semibold))
                         .foregroundStyle(.primary)
                         .frame(maxWidth: .infinity)
-                        .frame(height: 48)
+                        .frame(height: Self.buttonHeight)
                         .contentShape(Capsule())
                 }
                 .buttonStyle(.plain)
                 .glass(.interactive, in: Capsule())
             }
         }
-        .padding(16)
-        .background(.background.secondary, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .padding(Self.cardPadding)
+        .background(.background.secondary, in: RoundedRectangle(cornerRadius: Self.cardRadius, style: .circular))
     }
 
     /// Once a trip is tracked: what you'll be told, and whether you want it.
@@ -347,7 +353,7 @@ struct TripPlanSheet: View {
                         .font(.body.weight(.semibold))
                         .foregroundStyle(.white)
                         .frame(maxWidth: .infinity)
-                        .frame(height: 48)
+                        .frame(height: Self.buttonHeight)
                         .contentShape(Capsule())
                 }
                 .buttonStyle(.plain)
@@ -356,23 +362,21 @@ struct TripPlanSheet: View {
                 Button {
                     Task { await model.answerAlerts(false) }
                 } label: {
-                    Text("Don't notify me for this trip")
-                        .font(.subheadline.weight(.semibold))
+                    Text("Don't notify me")
+                        .font(.body.weight(.semibold))
                         .foregroundStyle(.primary)
-                        .multilineTextAlignment(.center)
-                        .lineLimit(2)
+                        .lineLimit(1)
                         .minimumScaleFactor(0.85)
-                        .padding(.horizontal, 10)
                         .frame(maxWidth: .infinity)
-                        .frame(height: 48)
+                        .frame(height: Self.buttonHeight)
                         .contentShape(Capsule())
                 }
                 .buttonStyle(.plain)
                 .glass(.interactive, in: Capsule())
             }
         }
-        .padding(16)
-        .background(.background.secondary, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .padding(Self.cardPadding)
+        .background(.background.secondary, in: RoundedRectangle(cornerRadius: Self.cardRadius, style: .circular))
     }
 
     // MARK: The day's trips
