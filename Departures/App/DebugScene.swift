@@ -56,6 +56,9 @@ enum DebugScene: String {
     /// The same (to Unionville without `-planTo`), then the trip it offers tracked:
     /// the question about alerts, and the train on the map.
     case trackedJourney
+    /// Checks of the tracking logic (see `SelfCheck`), written to
+    /// Documents/self-check.txt for the Screenshots workflow.
+    case selfCheck
 
     static var current: DebugScene? {
         UserDefaults.standard.string(forKey: "debugScene").flatMap(DebugScene.init(rawValue:))

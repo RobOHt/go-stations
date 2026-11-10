@@ -17,6 +17,9 @@ on:
       device:
         description: "iPhone model (say iPhone 16 Pro); empty for the usual one"
         default: ""
+      checks_only:
+        description: "true: only the app's self-checks, no screenshots"
+        default: ""
 
 permissions:
   contents: write
@@ -157,7 +160,38 @@ jobs:
           xcrun simctl status_bar "$UDID" override --time "9:41" --batteryState charged \
             --batteryLevel 100 --cellularBars 4 --wifiBars 3 || true
 
+      - name: Run the app's self-checks
+        id: selfcheck
+        env:
+          UDID: ${{ steps.sim.outputs.udid }}
+        run: |
+          # Checks of the tracking logic, run in the app (DebugScene.selfCheck): each
+          # line "ok  …" or "FAIL …", then "done".
+          xcrun simctl terminate "$UDID" "$BUNDLE_ID" > /dev/null 2>&1 || true
+          container=$(xcrun simctl get_app_container "$UDID" "$BUNDLE_ID" data)
+          results="$container/Documents/self-check.txt"
+          rm -f "$results"
+          sleep 1
+          xcrun simctl launch "$UDID" "$BUNDLE_ID" -debugScene selfCheck > /dev/null < /dev/null
+          for i in $(seq 1 60); do
+            grep -q '^done' "$results" 2> /dev/null && break
+            sleep 1
+          done
+          cat "$results" 2> /dev/null || echo "No results were written"
+          failed=0
+          if ! grep -q '^done' "$results" 2> /dev/null; then
+            echo "::error title=Self-checks::They didn't finish"
+            failed=1
+          fi
+          while IFS= read -r line; do
+            echo "::error title=Self-check failed::${line#FAIL }"
+            failed=1
+          done < <(grep '^FAIL' "$results" 2> /dev/null || true)
+          [ "$failed" = 0 ] && echo "::notice title=Self-checks::$(grep -c '^ok' "$results") passed"
+          echo "failed=$failed" >> "$GITHUB_OUTPUT"
+
       - name: Take screenshots
+        if: inputs.checks_only != 'true'
         env:
           UDID: ${{ steps.sim.outputs.udid }}
         run: |
@@ -286,7 +320,7 @@ jobs:
           shoot 13b-activity-lock-screen 8 activityGallery -galleryLockScreen YES
 
       - name: Trace the tracked train's motion
-        if: always() && steps.sim.outputs.udid != ''
+        if: always() && steps.sim.outputs.udid != '' && inputs.checks_only != 'true'
         env:
           UDID: ${{ steps.sim.outputs.udid }}
         run: |
@@ -312,6 +346,7 @@ jobs:
 
       - name: Check the start-up station
         id: startup
+        if: inputs.checks_only != 'true'
         env:
           UDID: ${{ steps.sim.outputs.udid }}
         run: |
@@ -349,7 +384,7 @@ jobs:
           echo "failed=$failed" >> "$GITHUB_OUTPUT"
 
       - name: Publish to a screenshots branch
-        if: always() && steps.sim.outputs.udid != ''
+        if: always() && steps.sim.outputs.udid != '' && inputs.checks_only != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           NAME: ${{ steps.sim.outputs.name }}
@@ -372,4 +407,8 @@ jobs:
 
       - name: Fail if the start-up station was wrong
         if: steps.startup.outputs.failed == '1'
+        run: exit 1
+
+      - name: Fail if a self-check failed
+        if: always() && steps.selfcheck.outputs.failed == '1'
         run: exit 1

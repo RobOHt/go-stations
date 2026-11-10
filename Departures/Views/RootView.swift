@@ -759,6 +759,8 @@ struct RootView: View {
             await trackDebugTrain()
         case .tripPlan, .trackedJourney:
             await planDebugTrip(scene)
+        case .selfCheck:
+            SelfCheck.run()
         case .activityGallery:
             break  // DeparturesApp shows the gallery in place of the map.
         }

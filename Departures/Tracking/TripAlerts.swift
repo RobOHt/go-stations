@@ -114,12 +114,15 @@ final class TripAlerts: NSObject {
         if (trip.legIndex ?? 0) == 0, !atStation.contains(trip.activityID),
            let departure = trip.departure, departure.addingTimeInterval(-Self.lead) > now,
            let station = network.station(trip.boardingCode), !isNear(station) {
-            let line = network.line(code: trip.lineCode).map { "\($0.name) line" } ?? "\(trip.lineCode) line"
+            // Which way it goes, as its Live Activity says it.
+            let shown = TripActivityController.attributes(for: trip)
             alerts.append(Alert(
                 id: Self.leaveID,
                 date: departure.addingTimeInterval(-Self.lead),
                 title: "Your train leaves in 5 min",
-                body: "The \(TorontoTime.hourMinute(departure)) \(line) train from \(station.name)."
+                body: Self.leaveBody(time: departure, line: network.line(code: trip.lineCode)?.name ?? trip.lineCode,
+                                     from: station.name, direction: shown?.direction,
+                                     terminus: shown?.terminusName)
             ))
             watched = station
         }
@@ -148,6 +151,18 @@ final class TripAlerts: NSObject {
             }
         }
         return (alerts, watched)
+    }
+
+    /// The reminder to set off: "The 12:06 Lakeshore West line train from
+    /// Exhibition, eastbound to Union Station." Which way it goes when that's
+    /// known (as its Live Activity has it), and where to when that is.
+    static func leaveBody(time: Date, line: String, from station: String, direction: String?,
+                          terminus: String?) -> String {
+        let train = "The \(TorontoTime.hourMinute(time)) \(line) line train from \(station)"
+        // (Not "to" the station it leaves from, at the end of its run.)
+        guard let terminus, terminus != station else { return train + "." }
+        guard let direction, !direction.isEmpty else { return "\(train) to \(terminus)." }
+        return "\(train), \(direction) to \(terminus)."
     }
 
     /// You're at (or by) the station now, as far as the last fix says.

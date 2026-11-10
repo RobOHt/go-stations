@@ -48,6 +48,7 @@
 		EE3334F2615D0AB27E4AF673 /* TripPlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2E15CB1F3D4880F761F13AC /* TripPlanner.swift */; };
 		BD9BA7D082C2FDFB36221F9F /* TripPlanSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBB587A54B5B6A160F048A39 /* TripPlanSheet.swift */; };
 		74EA24F31B8A8AA8145F8E51 /* TripAlerts.swift in Sources */ = {isa = PBXBuildFile; fileRef = E023D9E548548964A88EF91D /* TripAlerts.swift */; };
+		E5A2EA19208E2D53947C3101 /* SelfCheck.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CE2E51E667A2647FC5E004A /* SelfCheck.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -118,6 +119,7 @@
 		C2E15CB1F3D4880F761F13AC /* TripPlanner.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TripPlanner.swift; sourceTree = "<group>"; };
 		EBB587A54B5B6A160F048A39 /* TripPlanSheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TripPlanSheet.swift; sourceTree = "<group>"; };
 		E023D9E548548964A88EF91D /* TripAlerts.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TripAlerts.swift; sourceTree = "<group>"; };
+		2CE2E51E667A2647FC5E004A /* SelfCheck.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SelfCheck.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -316,6 +318,7 @@
 			children = (
 				74808329CCF6884C750FCF09 /* DeparturesApp.swift */,
 				58F912FB19F268A83449830E /* DebugScene.swift */,
+				2CE2E51E667A2647FC5E004A /* SelfCheck.swift */,
 			);
 			name = App;
 			path = App;
@@ -433,6 +436,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E5A2EA19208E2D53947C3101 /* SelfCheck.swift in Sources */,
 				74EA24F31B8A8AA8145F8E51 /* TripAlerts.swift in Sources */,
 				BD9BA7D082C2FDFB36221F9F /* TripPlanSheet.swift in Sources */,
 				EE3334F2615D0AB27E4AF673 /* TripPlanner.swift in Sources */,
