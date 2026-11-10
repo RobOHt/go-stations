@@ -820,7 +820,7 @@ struct TripStopStrip: View {
     var body: some View {
         let shown = trip.strip(for: moment)
         let focus = trip.focus(moment)
-        VStack(spacing: compact ? 3 : 4) {
+        VStack(spacing: 3) {
             TripStripTrack(trip: trip, shown: shown, focus: focus, color: color, compact: compact)
                 .frame(height: 14)
             HStack(alignment: .top, spacing: 0) {
@@ -988,7 +988,7 @@ struct TripLockScreen: View {
                     TripLinePill(code: attributes.lineCode, color: attributes.lineColor, fontSize: 15, shape: Capsule())
                         .frame(height: 32)
                     TripApproachSentence(attributes: attributes, trip: trip, moment: moment, onDark: onDark,
-                                         fontSize: 14.5)
+                                         fontSize: 14)
                     Spacer(minLength: 0)
                 }
             } else {
@@ -1005,9 +1005,10 @@ struct TripLockScreen: View {
                 }
             }
             TripStopStrip(trip: trip, moment: moment, color: attributes.color(onDark: onDark))
-                .padding(.top, 8)
+                // (Under the sentence's three lines, a little less: they have room below.)
+                .padding(.top, moment.kind == .approaching ? 6 : 8)
             if let change = state.change, moment.kind != .arrived {
-                TripChangeLine(change: change, onDark: onDark, fontSize: 12.5)
+                TripChangeLine(change: change, onDark: onDark, fontSize: 12)
                     .padding(.top, 8)
             }
         }
