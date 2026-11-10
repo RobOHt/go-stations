@@ -143,7 +143,7 @@ struct TripPlanSheet: View {
         .pinnedHeader { header }
         .environment(\.glassBackdrop, .sheet)
         .sheet(isPresented: $showsStationPicker) {
-            StationPicker { code in model.pickOrigin(code) }
+            OriginPicker { code in model.pickOrigin(code) }
         }
         .onChange(of: model.stage) { _, stage in
             // Asked and answered: back to the map, and the train.
@@ -276,8 +276,11 @@ struct TripPlanSheet: View {
     private func offerCard(_ journey: Journey) -> some View {
         let now = AppClock.now
         let color = lineColor(journey.legs[0].lineCode)
+        // When to set off for the station, to be there as the train leaves.
+        let leaveAt = journey.departure.addingTimeInterval(-TimeInterval((model.plan?.start?.minutes ?? 0) * 60))
+        let leave = leaveAt.timeIntervalSince(now) <= 120 ? "Leave now" : "Leave at \(TorontoTime.hourMinute(leaveAt))"
         return VStack(alignment: .leading, spacing: 12) {
-            Label("Leave now", systemImage: "figure.walk.departure")
+            Label(leave, systemImage: "figure.walk.departure")
                 .font(.footnote.weight(.bold))
                 .foregroundStyle(.secondary)
             Text("This trip will get you to \(model.destination.name) in \(DurationText.text(from: now, to: journey.arrivalThere)), at \(TorontoTime.hourMinute(journey.arrivalThere)).")
@@ -644,7 +647,7 @@ struct JourneyStops: View {
 // MARK: - Picking where to start
 
 /// Every station, to search, for where a trip starts.
-private struct StationPicker: View {
+private struct OriginPicker: View {
     let onPick: (String?) -> Void
 
     @Environment(\.dismiss) private var dismiss
