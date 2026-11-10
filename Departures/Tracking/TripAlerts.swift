@@ -29,6 +29,11 @@ final class TripAlerts: NSObject {
     private static let legIDs = ["trip.leg.0", "trip.leg.1", "trip.leg.2"]
 
     private let center = UNUserNotificationCenter.current()
+    /// Changes to the pending alerts go to the notification centre in turn, off the
+    /// main thread: some of its calls wait on iOS's notification service, which
+    /// can take a while (on a freshly started simulator, long enough to freeze the
+    /// app at launch).
+    private nonisolated static let changes = DispatchQueue(label: "TripAlerts.changes")
     private let manager = CLLocationManager()
     /// What's scheduled, so the same isn't scheduled again on every update.
     private var scheduled: String?
@@ -91,17 +96,33 @@ final class TripAlerts: NSObject {
                    + [station?.code ?? "-"]).joined(separator: ";")
         guard key != scheduled else { return }
         scheduled = key
-        center.removePendingNotificationRequests(withIdentifiers: [Self.leaveID] + Self.legIDs)
-        for alert in alerts {
+        let requests = alerts.map { alert -> UNNotificationRequest in
             let content = UNMutableNotificationContent()
             content.title = alert.title
             content.body = alert.body
             content.sound = .default
             let trigger = UNTimeIntervalNotificationTrigger(timeInterval: max(1, alert.date.timeIntervalSince(now)),
                                                             repeats: false)
-            center.add(UNNotificationRequest(identifier: alert.id, content: content, trigger: trigger))
+            return UNNotificationRequest(identifier: alert.id, content: content, trigger: trigger)
         }
+        Self.change(removing: [Self.leaveID] + Self.legIDs, adding: requests)
         watch(station)
+    }
+
+    /// Takes back the pending alerts `ids`, then adds `requests` (see `changes`);
+    /// `done` once iOS has them.
+    private nonisolated static func change(removing ids: [String], adding requests: [UNNotificationRequest] = [],
+                                           done: (@Sendable () -> Void)? = nil) {
+        changes.async {
+            let center = UNUserNotificationCenter.current()
+            if !ids.isEmpty { center.removePendingNotificationRequests(withIdentifiers: ids) }
+            let added = DispatchGroup()
+            for request in requests {
+                added.enter()
+                center.add(request) { _ in added.leave() }
+            }
+            if let done { added.notify(queue: changes) { done() } }
+        }
     }
 
     /// The alerts a trip gets from here, and the station to watch for you getting to.
@@ -170,7 +191,7 @@ final class TripAlerts: NSObject {
     /// missed the 12:06 to Union Station. Open GO Stations to plan another trip
     /// to Danforth." Tapping it opens the trip card there. Only with alerts on
     /// for the trip.
-    func missed(_ trip: TrackedTrip) {
+    func missed(_ trip: TrackedTrip) async {
         guard isOn(for: trip) else { return }
         let network = RailNetwork.shared
         let content = UNMutableNotificationContent()
@@ -180,7 +201,12 @@ final class TripAlerts: NSObject {
         content.body = "Open GO Stations to plan another trip to \(destination)."
         content.sound = .default
         content.userInfo = [planToKey: trip.finalDestinationCode]
-        center.add(UNNotificationRequest(identifier: Self.missedID, content: content, trigger: nil))
+        let request = UNNotificationRequest(identifier: Self.missedID, content: content, trigger: nil)
+        // Woken in the background to find this out, the app may not get long after:
+        // done once iOS has it.
+        await withCheckedContinuation { (done: CheckedContinuation<Void, Never>) in
+            Self.change(removing: [], adding: [request]) { done.resume() }
+        }
     }
 
     /// "You missed the 12:06 to Union Station", or without where it goes.
@@ -220,7 +246,7 @@ final class TripAlerts: NSObject {
     private func reachedStation() {
         guard let trip = TripTracker.shared.trip else { return }
         atStation.insert(trip.activityID)
-        center.removePendingNotificationRequests(withIdentifiers: [Self.leaveID])
+        Self.change(removing: [Self.leaveID])
         scheduled = nil
         update(for: trip)
     }

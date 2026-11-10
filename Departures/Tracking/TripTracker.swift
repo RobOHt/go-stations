@@ -476,8 +476,8 @@ final class TripTracker {
         noteMissedCheck((known != nil ? "woken: " : "") + Self.describe(verdict, location: location, train: train,
                                                                           now: now))
         guard verdict == .missed else { return false }
-        TripAlerts.shared.missed(current)
         stop()
+        await TripAlerts.shared.missed(current)
         return true
     }
 
