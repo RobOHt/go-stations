@@ -832,7 +832,7 @@ struct TripStopStrip: View {
     var body: some View {
         let shown = trip.strip(for: moment)
         let focus = trip.focus(moment)
-        VStack(spacing: 3) {
+        VStack(spacing: compact ? 2 : 3) {
             TripStripTrack(trip: trip, shown: shown, focus: focus, color: color, compact: compact)
                 .frame(height: 14)
             HStack(alignment: .top, spacing: 0) {
@@ -1198,13 +1198,15 @@ struct TripExpandedCenter: View {
         let trip = TripActivityTrip(attributes, state)
         let moment = trip.moment(at: Date(), isStale: isStale)
         if moment.kind != .approaching {
-            VStack(spacing: 2) {
+            // (Snug: with the stops and their times under it, it all has to fit the
+            // island's 160 pt.)
+            VStack(spacing: 0) {
                 TripTitle(attributes: attributes, trip: trip)
                 // With a change line along the bottom, just the title: the island's
                 // 160 pt don't fit both (and the stops show the next one).
                 if state.change == nil || moment.kind == .arrived {
                     TripNextLine(attributes: attributes, trip: trip, moment: moment, change: state.change)
-                        .font(.subheadline)
+                        .font(.footnote)
                 }
             }
             .minimumScaleFactor(0.8)
