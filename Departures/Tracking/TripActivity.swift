@@ -835,7 +835,8 @@ struct TripStopStrip: View {
         let focus = trip.focus(moment)
         VStack(spacing: 3) {
             TripStripTrack(trip: trip, shown: shown, focus: focus, color: color, compact: compact)
-                .frame(height: 14)
+                // (A little shorter in the island when there's no time under the names.)
+                .frame(height: compact && !showsTimes ? 12 : 14)
             HStack(alignment: .top, spacing: 0) {
                 ForEach(shown, id: \.self) { index in
                     label(index, isFocus: index == focus)
@@ -855,7 +856,7 @@ struct TripStopStrip: View {
         let passed = moment.train.hasPassed(index, stopCount: trip.stops.count)
         return VStack(spacing: 0) {
             Text(stop.name)
-                .font(.system(size: compact ? 11 : 12, weight: isFocus ? .bold : .semibold))
+                .font(.system(size: compact ? (showsTimes ? 11 : 10.5) : 12, weight: isFocus ? .bold : .semibold))
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
                 .multilineTextAlignment(.center)
