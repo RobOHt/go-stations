@@ -5,11 +5,15 @@ import SwiftUI
 /// drawn in the app, for screenshots, since the simulator can't be locked or its
 /// island held open from a script. The black island shapes and the Lock Screen
 /// card around them are approximations of the system's. The trips are made up.
-/// With `-galleryLockScreen YES` the Lock Screen comes first, for a second screenshot.
+/// With `-galleryLockScreen YES` the Lock Screen comes first, for a second screenshot;
+/// with `-gallerySection journey` (or `journeyIsland`), a trip with a change at each
+/// point of it, on the Lock Screen (or in the expanded island). Each Lock Screen
+/// card says how tall it is: the system gives it at most 160 points.
 struct TripActivityGallery: View {
     private typealias Snapshot = TripActivityAttributes.ContentState
 
     private let lockScreenFirst = UserDefaults.standard.bool(forKey: "galleryLockScreen")
+    private let section = UserDefaults.standard.string(forKey: "gallerySection")
 
     private struct Sample {
         let attributes: TripActivityAttributes
@@ -24,7 +28,11 @@ struct TripActivityGallery: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 10) {
-                if lockScreenFirst {
+                if section == "journey" {
+                    journeyLockScreens
+                } else if section == "journeyIsland" {
+                    journeyIslands
+                } else if lockScreenFirst {
                     lockScreens
                     island
                 } else {
@@ -63,12 +71,30 @@ struct TripActivityGallery: View {
         expanded(changed)
     }
 
-    @ViewBuilder private var lockScreens: some View {
-        heading("A trip with a change: before it, and after")
+    /// A trip with a change, at each point of it.
+    @ViewBuilder private var journeyLockScreens: some View {
+        heading("A trip with a change, on the Lock Screen")
+        lockScreen(changingApproach)
+            .environment(\.colorScheme, .light)
         lockScreen(changing)
+            .environment(\.colorScheme, .dark)
+        lockScreen(changingRiding)
             .environment(\.colorScheme, .light)
         lockScreen(changed)
             .environment(\.colorScheme, .dark)
+        lockScreen(changedRiding)
+            .environment(\.colorScheme, .light)
+    }
+
+    @ViewBuilder private var journeyIslands: some View {
+        heading("A trip with a change, in the island")
+        expanded(changingApproach)
+        expanded(changingRiding)
+        expanded(changed)
+        expanded(changedRiding)
+    }
+
+    @ViewBuilder private var lockScreens: some View {
         heading("Lock Screen")
         lockScreen(approaching)
             .environment(\.colorScheme, .light)
@@ -150,6 +176,39 @@ struct TripActivityGallery: View {
             station: "Union", lineCode: "LE", lineColorHex: RailNetwork.shared.line(code: "LE")?.hex ?? "FF0D00",
             lineName: "Lakeshore East", departure: now.addingTimeInterval(19 * 60),
             terminusName: "Oshawa", destinationName: "Danforth")
+        return trip
+    }
+
+    /// The same trip before the first train gets to Oakville: tracked from its
+    /// board, so it counts down to the train getting there.
+    private var changingApproach: Sample {
+        var trip = sample("LW", ["AL", "BU", "AP", "BO", "OA", "CL", "PO", "LO", "MI", "EX", "UN"],
+                          minutes: [-10, -5, 0, 4, 9, 13, 17, 21, 25, 29, 34],
+                          boarding: "OA", destination: "UN", fromBoard: true)
+        trip.state.change = changingState.change
+        return trip
+    }
+
+    /// Between Exhibition and Union, where you change.
+    private var changingRiding: Sample {
+        var trip = sample("LW", ["AL", "BU", "AP", "BO", "OA", "CL", "PO", "LO", "MI", "EX", "UN"],
+                          minutes: [-45, -40, -35, -31, -27, -23, -19, -15, -11, -3, 4],
+                          boarding: "OA", destination: "UN", fromBoard: false)
+        trip.state.change = changingState.change
+        return trip
+    }
+
+    private var changingState: Snapshot { changing.state }
+
+    /// On the second train, on its way to Danforth.
+    private var changedRiding: Sample {
+        var trip = changed
+        let second = sample("LE", ["UN", "DA", "SC", "EG", "GU", "RO", "PIN", "AJ", "WH", "OS"],
+                            minutes: [-6, 3, 7, 11, 15, 18, 23, 27, 32, 38],
+                            boarding: "UN", destination: "DA", fromBoard: false)
+        let leg = trip.state.leg
+        trip.state = second.state
+        trip.state.leg = leg
         return trip
     }
 
@@ -244,8 +303,31 @@ struct TripActivityGallery: View {
     }
 
     private func lockScreen(_ sample: Sample) -> some View {
-        TripLockScreen(attributes: sample.drawn, state: sample.state, isStale: false)
-            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        MeasuredCard(limit: 160) {
+            TripLockScreen(attributes: sample.drawn, state: sample.state, isStale: false)
+        }
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+    }
+}
+
+/// A card that says how tall its content is, in red when that's over `limit`.
+private struct MeasuredCard<Content: View>: View {
+    let limit: CGFloat
+    @ViewBuilder let content: Content
+    @State private var height: CGFloat = 0
+
+    var body: some View {
+        content
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height = $0 }
+            .overlay(alignment: .topTrailing) {
+                Text("\(Int(height.rounded())) pt")
+                    .font(.system(size: 10, weight: .bold).monospacedDigit())
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 1)
+                    .background(height > limit ? Color.red : Color.green.opacity(0.8), in: Capsule())
+                    .offset(x: 4, y: -6)
+            }
     }
 }
 #endif

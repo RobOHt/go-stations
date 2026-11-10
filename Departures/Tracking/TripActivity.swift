@@ -732,12 +732,13 @@ struct TripApproachSentence: View {
     let trip: TripActivityTrip
     let moment: TripMoment
     let onDark: Bool
+    var fontSize: CGFloat = 15
 
     var body: some View {
         sentence
-            .font(.system(size: 15))
+            .font(.system(size: fontSize))
             .lineLimit(3)
-            .minimumScaleFactor(0.85)
+            .minimumScaleFactor(0.8)
             .fixedSize(horizontal: false, vertical: true)
     }
 
@@ -760,39 +761,44 @@ struct TripApproachSentence: View {
     }
 }
 
-/// On a trip with changes: "Change at Union to the 17:30 Stouffville line train
-/// to Lincolnville", with the next line's pill.
+/// On a trip with changes, under the stops: "Change at Union for the 17:30 to
+/// Lincolnville", one line, after the next train's pill (which says its line).
 struct TripChangeLine: View {
     let change: TripActivityAttributes.Change
     let onDark: Bool
+    var fontSize: CGFloat = 13
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 7) {
             Text(change.lineCode)
-                .font(.system(size: 11, weight: .heavy))
+                .font(.system(size: fontSize - 2, weight: .heavy))
                 .foregroundStyle(.white)
                 .lineLimit(1)
                 .fixedSize()
-                .padding(.horizontal, 7)
-                .frame(height: 20)
+                .padding(.horizontal, 6)
+                .frame(height: fontSize + 5)
                 .background(TripActivityAttributes.color(hex: change.lineColorHex), in: Capsule())
             sentence
-                .font(.system(size: 13))
-                .lineLimit(2)
-                .minimumScaleFactor(0.85)
-                .fixedSize(horizontal: false, vertical: true)
+                .font(.system(size: fontSize))
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
             Spacer(minLength: 0)
         }
         .accessibilityElement(children: .combine)
+        .accessibilityLabel(spoken)
     }
 
     private var sentence: Text {
-        let line = change.lineName.map { "\($0) line" } ?? "\(change.lineCode) line"
-        return Text("Change at ").foregroundStyle(.secondary)
+        Text("Change at ").foregroundStyle(.secondary)
             + Text(change.station).fontWeight(.semibold)
-            + Text(" to the ").foregroundStyle(.secondary)
+            + Text(" for the ").foregroundStyle(.secondary)
             + Text(TripActivityFormat.time(change.departure)).fontWeight(.semibold).monospacedDigit()
-            + Text(" \(line) train to \(change.terminusName)").foregroundStyle(.secondary)
+            + Text(" to \(change.terminusName)").foregroundStyle(.secondary)
+    }
+
+    private var spoken: String {
+        let line = change.lineName.map { "\($0) line" } ?? "line \(change.lineCode)"
+        return "Change at \(change.station) for the \(TripActivityFormat.time(change.departure)) \(line) train to \(change.terminusName)"
     }
 }
 
@@ -836,8 +842,8 @@ struct TripStopStrip: View {
         return VStack(spacing: 0) {
             Text(stop.name)
                 .font(.system(size: compact ? 11 : 12, weight: isFocus ? .bold : .semibold))
-                .lineLimit(compact ? 1 : 2)
-                .minimumScaleFactor(0.75)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
                 .multilineTextAlignment(.center)
             if let time = stop.time {
                 Text(TripActivityFormat.time(time))
@@ -975,7 +981,7 @@ struct TripLockScreen: View {
         let trip = TripActivityTrip(attributes, state)
         let moment = trip.moment(at: Date(), isStale: isStale)
         let onDark = colorScheme == .dark
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 0) {
             if moment.kind == .approaching {
                 HStack(alignment: .center, spacing: 10) {
                     TripLinePill(code: attributes.lineCode, color: attributes.lineColor, fontSize: 15, shape: Capsule())
@@ -997,11 +1003,14 @@ struct TripLockScreen: View {
                 }
             }
             TripStopStrip(trip: trip, moment: moment, color: attributes.color(onDark: onDark))
+                .padding(.top, 10)
             if let change = state.change, moment.kind != .arrived {
                 TripChangeLine(change: change, onDark: onDark)
+                    .padding(.top, 9)
             }
         }
-        .padding(14)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 16)
     }
 }
 
@@ -1129,7 +1138,15 @@ struct TripExpandedLeading: View {
     }
 }
 
-/// Expanded, right of the camera: the countdown.
+// The expanded island shows what the Lock Screen does, laid out round the camera:
+// the line's pill on the left; on the right the countdown, and under the camera
+// where the train's going and its next stop; along the bottom the stops and, on a
+// trip with changes, where you change. While your train is on its way to you,
+// the sentence the Lock Screen has goes along the bottom instead (no countdown
+// or title), above the stops.
+
+/// Expanded, right of the camera: the countdown (none while your train is on its
+/// way to you: the sentence says when it comes).
 struct TripExpandedTrailing: View {
     let attributes: TripActivityAttributes
     let state: TripActivityAttributes.ContentState
@@ -1137,12 +1154,15 @@ struct TripExpandedTrailing: View {
 
     var body: some View {
         let trip = TripActivityTrip(attributes, state)
-        TripTimeBlock(trip: trip, moment: trip.moment(at: Date(), isStale: isStale), fontSize: 24)
+        let moment = trip.moment(at: Date(), isStale: isStale)
+        if moment.kind != .approaching {
+            TripTimeBlock(trip: trip, moment: moment, fontSize: 24)
+        }
     }
 }
 
-/// Expanded, under the camera: where the train's going, and its next stop (or
-/// your train, while it's on its way to you).
+/// Expanded, under the camera: where the train's going, and its next stop (none
+/// while your train is on its way to you: the sentence along the bottom says it).
 struct TripExpandedCenter: View {
     let attributes: TripActivityAttributes
     let state: TripActivityAttributes.ContentState
@@ -1150,17 +1170,20 @@ struct TripExpandedCenter: View {
 
     var body: some View {
         let trip = TripActivityTrip(attributes, state)
-        VStack(spacing: 2) {
-            TripTitle(attributes: attributes, trip: trip)
-            TripNextLine(attributes: attributes, trip: trip, moment: trip.moment(at: Date(), isStale: isStale),
-                         change: state.change)
-                .font(.subheadline)
+        let moment = trip.moment(at: Date(), isStale: isStale)
+        if moment.kind != .approaching {
+            VStack(spacing: 2) {
+                TripTitle(attributes: attributes, trip: trip)
+                TripNextLine(attributes: attributes, trip: trip, moment: moment, change: state.change)
+                    .font(.subheadline)
+            }
+            .minimumScaleFactor(0.8)
         }
-        .minimumScaleFactor(0.8)
     }
 }
 
-/// Expanded, along the bottom: the stops around the train.
+/// Expanded, along the bottom: the stops around the train and where you change;
+/// while your train is on its way to you, the Lock Screen's sentence above them.
 struct TripExpandedBottom: View {
     let attributes: TripActivityAttributes
     let state: TripActivityAttributes.ContentState
@@ -1168,7 +1191,18 @@ struct TripExpandedBottom: View {
 
     var body: some View {
         let trip = TripActivityTrip(attributes, state)
-        TripStopStrip(trip: trip, moment: trip.moment(at: Date(), isStale: isStale), color: attributes.lineColorOnDark, compact: true)
+        let moment = trip.moment(at: Date(), isStale: isStale)
+        VStack(alignment: .leading, spacing: 0) {
+            if moment.kind == .approaching {
+                TripApproachSentence(attributes: attributes, trip: trip, moment: moment, onDark: true, fontSize: 14)
+                    .padding(.bottom, 8)
+            }
+            TripStopStrip(trip: trip, moment: moment, color: attributes.lineColorOnDark, compact: true)
+            if let change = state.change, moment.kind != .arrived {
+                TripChangeLine(change: change, onDark: true, fontSize: 12)
+                    .padding(.top, 6)
+            }
+        }
     }
 }
 
