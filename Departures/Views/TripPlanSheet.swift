@@ -273,29 +273,33 @@ struct TripPlanSheet: View {
     // MARK: The offer, and alerts
 
     /// The buttons in the offer and alerts cards, and the room around them: the
-    /// cards' corners run concentric with the buttons' round ends.
+    /// cards' corners run concentric with the buttons' round ends. The text above
+    /// the buttons sits further in, clear of the rounder corners.
     static let buttonHeight: CGFloat = 48
     static let cardPadding: CGFloat = 16
     static var cardRadius: CGFloat { buttonHeight / 2 + cardPadding }
+    static let textInset: CGFloat = 8
 
-    /// "This trip will get you to Union Station in 1 h 5 min": take it?
+    /// "This trip will get you to Union Station in 1 h 5 min. Leave by 07:42 to
+    /// catch the train." Take it?
     private func offerCard(_ journey: Journey) -> some View {
         let now = AppClock.now
         let color = lineColor(journey.legs[0].lineCode)
+        let duration = DurationText.text(from: now, to: journey.arrivalThere)
         // When to set off for the station, to be there as the train leaves.
         let leaveAt = journey.departure.addingTimeInterval(-TimeInterval((model.plan?.start?.minutes ?? 0) * 60))
-        let leave = leaveAt.timeIntervalSince(now) <= 120 ? "Leave now" : "Leave at \(TorontoTime.hourMinute(leaveAt))"
-        return VStack(alignment: .leading, spacing: 12) {
-            Label(leave, systemImage: "figure.walk.departure")
-                .font(.footnote.weight(.bold))
-                .foregroundStyle(.secondary)
-            Text("This trip will get you to \(model.destination.name) in \(DurationText.text(from: now, to: journey.arrivalThere)), at \(TorontoTime.hourMinute(journey.arrivalThere)).")
-                .font(.body.weight(.semibold))
-                .fixedSize(horizontal: false, vertical: true)
-            JourneySummary(journey: journey, destination: model.destination)
-            Text("Would you like to take this trip?")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+        let leave = leaveAt.timeIntervalSince(now) <= 120 ? "Leave now" : "Leave by \(TorontoTime.hourMinute(leaveAt))"
+        return VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("This trip will get you to \(model.destination.name) in \(duration).\n\(leave) to catch the train.")
+                    .font(.body.weight(.semibold))
+                    .fixedSize(horizontal: false, vertical: true)
+                JourneySummary(journey: journey, destination: model.destination)
+                Text("Would you like to take this trip?")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            .padding([.horizontal, .top], Self.textInset)
             HStack(spacing: 10) {
                 Button {
                     Task { await model.track(journey) }
@@ -338,13 +342,16 @@ struct TripPlanSheet: View {
 
     /// Once a trip is tracked: what you'll be told, and whether you want it.
     private var alertsCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Label("Tracking this trip", systemImage: "checkmark.circle.fill")
-                .font(.headline)
-                .foregroundStyle(.green)
-            Text("If you board a tracked train, you'll be notified before it leaves, before your connections, and before your stop.")
-                .font(.subheadline)
-                .fixedSize(horizontal: false, vertical: true)
+        VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 10) {
+                Label("Tracking this trip", systemImage: "checkmark.circle.fill")
+                    .font(.headline)
+                    .foregroundStyle(.green)
+                Text("If you board a tracked train, you'll be notified before it leaves, before your connections, and before your stop.")
+                    .font(.subheadline)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding([.horizontal, .top], Self.textInset)
             HStack(spacing: 10) {
                 Button {
                     Task { await model.answerAlerts(true) }
