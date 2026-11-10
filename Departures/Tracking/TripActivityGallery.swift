@@ -60,10 +60,15 @@ struct TripActivityGallery: View {
         expanded(riding)
             .padding(.top, 6)
         expanded(approaching)
-        expanded(changing)
+        expanded(changed)
     }
 
     @ViewBuilder private var lockScreens: some View {
+        heading("A trip with a change: before it, and after")
+        lockScreen(changing)
+            .environment(\.colorScheme, .light)
+        lockScreen(changed)
+            .environment(\.colorScheme, .dark)
         heading("Lock Screen")
         lockScreen(approaching)
             .environment(\.colorScheme, .light)
@@ -72,11 +77,6 @@ struct TripActivityGallery: View {
         lockScreen(standing)
             .environment(\.colorScheme, .light)
         lockScreen(leavingLater)
-            .environment(\.colorScheme, .dark)
-        heading("A trip with a change")
-        lockScreen(changing)
-            .environment(\.colorScheme, .light)
-        lockScreen(changed)
             .environment(\.colorScheme, .dark)
     }
 

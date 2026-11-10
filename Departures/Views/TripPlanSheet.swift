@@ -566,7 +566,7 @@ struct JourneyStops: View {
             ForEach(Array(journey.legs.enumerated()), id: \.offset) { index, leg in
                 if index > 0 {
                     let wait = DurationText.text(from: journey.legs[index - 1].arrival, to: leg.departure)
-                    Label("Change trains · \(wait) to make it", systemImage: "arrow.triangle.swap")
+                    Label("Change trains · \(wait) wait", systemImage: "arrow.triangle.swap")
                         .font(.footnote.weight(.semibold))
                         .foregroundStyle(.secondary)
                         .padding(.leading, 62)
