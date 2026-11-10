@@ -15,10 +15,12 @@ import Foundation
 ///    way to where you change, shows where you change.)
 /// 2. On a train. Home→work and work→home are each planned once on a typical
 ///    weekday (the most common journey across the morning or evening rush). If
-///    a journey has a change, and you're on the track of one of its legs where
-///    the timetable puts a train (moving at constant speed along the track
-///    between stops, give or take, possibly a few minutes late), the board is
-///    the next change station ahead. Home's journey wins a tie.
+///    you're on the track of one of a journey's trains where the timetable puts
+///    one (moving at constant speed along the track between stops, give or
+///    take, possibly a few minutes late), the board is where you get off it:
+///    where you change, or on the last train, home or work. The journey for the
+///    time of day wins a tie (weekday mornings to work, otherwise home), since
+///    the two can share a track.
 /// 3. Near home or work at all (further out where stations are far apart):
 ///    that station. Otherwise the closest station for where you're going: the
 ///    one you'd reach home (or work) soonest from, counting 5 minutes per
@@ -282,17 +284,17 @@ struct CommutePlanner: Sendable {
             return Choice(station: near, reason: .near)
         }
         let view = self.view(day: clock.day, shifts: clock.shifts)
+        let homeBound = isHomeBound(clock: clock, home: home, work: work)
         if let home, let work {
             let routes = routes ?? self.routes(home: home, work: work)
             if let match = onTrain(user: user, accuracy: accuracy, now: clock.now, view: view,
-                                   routes: routes, ranked: ranked) {
+                                   routes: routes, ranked: ranked, homeFirst: homeBound) {
                 return Choice(station: match.station, reason: match.homeBound ? .trainHome : .trainWork)
             }
         }
         if let near = zone(user: user, ranked: ranked, home: home, work: work, cap: nil) {
             return Choice(station: near, reason: .near)
         }
-        let homeBound = isHomeBound(clock: clock, home: home, work: work)
         if let dest = homeBound ? home : work,
            let code = closest(user: user, dest: dest, now: clock.now, view: view, ranked: ranked) {
             return Choice(station: code, reason: dest == home ? .closestHome : .closestWork)
@@ -410,12 +412,15 @@ struct CommutePlanner: Sendable {
     // MARK: On a train
 
     private func onTrain(user: Point, accuracy: Double, now: Int, view: View, routes: Routes,
-                         ranked: [Ranked]) -> (station: String, homeBound: Bool, trip: String)? {
+                         ranked: [Ranked], homeFirst: Bool) -> (station: String, homeBound: Bool, trip: String)? {
         let guardRadius = min(nearRadius(ranked), Self.guardMax)
-        for (homeBound, route) in [(true, routes.toHome), (false, routes.toWork)] {
-            guard let route, route.count >= 2 else { continue }
+        let order = homeFirst ? [(true, routes.toHome), (false, routes.toWork)]
+                              : [(false, routes.toWork), (true, routes.toHome)]
+        for (homeBound, route) in order {
+            guard let route, !route.isEmpty else { continue }
             var best: (distance: Double, station: String, trip: String)?
-            for leg in route.dropLast() {
+            // Each train of it, the last one too: where you get off it.
+            for leg in route {
                 guard let board = position[leg.board] else { continue }
                 if Self.distance(user, board) <= guardRadius { continue }
                 if let match = legMatch(user: user, accuracy: accuracy, now: now, view: view, leg: leg),

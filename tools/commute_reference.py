@@ -11,11 +11,13 @@ The rules, in order:
    (Not further out: a train of your commute going past it, on the way to where
    you change, shows where you change.)
 2. On a train. Home->work and work->home are each planned once on a typical
-   weekday (the most common journey across the morning or evening rush). If a
-   journey has a change, and you're on the track of one of its legs where the
-   timetable puts a train (moving at constant speed along the track between
-   stops, give or take, possibly a few minutes late), the board is the next
-   change station ahead. Home's journey wins a tie.
+   weekday (the most common journey across the morning or evening rush). If
+   you're on the track of one of a journey's trains where the timetable puts one
+   (moving at constant speed along the track between stops, give or take,
+   possibly a few minutes late), the board is where you get off it: where you
+   change, or on the last train, home or work. The journey for the time of day
+   wins a tie (weekday mornings to work, otherwise home), since the two can
+   share a track.
 3. Near home or work at all (further out where stations are far apart): that
    station. Otherwise the closest station for where you're going: the one you'd reach
    home (or work) soonest from, counting 5 minutes per change, getting there on
@@ -463,13 +465,17 @@ class Planner:
                     best = (d, number)
         return best
 
-    def on_train(self, user, accuracy, now, view, routes, ranked):
+    def on_train(self, user, accuracy, now, view, routes, ranked, home_first=True):
         guard = min(self.near_radius(ranked), GUARD_MAX)
-        for direction, route in (("home", routes[1]), ("work", routes[0])):
-            if route is None or len(route) < 2:
+        order = (("home", routes[1]), ("work", routes[0]))
+        if not home_first:
+            order = order[::-1]
+        for direction, route in order:
+            if not route:
                 continue
             best = None
-            for leg in route[:-1]:
+            # Each train of it, the last one too: where you get off it.
+            for leg in route:
                 if leg[1] not in self.net.pos:
                     continue
                 if dist(user, self.net.pos[leg[1]]) <= guard:
@@ -553,7 +559,8 @@ class Planner:
         if home is not None and work is not None:
             if routes is None:
                 routes = self.routes(home, work)
-            match = self.on_train(user, accuracy, now, view, routes, ranked)
+            match = self.on_train(user, accuracy, now, view, routes, ranked,
+                                  self.direction(day, minute_of_day, home, work) == "home")
             if match is not None:
                 return match[0], "train-" + match[1]
         near = self.zone(user, ranked, home, work)
@@ -686,6 +693,28 @@ def e2e_cases(net, tt, planner):
                 break
         if found:
             cases.append(("on-train-to-work", home, work, found[0], found[1], weekday_day, now))
+            break
+    # On the last train home in the evening (out of Union on the Kitchener line, past
+    # Bramalea): home's board, where you get off.
+    for now in range(17 * 60, 19 * 60, 5):
+        found = None
+        for number, line, stops, times in view[0]:
+            if line != "KI" or "UN" not in stops or "GL" not in stops or "BE" not in stops:
+                continue
+            if not stops.index("UN") < stops.index("BE") < stops.index("GL"):
+                continue
+            for k in range(stops.index("BE"), stops.index("GL") - 1):
+                if times[k] < now < times[k + 1]:
+                    geo = net.track(line, stops[k], stops[k + 1])
+                    if geo:
+                        index, sa, sb = geo
+                        f = (now - times[k]) / (times[k + 1] - times[k])
+                        found = latlon(net.paths[line][index].point_at(sa + (sb - sa) * f))
+                    break
+            if found:
+                break
+        if found:
+            cases.append(("on-last-train-home", home, work, found[0], found[1], weekday_day, now))
             break
     rows = []
     for name, h, w, lat, lon, day, minute in cases:

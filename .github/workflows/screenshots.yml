@@ -21,7 +21,7 @@ on:
         description: "true: only the app's self-checks, no screenshots"
         default: ""
       only:
-        description: "Only these shots, by name (say 13c-activity-journey 15h-tracked-journey-stops); empty for all"
+        description: "Only these shots, by name (say 13c-activity-journey 15h-tracked-journey-stops; start for the start-up board check); empty for all"
         default: ""
 
 permissions:
@@ -377,7 +377,7 @@ jobs:
 
       - name: Check the start-up station
         id: startup
-        if: inputs.checks_only != 'true' && inputs.only == ''
+        if: inputs.checks_only != 'true' && (inputs.only == '' || contains(inputs.only, 'start'))
         env:
           UDID: ${{ steps.sim.outputs.udid }}
         run: |

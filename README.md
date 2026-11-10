@@ -7,7 +7,7 @@ A tiny native iOS app that puts the GO Transit station departure board in your p
 - **Tap a station, get the board.** A native bottom sheet opens with the departure screen as it looks in the station: same bilingual headers, colours, line badges, ⚡ express marker, platform numbers with ♿, red cancellations, and Union's "Info in X min" countdowns. Adapted for portrait so nothing scrolls sideways.
 - **Opens to the right board.** Set a home and a work station. On launch the app opens the board you most likely want, worked out on the phone from the timetable, so it's instant:
   - at home or work (within 1 km of the station), that station;
-  - on a train of your commute (judged from where the timetable puts the trains), the next station where you change, even going past home or work on the way there;
+  - on a train of your commute (judged from where the timetable puts the trains), where you get off it: the next station where you change (even going past home or work on the way there), or on the last train, home or work;
   - near home or work otherwise, that station;
   - anywhere else, the station you'd get home from soonest (on weekday mornings, to work), on foot if one is within a 10-minute walk, otherwise by car.
 
