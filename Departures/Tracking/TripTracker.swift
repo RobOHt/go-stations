@@ -22,7 +22,33 @@ struct TrackedTrip: Codable, Equatable, Sendable {
     /// How late it runs, by its live reports, in seconds (negative: early).
     var liveDelay: Double? = nil
 
+    // A trip planned from search can have changes: the train you're on now is the
+    // one above, and the rest are `onward`. At each change the next one takes over
+    // (see `changingTrains(at:)`), in the same Live Activity.
+
+    /// The trains after this one, in order (nil or empty: none).
+    var onward: [OnwardLeg]? = nil
+    /// Which trip it is, as the trip card lists it (nil: tracked from a board).
+    var journeyKey: String? = nil
+    /// The first train's row, once it has changed trains: its Live Activity's.
+    var journeyID: String? = nil
+    /// This train's place in the trip (0 for the first), and how many trains there are.
+    var legIndex: Int? = nil
+    var legCount: Int? = nil
+    /// When this train became the one followed.
+    var legStartedAt: Date? = nil
+    /// Alerts for this trip: before it leaves, before changes, before your stop.
+    /// Nil until you say: on if you've allowed them before.
+    var alerts: Bool? = nil
+
     var hasStartingStop: Bool { startsAtStop ?? false }
+
+    /// The Live Activity this trip shows in (the first train's, after a change).
+    var activityID: String { journeyID ?? row.id }
+    /// A train to change to after this one.
+    var hasOnward: Bool { !(onward ?? []).isEmpty }
+    /// Where the whole trip ends.
+    var finalDestinationCode: String { onward?.last?.destinationCode ?? destinationCode }
 
     /// How long tracking goes on after the train reaches your stop, when it runs
     /// on well past it.
@@ -145,9 +171,16 @@ struct TrackedTrip: Codable, Equatable, Sendable {
     }
 
     /// New stops and times for the same trip (from a refresh), keeping what was
-    /// seen of its train.
+    /// seen of its train, and the rest of the trip.
     func carrying(_ seen: TrackedTrip) -> TrackedTrip {
         var next = self
+        next.onward = seen.onward
+        next.journeyKey = seen.journeyKey
+        next.journeyID = seen.journeyID
+        next.legIndex = seen.legIndex
+        next.legCount = seen.legCount
+        next.legStartedAt = seen.legStartedAt
+        next.alerts = seen.alerts
         for (index, stop) in next.stops.enumerated() {
             guard let old = seen.stops.first(where: { $0.code == stop.code }) else { continue }
             next.stops[index].arrived = old.arrived
@@ -159,6 +192,39 @@ struct TrackedTrip: Codable, Equatable, Sendable {
         }
         next.liveDelay = seen.liveDelay
         return next
+    }
+
+    /// At a change, once the train you're on is in: the trip with the next train
+    /// as the one followed, counting down to it getting where you change. Nil
+    /// without one.
+    func changingTrains(at now: Date) -> TrackedTrip? {
+        guard var rest = onward, !rest.isEmpty else { return nil }
+        let next = rest.removeFirst()
+        let codes = next.stops.map(\.code)
+        guard let boarding = codes.firstIndex(of: next.boardingCode),
+              let destination = codes.indices.first(where: { $0 > boarding && codes[$0] == next.destinationCode })
+        else { return nil }
+        var trip = TrackedTrip(row: next.row, boardingCode: next.boardingCode, boardingIndex: boarding,
+                               destinationIndex: destination, stops: next.stops, source: next.source,
+                               startedAt: startedAt, startsAtStop: true)
+        trip.onward = rest
+        trip.journeyKey = journeyKey
+        trip.journeyID = activityID
+        trip.legIndex = (legIndex ?? 0) + 1
+        trip.legCount = legCount
+        trip.legStartedAt = now
+        trip.alerts = alerts
+        return trip
+    }
+
+    /// Each train of the trip from this one on, as it would be tracked: this one,
+    /// then each onward one as it would be once you've changed to it.
+    func legsFromHere() -> [TrackedTrip] {
+        var legs = [self]
+        while let last = legs.last, let next = last.changingTrains(at: last.arrival ?? startedAt) {
+            legs.append(next)
+        }
+        return legs
     }
 
     /// Where the train should be now, along the track, from its stop times: on
@@ -209,6 +275,17 @@ struct TrackedTrip: Codable, Equatable, Sendable {
     }
 }
 
+/// A train you'll change to, on a trip with changes.
+struct OnwardLeg: Codable, Equatable, Sendable {
+    /// The train as a row on the board of the station you change to it at.
+    let row: BoardRow
+    let boardingCode: String
+    let destinationCode: String
+    /// Its stops and times: the timetable's, until it's the train followed.
+    let stops: [TripDetail.Stop]
+    let source: BoardSnapshot.Source?
+}
+
 /// The one trip being tracked, if any. Kept across launches until a while after
 /// the train reaches your stop.
 @MainActor
@@ -249,6 +326,52 @@ final class TripTracker {
         TripActivityController.shared.start(trip)
     }
 
+    /// Starts following a trip planned from search: its first train from where you
+    /// get on (`detail`: its stops, live when Metrolinx has them), and at each
+    /// change the next, all in one Live Activity.
+    func track(_ journey: Journey, row: BoardRow, detail: TripDetail) {
+        guard let first = journey.legs.first else { return }
+        // The live stops when they have where you get on and off, else the timetable's.
+        var stops = detail.stops
+        var source = detail.source
+        func has(_ list: [TripDetail.Stop]) -> Bool {
+            let codes = list.map(\.code)
+            guard let board = codes.firstIndex(of: first.boardCode) else { return false }
+            return codes[(board + 1)...].contains(first.alightCode)
+        }
+        if source == nil || !has(stops) {
+            let planned = TripPlanner.detail(for: first)
+            stops = planned.stops
+            source = planned.source
+        }
+        let codes = stops.map(\.code)
+        guard let boarding = codes.firstIndex(of: first.boardCode),
+              let destination = codes.indices.first(where: { $0 > boarding && codes[$0] == first.alightCode })
+        else { return }
+        var trip = TrackedTrip(row: row, boardingCode: first.boardCode, boardingIndex: boarding,
+                               destinationIndex: destination, stops: stops, source: source,
+                               startedAt: Date(), startsAtStop: true)
+        trip.onward = journey.legs.dropFirst().compactMap { leg in
+            TripPlanner.row(for: leg).map { row in
+                OnwardLeg(row: row, boardingCode: leg.boardCode, destinationCode: leg.alightCode,
+                          stops: TripPlanner.detail(for: leg).stops, source: .schedule)
+            }
+        }
+        trip.journeyKey = journey.id
+        trip.legIndex = 0
+        trip.legCount = journey.legs.count
+        set(trip)
+        TripActivityController.shared.start(trip)
+    }
+
+    /// Alerts for the tracked trip on or off (the trip card asks once it's tracked).
+    func setAlerts(_ on: Bool) {
+        guard var trip else { return }
+        trip.alerts = on
+        set(trip)
+        TripActivityController.shared.sync(trip)
+    }
+
     func stop() {
         set(nil)
         TripActivityController.shared.endAll()
@@ -262,8 +385,11 @@ final class TripTracker {
     /// stop), and stops tracking once the trip ends (see `TrackedTrip.endsAt`),
     /// unless live reports say the train is still on its way to your stop.
     func dropIfFinished(now: Date = Date()) {
+        changeTrainsIfDue(now: now)
         TripActivityController.shared.sync(trip, now: now)
         guard let trip else { return }
+        // A train with another after it changes over once it's in (above), whatever.
+        if trip.hasOnward { return }
         let running = (trip.live?.isFresh(at: now) ?? false) && !trip.isSeenIn
         if now >= trip.endsAt ?? trip.startedAt.addingTimeInterval(4 * 3600), !running {
             set(nil)
@@ -276,7 +402,21 @@ final class TripTracker {
         let updated = trip.following(train, now: Date())
         guard updated != trip else { return }
         set(updated)
+        if changeTrainsIfDue(now: Date()) { return }
         TripActivityController.shared.sync(updated)
+    }
+
+    /// At a change, once the train you're on is in where you change: the next one
+    /// becomes the train followed (its live times fetched right away), in the same
+    /// Live Activity. True when it changed.
+    @discardableResult
+    private func changeTrainsIfDue(now: Date) -> Bool {
+        guard let trip, trip.hasOnward, trip.phase(at: now) == .arrived,
+              let next = trip.changingTrains(at: now) else { return false }
+        set(next)
+        TripActivityController.shared.sync(next, now: now)
+        Task { await refresh() }
+        return true
     }
 
     /// Fetches the tracked train's latest times (live ones when there are any),
@@ -286,8 +426,9 @@ final class TripTracker {
         let detail = await BoardService.shared.tripDetail(for: trip.row, from: station)
         // Still the same trip, and no worse times than it has (never live ones
         // replaced by the timetable's).
-        guard let current = self.trip, current.startedAt == trip.startedAt, detail.source != nil,
-              detail.source == .live || current.source != .live
+        // (Not a train you've since changed from.)
+        guard let current = self.trip, current.startedAt == trip.startedAt, current.tripNumber == trip.tripNumber,
+              detail.source != nil, detail.source == .live || current.source != .live
         else { return }
         // Your stations again, in the new list of stops.
         let codes = detail.stops.map(\.code)
@@ -324,11 +465,14 @@ final class TripTracker {
         self.trip = trip
         save()
         scheduleExpiry()
+        TripAlerts.shared.update(for: trip)
     }
 
     private func scheduleExpiry() {
         expiry?.cancel()
-        guard let end = trip?.endsAt else { return }
+        // At a change: when the train's due in, to change over on time.
+        let due = trip.flatMap { $0.hasOnward ? $0.arrival?.addingTimeInterval(5) : $0.endsAt }
+        guard let end = due else { return }
         expiry = Task { [weak self] in
             let wait = end.timeIntervalSinceNow
             if wait > 0 { try? await Task.sleep(for: .seconds(wait)) }

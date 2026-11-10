@@ -16,12 +16,15 @@
 // again while the app isn't running), and at the end, ends it. With the trip's
 // stops (`live`), it instead follows the train itself while it runs: every 20
 // seconds it looks where the train is, and pushes an update when it pulls in at
-// a stop or leaves one. POST /v1/activity/end forgets one early. Nothing is kept
-// once the trip is over. The Apple push key is a Worker secret too (APNS_KEY_P8,
-// APNS_KEY_ID, APPLE_TEAM_ID).
+// a stop or leaves one. On a journey with changes (`legs`), it takes the next
+// train on once the one you're on gets in where you change. With `alerts`, the
+// push 5 minutes before the train gets to where you change or get off comes with
+// an alert (sound, screen on). POST /v1/activity/end forgets one early. Nothing
+// is kept once the trip is over. The Apple push key is a Worker secret too
+// (APNS_KEY_P8, APNS_KEY_ID, APPLE_TEAM_ID).
 
 import { DurableObject } from "cloudflare:workers";
-import { follow, mergeTrains } from "./live.js";
+import { alertFor, alertTime, follow, mergeTrains, nextLeg, watchWindow } from "./live.js";
 
 const UPSTREAM = "https://api.openmetrolinx.com/OpenDataAPI/api/V1";
 
@@ -219,7 +222,7 @@ async function activity(request, env, ending) {
   }
 
   const text = await request.text();
-  if (text.length > 8192) return error(413, "Too large");
+  if (text.length > 16384) return error(413, "Too large");
   let body;
   try {
     body = JSON.parse(text);
@@ -248,6 +251,25 @@ async function activity(request, env, ending) {
   ) {
     return error(400, "Bad schedule");
   }
+  // The trains after this one, on a journey with changes: the same again for each.
+  const legs = [];
+  for (const leg of Array.isArray(body.legs) ? body.legs.slice(0, 2) : []) {
+    const legTimes = Array.isArray(leg?.times) ? leg.times : [];
+    if (
+      !leg?.state || typeof leg.state !== "object" || Array.isArray(leg.state) ||
+      JSON.stringify(leg.state).length > 3000 ||
+      legTimes.length > 60 || !legTimes.every(inRange) || !inRange(leg.end) || !inRange(leg.dismissal)
+    ) {
+      return error(400, "Bad leg");
+    }
+    legs.push({
+      state: leg.state,
+      times: [...legTimes].sort((a, b) => a - b),
+      end: leg.end,
+      dismissal: Math.max(leg.dismissal, leg.end),
+      live: followable(leg.live, leg.state, now),
+    });
+  }
   const accepted = await pusher.track({
     token,
     environment: body.environment,
@@ -256,6 +278,8 @@ async function activity(request, env, ending) {
     end: body.end,
     dismissal: Math.max(body.dismissal, body.end),
     live: followable(body.live, state, now),
+    alerts: body.alerts === true,
+    legs,
   });
   return accepted ? new Response(null, { status: 204 }) : error(503, "Too many trips tracked");
 }
@@ -298,6 +322,8 @@ export class LiveActivities extends DurableObject {
     if (before?.live && job.live && before.live.trip === job.live.trip) {
       for (const field of FOLLOWED) if (before[field] !== undefined) kept[field] = before[field];
     }
+    // An alert sent stays sent (it names its train and stop).
+    if (before?.alerted !== undefined) kept.alerted = before.alerted;
     await this.ctx.storage.put(key, { ...job, ...kept, ...watchWindow(job) });
     await this.wake();
     return true;
@@ -323,24 +349,47 @@ export class LiveActivities extends DurableObject {
         if (live === undefined) live = await liveTrains(this.env).catch(() => null);
         const result = live ? follow(job, live.trains.find((train) => train.trip === job.live.trip), now) : null;
         if (result) {
-          const next = result.job;
-          if (result.push) {
+          let next = result.job;
+          let push = result.push;
+          if (push?.event === "end" && next.legs?.length) {
+            // In where you change: on to the next train.
+            next = nextLeg(next, now);
+            push = { event: "update", state: next.state, stale: next.times[0] ?? next.end };
+          } else if (push?.event !== "end") {
+            const alert = alertFor(next, result.state, now);
+            if (alert) {
+              next.alerted = alert.key;
+              push = { ...(push ?? { event: "update", state: result.state, stale: result.stale }), alert };
+            }
+          }
+          if (push) {
             next.revision = (next.revision ?? 0) + 1;
-            const state = { ...result.push.state, revision: next.revision };
-            const { gone, result: said } = await sendPush(this.env, next, { ...result.push, state });
-            await this.note(`${result.push.event} live`, said);
-            if (gone || result.push.event === "end") {
+            const state = { ...push.state, revision: next.revision };
+            const { gone, result: said } = await sendPush(this.env, next, { ...push, state });
+            await this.note(`${push.alert ? "alert" : push.event} live`, said);
+            if (gone || push.event === "end") {
               await this.ctx.storage.delete(key);
               continue;
             }
           }
-          if (result.changed || result.push) await this.ctx.storage.put(key, next);
+          if (result.changed || push) await this.ctx.storage.put(key, next);
           continue;
         }
         // Following it, but nothing new to go on: wait for the next look.
         if (job.followed) continue;
       } else if (job.followed && now >= job.watchUntil) {
-        // Followed, but never seen getting in: end it.
+        // Followed, but never seen getting in: on to the next train, or end it.
+        if (job.legs?.length) {
+          const next = nextLeg(job, now);
+          next.revision = (next.revision ?? 0) + 1;
+          const { gone, result: said } = await sendPush(this.env, next, {
+            event: "update", state: { ...next.state, revision: next.revision }, stale: next.times[0] ?? next.end,
+          });
+          await this.note("change lost", said);
+          if (gone) await this.ctx.storage.delete(key);
+          else await this.ctx.storage.put(key, next);
+          continue;
+        }
         job.revision = (job.revision ?? 0) + 1;
         const { result: said } = await sendPush(this.env, job, {
           event: "end", state: { ...job.state, revision: job.revision }, dismissal: now + 60,
@@ -350,16 +399,30 @@ export class LiveActivities extends DurableObject {
         continue;
       }
 
-      // Not followed: an update at each of the times the app gave, then the end.
-      if (due(job) > now + 1) continue;
+      // Not followed: an update at each of the times the app gave (with the alert
+      // when it's due), then the end, or on to the next train where you change.
+      if (due(job, now) > now + 1) continue;
+      const ending = now >= job.end - 1;
+      if (ending && job.legs?.length) {
+        const next = nextLeg(job, now);
+        next.revision = (next.revision ?? 0) + 1;
+        const { gone, result } = await sendPush(this.env, next, {
+          event: "update", state: { ...next.state, revision: next.revision }, stale: next.times[0] ?? next.end,
+        });
+        await this.note("change", result);
+        if (gone) await this.ctx.storage.delete(key);
+        else await this.ctx.storage.put(key, next);
+        continue;
+      }
       job.revision = (job.revision ?? 0) + 1;
       const state = { ...job.state, revision: job.revision };
       const later = job.times.filter((t) => t > now + 1);
-      const ending = now >= job.end - 1;
+      const alert = ending ? null : alertFor(job, job.state, now);
+      if (alert) job.alerted = alert.key;
       const { gone, result } = ending
         ? await sendPush(this.env, job, { event: "end", state, dismissal: job.dismissal })
-        : await sendPush(this.env, job, { event: "update", state, stale: later[0] ?? job.end });
-      await this.note(ending ? "end" : "update", result);
+        : await sendPush(this.env, job, { event: "update", state, stale: later[0] ?? job.end, alert });
+      await this.note(ending ? "end" : alert ? "alert" : "update", result);
       if (ending || gone) {
         await this.ctx.storage.delete(key);
       } else {
@@ -381,7 +444,7 @@ export class LiveActivities extends DurableObject {
     const jobs = await this.ctx.storage.list({ prefix: "job:" });
     let next = Infinity;
     for (const job of jobs.values()) {
-      if (!job.followed) next = Math.min(next, due(job));
+      if (!job.followed) next = Math.min(next, due(job, now));
       if (job.live) {
         if (now < job.watchFrom) next = Math.min(next, job.watchFrom);
         else if (now < job.watchUntil) next = Math.min(next, now + FOLLOW_EVERY);
@@ -396,24 +459,9 @@ export class LiveActivities extends DurableObject {
   }
 }
 
-function due(job) {
-  return Math.min(job.times[0] ?? Infinity, job.end);
-}
-
-/**
- * When to follow a trip's train: from 20 minutes before it's due at your
- * station (in case you're waiting for it) until well after it should have got
- * to your stop.
- */
-function watchWindow(job) {
-  if (!job.live) return {};
-  const boarding = Math.max(0, job.state.boardingIndex ?? 0);
-  const start = job.live.scheduled[boarding] ?? job.state.departure;
-  return {
-    watchFrom: start - 20 * 60,
-    watchUntil: Math.max(job.end, start) + 45 * 60,
-    summary: Math.max(60, job.dismissal - job.end),
-  };
+/** The next time a trip that isn't followed needs a push: an update, its alert, or the end. */
+function due(job, now) {
+  return Math.min(job.times[0] ?? Infinity, job.end, alertTime(job, now) ?? Infinity);
 }
 
 function watching(job, now) {
@@ -422,10 +470,12 @@ function watching(job, now) {
 
 // Sends one update (or the end) to a Live Activity through Apple's push service.
 // `gone` when Apple no longer knows the token (the activity ended).
-async function sendPush(env, job, { event, state, stale, dismissal }) {
+async function sendPush(env, job, { event, state, stale, dismissal, alert }) {
   const aps = { timestamp: Math.floor(Date.now() / 1000), event, "content-state": state };
   if (stale) aps["stale-date"] = Math.floor(stale);
   if (dismissal) aps["dismissal-date"] = Math.floor(dismissal);
+  // Lights the screen with the Live Activity (and shows on a watch), with a sound.
+  if (alert) aps.alert = { title: alert.title, body: alert.body, sound: "default" };
   const host = job.environment === "development" ? "api.sandbox.push.apple.com" : "api.push.apple.com";
   let response;
   try {

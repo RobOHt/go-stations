@@ -12,6 +12,10 @@ struct RootView: View {
     @State private var showSettings = false
     /// The tracked trip's details, opened from the map.
     @State private var trackedSelection: TripSelection?
+    /// A trip being planned to somewhere picked in search (its card, and the trip
+    /// on the map).
+    @State private var tripPlan: TripPlanModel?
+    @State private var planDetent: PresentationDetent = .medium
     @State private var backgroundedAt: Date?
     /// With Show All Trains on: the trains running now, from the timetable.
     @State private var runningTrips: [ScheduleStore.RunningTrip] = []
@@ -78,6 +82,26 @@ struct RootView: View {
                 .presentationBackgroundInteraction(.enabled(upThrough: .medium))
                 .presentationDragIndicator(.visible)
         }
+        .sheet(item: $tripPlan, onDismiss: { search.clearPlace() }) { model in
+            TripPlanSheet(model: model) { tripPlan = nil }
+                .environment(settings)
+                // Its visible top edge, as for the station sheet.
+                .background {
+                    Color.clear
+                        .ignoresSafeArea()
+                        .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minY } action: { sheetTop = $0 }
+                }
+                .presentationDetents([.medium, .large], selection: $planDetent)
+                .presentationBackgroundInteraction(.enabled(upThrough: .medium))
+                .presentationDragIndicator(.visible)
+        }
+        .onChange(of: tripPlan?.shown?.id) { _, _ in
+            // The trip on the map: all of it in view, above the card.
+            frameTripPlan()
+        }
+        .onChange(of: tripPlan == nil) { _, closed in
+            if closed, selected == nil { sheetTop = nil }
+        }
         .onChange(of: TripTracker.shared.trip?.startedAt) { _, started in
             // A newly tracked trip: show where the train is and where it goes (behind
             // the sheets until they close).
@@ -112,14 +136,10 @@ struct RootView: View {
         }
         .onChange(of: search.place) { _, place in
             guard let place else { return }
-            // Like Apple Maps: a picked place closes the search and shows as a card
-            // (with its own close button) above the resting search bar.
+            // A place found: the search closes and the trip there comes up (its pin
+            // stays on the map while the card's up).
             endSearch()
-            mapController.frame([place.coordinate], minWidth: 4_000)
-        }
-        .onChange(of: search.nearby.map(\.id)) { _, ids in
-            guard let place = search.place, !ids.isEmpty else { return }
-            mapController.frame([place.coordinate] + search.nearby.map(\.station.coordinate))
+            planTrip(to: PlanDestination(place: place))
         }
         .task {
             refreshTimetable()
@@ -153,10 +173,10 @@ struct RootView: View {
                 Task { await TripTracker.shared.refresh() }
                 if wantsLiveTrains { Task { await LiveTrains.shared.refresh() } }
                 refreshTimetable()
-                if backgroundedAt != nil, TripTracker.shared.trip != nil {
+                if backgroundedAt != nil, TripTracker.shared.trip != nil, tripPlan == nil {
                     // Tracking a train: back on it every time you come back.
                     openTrackedTrip()
-                } else if let backgroundedAt, Date.now.timeIntervalSince(backgroundedAt) > 180 {
+                } else if let backgroundedAt, Date.now.timeIntervalSince(backgroundedAt) > 180, tripPlan == nil {
                     Task { await autoSelect() }
                 }
                 backgroundedAt = nil
@@ -245,13 +265,14 @@ struct RootView: View {
             selectedCode: selected?.code,
             homeCode: settings.homeCode,
             workCode: settings.workCode,
-            place: search.place,
+            place: tripPlan?.destination.place ?? search.place,
             onTapMap: { searchFocused = false },
             trackedTrip: TripTracker.shared.trip,
             onSelectTrain: { openTrackedTrip() },
             runningTrips: settings.showsAllTrains ? runningTrips : [],
             onSelectRunningTrain: { trip, next in openRunningTrain(trip, at: next) },
             attributionLift: attributionLift,
+            journey: tripPlan?.shown,
             onSelect: { station in select(station, detent: .medium) }
         )
         .ignoresSafeArea()
@@ -324,16 +345,17 @@ struct RootView: View {
         searchPresented || searchFocused || search.hasQuery || search.place != nil
     }
 
-    /// How far above the bottom of the floating area the station sheet reaches.
+    /// How far above the bottom of the floating area the station sheet (or the
+    /// trip card) reaches.
     private var sheetLift: CGFloat? {
-        guard selected != nil, let sheetTop else { return nil }
+        guard selected != nil || tripPlan != nil, let sheetTop else { return nil }
         return max(0, floatingBottom - sheetTop)
     }
 
     private var showsControls: Bool {
-        if selected != nil {
+        if selected != nil || tripPlan != nil {
             // Ride above the half-height sheet; the full-height one covers them.
-            guard detent != .large, let sheetTop else { return false }
+            guard (selected != nil ? detent : planDetent) != .large, let sheetTop else { return false }
             return sheetTop > 300
         }
         return !searchActive
@@ -367,12 +389,16 @@ struct RootView: View {
                 }
                 .transition(.scale(scale: 0.85, anchor: .bottom).combined(with: .opacity))
             }
-            if selected == nil, searchActive {
+            if selected == nil, tripPlan == nil, searchActive {
                 SearchResults(
                     model: search,
                     isSearching: searchPresented || searchFocused,
                     onStation: { station in openFromSearch(station) },
-                    onPickPlace: { searchFocused = false }
+                    onPickPlace: { searchFocused = false },
+                    onRecent: { destination in
+                        endSearch()
+                        planTrip(to: destination)
+                    }
                 )
                 .padding(.horizontal, 16)
                 .layoutPriority(1)
@@ -382,6 +408,7 @@ struct RootView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
         .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).maxY } action: { floatingBottom = $0 }
         .animation(.smooth(duration: 0.3), value: selected == nil)
+        .animation(.smooth(duration: 0.3), value: tripPlan == nil)
         .animation(.smooth(duration: 0.3), value: showsControls)
         .animation(.smooth(duration: 0.3), value: TripTracker.shared.trip?.startedAt)
         .animation(.smooth(duration: 0.25), value: sheetLift)
@@ -445,7 +472,7 @@ struct RootView: View {
         Task.detached(priority: .background) { await ScheduleStore.shared.refreshIfNeeded() }
     }
 
-    /// The Search key: open an exact station match, otherwise look the text up as a place.
+    /// The Search key: a trip to an exact station match, otherwise look the text up as a place.
     private func submitSearch() {
         if let station = search.submit() {
             openFromSearch(station)
@@ -455,11 +482,43 @@ struct RootView: View {
         }
     }
 
+    /// A station picked in search: how to get there (its board opens from the map).
     private func openFromSearch(_ station: Station) {
-        // A station picked by name ends the search; a place card stays so you can come
-        // back and compare its other stations.
-        if search.place == nil { endSearch() }
-        select(station, detent: .medium)
+        endSearch()
+        search.clearPlace()
+        planTrip(to: PlanDestination(station: station))
+    }
+
+    /// Opens the trip card to `destination` (closing any other sheet first), and
+    /// keeps it in the search history.
+    private func planTrip(to destination: PlanDestination) {
+        searchFocused = false
+        SearchHistory.shared.add(destination)
+        let model = TripPlanModel(destination: destination, home: settings.homeCode, work: settings.workCode)
+        model.start()
+        mapController.frame([destination.coordinate], minWidth: 6_000, coveredFraction: 0.5, asked: true)
+        guard selected != nil || showSettings || trackedSelection != nil else {
+            planDetent = .medium
+            tripPlan = model
+            return
+        }
+        selected = nil
+        showSettings = false
+        trackedSelection = nil
+        Task {
+            try? await Task.sleep(for: .milliseconds(450))
+            planDetent = .medium
+            tripPlan = model
+        }
+    }
+
+    /// The trip on the trip card's map: its stations (and the place) in view,
+    /// above the half-height card.
+    private func frameTripPlan() {
+        guard let plan = tripPlan else { return }
+        var coordinates = (plan.shown?.stationCodes ?? []).compactMap { network.station($0)?.coordinate }
+        if plan.destination.isPlace || coordinates.isEmpty { coordinates.append(plan.destination.coordinate) }
+        mapController.frame(coordinates, minWidth: 4_000, coveredFraction: 0.5, asked: true)
     }
 
     /// Closes the system search field and its suggestions (a place card stays).
@@ -471,6 +530,15 @@ struct RootView: View {
 
     private func select(_ station: Station, detent newDetent: PresentationDetent) {
         searchFocused = false
+        if tripPlan != nil {
+            // The trip card goes first (one sheet at a time).
+            tripPlan = nil
+            Task {
+                try? await Task.sleep(for: .milliseconds(450))
+                select(station, detent: newDetent)
+            }
+            return
+        }
         detent = newDetent
         selected = station
         center(on: station.coordinate, sheetOpen: true)
@@ -535,15 +603,16 @@ struct RootView: View {
         openTrip(TripSelection(row: row, station: station))
     }
 
-    /// Shows a train's stops (closing the station sheet or Settings first).
+    /// Shows a train's stops (closing the station sheet, the trip card or Settings first).
     private func openTrip(_ selection: TripSelection) {
         searchFocused = false
-        guard selected != nil || showSettings else {
+        guard selected != nil || showSettings || tripPlan != nil else {
             trackedSelection = selection
             return
         }
         selected = nil
         showSettings = false
+        tripPlan = nil
         Task {
             try? await Task.sleep(for: .milliseconds(450))
             trackedSelection = selection
@@ -551,11 +620,12 @@ struct RootView: View {
     }
 
     private func openSettings() {
-        guard selected != nil else {
+        guard selected != nil || tripPlan != nil else {
             showSettings = true
             return
         }
         selected = nil
+        tripPlan = nil
         Task {
             try? await Task.sleep(for: .milliseconds(450))
             showSettings = true
@@ -641,12 +711,13 @@ struct RootView: View {
             searchFocused = true
             search.query = "Oak"
         case .place:
-            // As if typed and submitted with the Search key.
+            // As if typed and submitted with the Search key (`-placeQuery` to look
+            // up another place): its trip card comes up.
             center(on: union.coordinate, sheetOpen: false)
             searchPresented = true
             searchFocused = true
             try? await Task.sleep(for: .milliseconds(800))
-            search.query = "CN Tower"
+            search.query = UserDefaults.standard.string(forKey: "placeQuery") ?? "Pickering Town Centre"
             try? await Task.sleep(for: .milliseconds(800))
             _ = search.submit()
             searchFocused = false
@@ -684,8 +755,40 @@ struct RootView: View {
             debugLift = 0
         case .trackedTrip, .liveActivity:
             await trackDebugTrain()
+        case .tripPlan, .trackedJourney:
+            await planDebugTrip(scene)
         case .activityGallery:
             break  // DeparturesApp shows the gallery in place of the map.
+        }
+    }
+
+    /// A trip card, as if the station were picked in search: `-planTo CODE`
+    /// (Oakville, or Unionville for the tracked journey), `-planDaysAhead N` for
+    /// another day, `-planOpenFirst YES` to open the first trip, `-planLarge YES`
+    /// at full height. The tracked journey then tracks the trip it offers.
+    private func planDebugTrip(_ scene: DebugScene) async {
+        let defaults = UserDefaults.standard
+        let code = defaults.string(forKey: "planTo") ?? (scene == .trackedJourney ? "UI" : "OA")
+        guard let station = network.station(code) else { return }
+        planTrip(to: PlanDestination(station: station))
+        let ahead = defaults.integer(forKey: "planDaysAhead")
+        if ahead > 0 {
+            let today = BoardDay.calendar.startOfDay(for: AppClock.now)
+            tripPlan?.pickDay(BoardDay.calendar.date(byAdding: .day, value: ahead, to: today))
+        }
+        var waited = 0
+        while waited < 60, tripPlan?.plan == nil || tripPlan?.isPlanning == true {
+            try? await Task.sleep(for: .milliseconds(250))
+            waited += 1
+        }
+        if defaults.bool(forKey: "planLarge") { planDetent = .large }
+        if defaults.bool(forKey: "planOpenFirst"), let first = tripPlan?.plan?.journeys.first {
+            tripPlan?.openID = first.id
+        }
+        guard scene == .trackedJourney, let model = tripPlan, let plan = model.plan else { return }
+        let now = AppClock.now
+        if let journey = plan.recommended ?? plan.journeys.first(where: { model.canTrack($0, at: now) }) {
+            await model.track(journey)
         }
     }
 

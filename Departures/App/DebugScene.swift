@@ -50,6 +50,12 @@ enum DebugScene: String {
     /// popping up, a zoom in, Exhibition opened and closed, a slow pan along the
     /// lake, then Apple's logo moved up and down again (the map should stay still).
     case mapTour
+    /// A trip card, as if a station were picked in search (`-planTo CODE`,
+    /// Oakville's without one): the trip offered, the day's trips, the trip on the map.
+    case tripPlan
+    /// The same (to Unionville without `-planTo`), then the trip it offers tracked:
+    /// the question about alerts, and the train on the map.
+    case trackedJourney
 
     static var current: DebugScene? {
         UserDefaults.standard.string(forKey: "debugScene").flatMap(DebugScene.init(rawValue:))

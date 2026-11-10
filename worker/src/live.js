@@ -152,9 +152,10 @@ export function arrivalAt(stops, index) {
  *
  * `job.live` is { trip, codes, scheduled }: the stops' codes and planned
  * departure times, matching `job.state.stops`. What was seen is kept on the job
- * (obs, arr, dep). Returns { job, changed, push } (push: null, or { event,
- * state, stale | dismissal }); or null when there's nothing fresh to go on and
- * nothing to do.
+ * (obs, arr, dep). Returns { job, changed, push, state, stale } (push: null,
+ * or { event, state, stale | dismissal }; state and stale: the trip as it
+ * stands, and when it next changes, while the train is on its way); or null
+ * when there's nothing fresh to go on and nothing to do.
  */
 export function follow(job, train, now) {
   const { codes, scheduled } = job.live;
@@ -287,21 +288,136 @@ export function follow(job, train, now) {
     const summary = Number.isFinite(job.summary) ? job.summary : 15 * 60;
     return { job: next, changed: true, push: { event: "end", state, dismissal: now + Math.min(Math.max(summary, 60), 3600) } };
   }
-  if (key === job.pushed) return { job: next, changed, push: null };
-  next.pushed = key;
 
   // Wake the activity again at the next thing it shows changing.
-  let stale = Infinity;
+  let soonest = Infinity;
   for (let i = Math.max(k ?? 0, 0); i <= destination; i++) {
     for (const time of [arrivalAt(stops, i), stops[i].time]) {
-      if (Number.isFinite(time) && time > now + 1) stale = Math.min(stale, time);
+      if (Number.isFinite(time) && time > now + 1) soonest = Math.min(soonest, time);
     }
   }
+  const stale = Number.isFinite(soonest) ? soonest : now + 120;
+  // (The state as it stands goes back either way, for an alert that's due.)
+  if (key === job.pushed) return { job: next, changed, push: null, state, stale };
+  next.pushed = key;
+  return { job: next, changed: true, push: { event: "update", state, stale }, state, stale };
+}
+
+// --- Journeys with changes, and alerts ---------------------------------------
+
+/** How long before the train gets to where you change or get off that you're told. */
+export const ALERT_BEFORE = 5 * 60;
+
+/** Which alert a trip's state is for: its train, and where you get off it. */
+function alertKey(job, state) {
+  const stops = Array.isArray(state?.stops) ? state.stops : [];
+  const destination = clamp(state?.destinationIndex ?? stops.length - 1, 0, Math.max(stops.length - 1, 0));
+  return `${job.live?.trip ?? ""}@${destination}:${stops[destination]?.name ?? ""}`;
+}
+
+/**
+ * When the alert before your stop (or where you change) is due, by the stops'
+ * times in `job.state`: 5 minutes before the train gets there. Null when the
+ * trip has no alerts, it was sent, or it's too late for one.
+ */
+export function alertTime(job, now) {
+  if (!job.alerts || job.alerted === alertKey(job, job.state)) return null;
+  const stops = Array.isArray(job.state?.stops) ? job.state.stops : [];
+  if (stops.length < 2) return null;
+  const destination = clamp(job.state.destinationIndex ?? stops.length - 1, 0, stops.length - 1);
+  const due = arrivalAt(stops, destination);
+  if (!Number.isFinite(due) || due - now < 60) return null;
+  return due - ALERT_BEFORE;
+}
+
+/**
+ * The alert to send with an update, when it's time: about 5 minutes before the
+ * train gets to where you change ("Change at Union in 5 min") or get off ("Port
+ * Credit in 5 min"), once you're on it, once per stop. `state` is the trip as it
+ * stands (re-timed by its train's position when it's followed). Returns { key,
+ * title, body } (the job's `alerted` takes the key), or null.
+ */
+export function alertFor(job, state, now) {
+  if (!job.alerts || !state) return null;
+  const stops = Array.isArray(state.stops) ? state.stops : [];
+  if (stops.length < 2) return null;
+  const last = stops.length - 1;
+  const boarding = clamp(state.boardingIndex ?? 0, 0, last);
+  const destination = clamp(state.destinationIndex ?? last, boarding, last);
+  const key = alertKey(job, state);
+  if (job.alerted === key) return null;
+  const due = arrivalAt(stops, destination);
+  if (!Number.isFinite(due)) return null;
+  const left = due - now;
+  if (left > ALERT_BEFORE + 10 || left < 60) return null;
+  // On the train: it has left where you get on.
+  const leaves = stops[boarding]?.time;
+  if (!state.hasDeparted && Number.isFinite(leaves) && now < leaves) return null;
+  const minutes = Math.max(1, Math.round(left / 60));
+  const name = String(stops[destination]?.name ?? "your stop");
+  const change = state.change;
+  if (change && typeof change === "object") {
+    const line = change.lineName ? `${change.lineName} line` : String(change.lineCode ?? "next");
+    const at = Number.isFinite(change.departure) ? `${torontoClock(change.departure)} ` : "";
+    return {
+      key,
+      title: `Change at ${name} in ${minutes} min`,
+      body: `Then the ${at}${line} train to ${change.terminusName ?? change.destinationName ?? "your stop"}.`,
+    };
+  }
+  return { key, title: `${name} in ${minutes} min`, body: "Your stop is coming up. Get ready to get off." };
+}
+
+/**
+ * When to follow a trip's train: from 20 minutes before it's due at your
+ * station (in case you're waiting for it) until well after it should have got
+ * to your stop.
+ */
+export function watchWindow(job) {
+  if (!job.live) return {};
+  const boarding = Math.max(0, job.state.boardingIndex ?? 0);
+  const start = job.live.scheduled[boarding] ?? job.state.departure;
   return {
-    job: next,
-    changed: true,
-    push: { event: "update", state, stale: Number.isFinite(stale) ? stale : now + 120 },
+    watchFrom: start - 20 * 60,
+    watchUntil: Math.max(job.end, start) + 45 * 60,
+    summary: Math.max(60, job.dismissal - job.end),
   };
+}
+
+/**
+ * On a journey with changes, once the train you're on is in where you change:
+ * the job for the next train (`job.legs[0]`), nothing seen of it yet. Null when
+ * there's none.
+ */
+export function nextLeg(job, now) {
+  const [leg, ...rest] = Array.isArray(job.legs) ? job.legs : [];
+  if (!leg) return null;
+  const next = {
+    token: job.token,
+    environment: job.environment,
+    revision: job.revision ?? 0,
+    alerts: job.alerts,
+    alerted: job.alerted,
+    state: leg.state,
+    times: (leg.times ?? []).filter((t) => t > now && t < leg.end),
+    end: leg.end,
+    dismissal: Math.max(leg.dismissal, leg.end),
+    live: leg.live ?? null,
+    legs: rest,
+  };
+  return { ...next, ...watchWindow(next) };
+}
+
+/** A time as on GO's boards: 24-hour, Toronto time ("17:05"). */
+export function torontoClock(t) {
+  try {
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/Toronto", hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+    }).format(new Date(t * 1000));
+  } catch {
+    const offset = torontoOffset(undefined, t);
+    return new Date((t - offset) * 1000).toISOString().slice(11, 16);
+  }
 }
 
 function list(value) {

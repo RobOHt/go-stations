@@ -17,37 +17,40 @@ struct DeparturesWidgetsBundle: WidgetBundle {
 struct TripLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: TripActivityAttributes.self) { context in
-            TripLockScreen(attributes: context.attributes, state: context.state, isStale: context.isStale)
+            // On a trip with changes, the train it has changed to (see `current(_:)`).
+            TripLockScreen(attributes: context.attributes.current(context.state), state: context.state,
+                           isStale: context.isStale)
                 .widgetURL(TripActivityAttributes.openURL)
         } dynamicIsland: { context in
-            DynamicIsland {
+            let attributes = context.attributes.current(context.state)
+            return DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
-                    TripExpandedLeading(attributes: context.attributes)
+                    TripExpandedLeading(attributes: attributes)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    TripExpandedTrailing(attributes: context.attributes, state: context.state,
+                    TripExpandedTrailing(attributes: attributes, state: context.state,
                                          isStale: context.isStale)
                 }
                 DynamicIslandExpandedRegion(.center) {
-                    TripExpandedCenter(attributes: context.attributes, state: context.state,
+                    TripExpandedCenter(attributes: attributes, state: context.state,
                                        isStale: context.isStale)
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    TripExpandedBottom(attributes: context.attributes, state: context.state,
+                    TripExpandedBottom(attributes: attributes, state: context.state,
                                        isStale: context.isStale)
                         .padding(.top, 6)
                 }
             } compactLeading: {
-                TripCompactLeading(attributes: context.attributes, state: context.state, isStale: context.isStale)
+                TripCompactLeading(attributes: attributes, state: context.state, isStale: context.isStale)
             } compactTrailing: {
-                TripCompactTrailing(attributes: context.attributes, state: context.state, isStale: context.isStale)
+                TripCompactTrailing(attributes: attributes, state: context.state, isStale: context.isStale)
             } minimal: {
-                TripMinimal(attributes: context.attributes, state: context.state, isStale: context.isStale)
+                TripMinimal(attributes: attributes, state: context.state, isStale: context.isStale)
             }
             // The same gap above, below and at the end of the island around the
             // line's pill, so its round end is concentric with the island's.
             .contentMargins([.leading, .top, .bottom], TripActivityLayout.compactInset, for: .compactLeading)
-            .keylineTint(context.attributes.lineColorOnDark)
+            .keylineTint(attributes.lineColorOnDark)
             .widgetURL(TripActivityAttributes.openURL)
         }
     }

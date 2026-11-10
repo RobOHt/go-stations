@@ -31,6 +31,14 @@ struct DeparturesApp: App {
 /// Portrait only, like the boards themselves.
 final class AppDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication,
+                     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
+        // Trip alerts show while the app is open, and getting to your station is
+        // heard (it can wake the app to take back the reminder to set off).
+        TripAlerts.shared.start()
+        return true
+    }
+
+    func application(_ application: UIApplication,
                      supportedInterfaceOrientationsFor window: UIWindow?) -> UIInterfaceOrientationMask {
         .portrait
     }

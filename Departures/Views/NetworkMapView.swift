@@ -296,6 +296,9 @@ struct NetworkMapView: UIViewRepresentable {
     /// How much higher Apple's logo and Legal link go than just above the search
     /// bar: above the button or hint bottom left, while one's there.
     var attributionLift: CGFloat = 0
+    /// A trip planned from search: its trains' stretches of line stand out in their
+    /// colours, the rest of the network dimmed, and its stations' names show.
+    var journey: Journey? = nil
     let onSelect: (Station) -> Void
 
     func makeCoordinator() -> Coordinator {
@@ -372,6 +375,7 @@ struct NetworkMapView: UIViewRepresentable {
         coordinator.syncPlace(place, in: mapView)
         coordinator.syncTrip(trackedTrip, in: mapView)
         coordinator.syncRunning(runningTrips, in: mapView)
+        coordinator.syncJourney(journey, in: mapView)
         return mapView
     }
 
@@ -386,6 +390,7 @@ struct NetworkMapView: UIViewRepresentable {
         coordinator.syncPlace(place, in: mapView)
         coordinator.syncTrip(trackedTrip, in: mapView)
         coordinator.syncRunning(runningTrips, in: mapView)
+        coordinator.syncJourney(journey, in: mapView)
         controller.setAttributionRoom(BottomBarMetrics.maximumRoom + attributionLift)
     }
 
@@ -553,7 +558,7 @@ struct NetworkMapView: UIViewRepresentable {
         /// busiest first, see `placeNames`).
         private func nameRank(_ station: Station) -> Int {
             if station.code == selectedCode { return 0 }
-            if station.code == homeCode || station.code == workCode { return 1 }
+            if station.code == homeCode || station.code == workCode || journeyStations.contains(station.code) { return 1 }
             if station.isUnion { return 2 }
             if station.lineCodes.count > 1 { return 3 }
             if Self.lineEnds.contains(station.code) { return 4 }
@@ -1420,10 +1425,50 @@ struct NetworkMapView: UIViewRepresentable {
             return RailNetwork.shared.trackPaths.first { $0.lineCode == line }?.uiColor ?? .systemGray
         }
 
-        /// While a trip is tracked, its line stands out: the others fade.
+        /// While a trip is tracked, its line stands out: the others fade. A trip
+        /// planned from search is drawn over the network, which fades all over.
         private func lineAlpha(_ track: TrackPolyline) -> CGFloat {
+            if journeyID != nil { return 0.25 }
             guard let trip else { return 1 }
             return track.lineCode == trip.lineCode ? 1 : 0.3
+        }
+
+        // MARK: A planned trip
+
+        /// The trip planned from search that's drawn, by its id.
+        private var journeyID: String?
+        /// Its trains' stretches of line: their white casings, then their lines.
+        private var journeyRoute: [TrainRouteOverlay] = []
+        /// Where it starts, changes and ends: their names always show.
+        private var journeyStations: Set<String> = []
+
+        /// Draws a trip planned from search (or stops drawing one): each train's
+        /// stretch from where you get on to where you get off, in its line's colour
+        /// over the dimmed network.
+        func syncJourney(_ journey: Journey?, in mapView: MKMapView) {
+            guard journey?.id != journeyID else { return }
+            journeyID = journey?.id
+            let old = journeyRoute
+            var casings: [TrainRouteOverlay] = []
+            var lines: [TrainRouteOverlay] = []
+            for leg in journey?.legs ?? [] {
+                let code = RailNetwork.shared.line(code: leg.lineCode)?.code ?? leg.lineCode
+                let points = geometry.route(line: code, stops: leg.stops, from: leg.board, to: leg.alight)
+                guard points.count >= 2 else { continue }
+                let coordinates = points.map { Self.coordinate($0) }
+                casings.append(TrainRouteOverlay.make(coordinates, color: lineColor(code), casing: true))
+                lines.append(TrainRouteOverlay.make(coordinates, color: lineColor(code), casing: false))
+            }
+            journeyRoute = casings + lines
+            mapView.addOverlays(journeyRoute, level: .aboveRoads)
+            mapView.removeOverlays(old)
+            for overlay in old { routeRenderers[ObjectIdentifier(overlay)] = nil }
+            dimLines()
+            let stations = Set(journey.map { [$0.originCode] + $0.changeCodes + [$0.endStation] } ?? [])
+            if stations != journeyStations {
+                journeyStations = stations
+                placeNames(in: mapView)
+            }
         }
 
         private func dimLines() {

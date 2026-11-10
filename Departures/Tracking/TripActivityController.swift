@@ -56,14 +56,15 @@ final class TripActivityController {
     /// on the Lock Screen a while). Without a tracked trip, ends any still running.
     func sync(_ trip: TrackedTrip?, now: Date = Date()) {
         for activity in activities where activity.activityState == .active || activity.activityState == .stale {
-            guard let trip, activity.attributes.tripID == trip.row.id,
+            // (On a trip with changes, the first train's activity goes on with the next.)
+            guard let trip, activity.attributes.tripID == trip.activityID,
                   let content = Self.content(for: trip, now: now)
             else {
                 stopPushes(to: activity)
                 Task { await activity.end(nil, dismissalPolicy: .immediate) }
                 continue
             }
-            if trip.phase(at: now) == .arrived {
+            if trip.phase(at: now) == .arrived, !trip.hasOnward {
                 stopPushes(to: activity)
                 Task { await activity.end(content, dismissalPolicy: .after(Self.dismissal(of: trip, now: now))) }
                 continue
@@ -73,9 +74,10 @@ final class TripActivityController {
             state.revision = activity.content.state.revision
             if activity.content.state != state || activity.content.staleDate != content.staleDate {
                 Task { await activity.update(ActivityContent(state: state, staleDate: content.staleDate)) }
-                if let token = pushTokens[activity.id] {
-                    registerPushes(token, trip: trip, attributes: activity.attributes, now: now, activityID: activity.id)
-                }
+            }
+            // The worker's told whatever's new (times, a change of train, alerts on or off).
+            if let token = pushTokens[activity.id] {
+                registerPushes(token, trip: trip, attributes: activity.attributes, now: now, activityID: activity.id)
             }
             // After a relaunch: pick its push token up again.
             watchPushToken(of: activity)
@@ -116,7 +118,7 @@ final class TripActivityController {
             for await token in activity.pushTokenUpdates {
                 guard let self else { return }
                 self.pushTokens[activity.id] = token
-                if let trip = TripTracker.shared.trip, activity.attributes.tripID == trip.row.id {
+                if let trip = TripTracker.shared.trip, activity.attributes.tripID == trip.activityID {
                     self.registerPushes(token, trip: trip, attributes: activity.attributes, now: Date(),
                                         activityID: activity.id)
                 }
@@ -132,33 +134,65 @@ final class TripActivityController {
     /// that has changed since the worker was last told.
     private func registerPushes(_ token: Data, trip: TrackedTrip, attributes: TripActivityAttributes, now: Date,
                                 activityID: String) {
-        guard let content = Self.content(for: trip, now: now, followingLive: false) else { return }
-        let schedule = TripActivityTrip(attributes, content.state)
-        guard let end = schedule.arrival(at: schedule.destination), end > now else { return }
+        // This train, then on a trip with changes each one after it, as it'll be
+        // once you've changed to it.
+        let schedules = trip.legsFromHere().compactMap { Self.schedule(for: $0, attributes: attributes, now: now) }
+        guard let first = schedules.first, first.trip.tripNumber == trip.tripNumber else { return }
+        let alerts = TripAlerts.shared.isOn(for: trip)
+        let job = TripActivityPush.Job(
+            token: TripActivityPush.hex(token),
+            environment: TripActivityPush.environment,
+            state: first.leg.state,
+            times: first.leg.times,
+            end: first.leg.end,
+            dismissal: first.leg.dismissal,
+            live: first.leg.live,
+            alerts: alerts,
+            legs: schedules.dropFirst().map { $0.leg }
+        )
+        // To the minute: the worker follows the train itself in between.
+        func minute(_ number: Double) -> Int { Int(number / 60) }
+        let key = ([job.token, "\(alerts)"] + schedules.flatMap { schedule -> [String] in
+            let leg = schedule.leg
+            return [schedule.trip.tripNumber, "\(schedule.trip.boardingIndex)-\(schedule.trip.destinationIndex)",
+                    schedule.trip.stopCodes.joined()]
+                + (leg.times + [leg.end, leg.dismissal]).map { "\(minute($0))" }
+        }).joined(separator: "|")
+        guard registered[activityID] != key else { return }
+        registered[activityID] = key
+        let journey = trip.activityID
+        Task {
+            let accepted = await TripActivityPush.send(job)
+            // The worker sends the change and arrival alerts with the Live Activity.
+            if accepted, alerts { TripAlerts.shared.workerSendsAlerts(for: journey) }
+        }
+    }
+
+    /// What the worker is told about one train of a trip: what the activity shows
+    /// for it, when to push it updates (as the train reaches each stop on the way to
+    /// yours and leaves it), when it's over (at your stop, which stays on the Lock
+    /// Screen until `dismissal(of:now:)`; on a trip with changes, where the next
+    /// train takes over), and its train and stops, for the worker to follow it.
+    private static func schedule(for trip: TrackedTrip, attributes: TripActivityAttributes,
+                                 now: Date) -> (trip: TrackedTrip, leg: TripActivityPush.Leg)? {
+        guard let content = content(for: trip, now: now, followingLive: false) else { return nil }
+        let schedule = TripActivityTrip(attributes.current(content.state), content.state)
+        guard let end = schedule.arrival(at: schedule.destination), end > now else { return nil }
         var moments: Set<Date> = []
         for index in 0..<schedule.destination {
             if let arrives = schedule.arrival(at: index) { moments.insert(arrives) }
             if let leaves = schedule.stops[index].time { moments.insert(leaves) }
         }
         let times = moments.filter { $0 > now && $0 < end }.sorted()
-        let dismissal = Self.dismissal(of: trip, now: now)
-        let job = TripActivityPush.Job(
-            token: TripActivityPush.hex(token),
-            environment: TripActivityPush.environment,
+        let leg = TripActivityPush.Leg(
             state: content.state,
             times: times.map(TripActivityTime.number),
             end: TripActivityTime.number(end),
-            dismissal: TripActivityTime.number(dismissal),
+            dismissal: TripActivityTime.number(dismissal(of: trip, now: now)),
             live: TripActivityPush.Live(trip: trip.tripNumber, codes: trip.stopCodes,
                                         scheduled: trip.stops.map { $0.time.map(TripActivityTime.number) })
         )
-        // To the minute: the worker follows the train itself in between.
-        func minute(_ date: Date) -> Int { Int(date.timeIntervalSince1970 / 60) }
-        let key = ([job.token, trip.tripNumber, "\(trip.boardingIndex)-\(trip.destinationIndex)", trip.stopCodes.joined()]
-                   + (times + [end, dismissal]).map { "\(minute($0))" }).joined(separator: "|")
-        guard registered[activityID] != key else { return }
-        registered[activityID] = key
-        Task { await TripActivityPush.send(job) }
+        return (trip, leg)
     }
 
     private func stopPushes(to activity: Activity<TripActivityAttributes>) {
@@ -180,7 +214,7 @@ final class TripActivityController {
             direction = TravelDirection.of(lineCode: line.code, from: first, to: end, network: network)?.label.lowercased()
         }
         return TripActivityAttributes(
-            tripID: trip.row.id,
+            tripID: trip.activityID,
             tripNumber: trip.tripNumber,
             lineCode: line.code,
             lineColorHex: line.hex,
@@ -232,10 +266,41 @@ final class TripActivityController {
             },
             boardingIndex: trip.boardingIndex,
             destinationIndex: trip.destinationIndex,
-            awaitsTrain: trip.hasStartingStop
+            awaitsTrain: trip.hasStartingStop,
+            leg: trip.journeyID == nil ? nil : leg(for: attributes, since: trip.legStartedAt),
+            change: change(after: trip)
         )
         let target = TripActivityTrip(attributes, state).moment(at: now).target
         return ActivityContent(state: state, staleDate: target.flatMap { $0 > now ? $0 : nil })
+    }
+
+    /// A train changed to, on a trip with changes: what the activity (started for
+    /// the first train) shows in place of its own attributes.
+    private static func leg(for attributes: TripActivityAttributes, since: Date?) -> TripActivityAttributes.Leg {
+        TripActivityAttributes.Leg(tripNumber: attributes.tripNumber, lineCode: attributes.lineCode,
+                                   lineColorHex: attributes.lineColorHex, lineName: attributes.lineName,
+                                   direction: attributes.direction, boardingName: attributes.boardingName,
+                                   destinationName: attributes.destinationName, terminusName: attributes.terminusName,
+                                   boardingTime: attributes.boardingTime, since: since)
+    }
+
+    /// Where you change after this train, and the train you change to.
+    static func change(after trip: TrackedTrip) -> TripActivityAttributes.Change? {
+        guard let next = trip.onward?.first else { return nil }
+        let network = RailNetwork.shared
+        let line = network.line(code: next.row.lineCode)
+        let codes = next.stops.map(\.code)
+        let departure = codes.firstIndex(of: next.boardingCode).flatMap { next.stops[$0].expected ?? next.stops[$0].time }
+        func name(_ code: String) -> String { shortName(network.station(code)?.name ?? code) }
+        return TripActivityAttributes.Change(
+            station: name(trip.destinationCode),
+            lineCode: line?.code ?? next.row.lineCode,
+            lineColorHex: line?.hex ?? "888888",
+            lineName: line?.name,
+            departure: departure ?? next.row.scheduled,
+            terminusName: name(codes.last ?? next.destinationCode),
+            destinationName: name(next.destinationCode)
+        )
     }
 
     /// Each stop's times for the Live Activity: when the train leaves it and,
@@ -323,6 +388,19 @@ enum TripActivityPush {
         let dismissal: Double
         /// The trip's train and stops, for the worker to follow it live.
         let live: Live?
+        /// Alert 5 minutes before the train gets to where you change or get off.
+        let alerts: Bool
+        /// On a trip with changes, the trains after this one: the same for each.
+        let legs: [Leg]
+    }
+
+    /// One train of a trip with changes, for after the one before gets in.
+    struct Leg: Encodable {
+        let state: TripActivityAttributes.ContentState
+        let times: [Double]
+        let end: Double
+        let dismissal: Double
+        let live: Live?
     }
 
     /// The trip's number, and each of `state.stops`' code and planned departure.
@@ -339,7 +417,9 @@ enum TripActivityPush {
     static let environment = "production"
     #endif
 
-    static func send(_ job: Job) async {
+    /// True when the worker took it on.
+    @discardableResult
+    static func send(_ job: Job) async -> Bool {
         await post("/activity", body: job)
     }
 
@@ -351,13 +431,17 @@ enum TripActivityPush {
         token.map { String(format: "%02x", $0) }.joined()
     }
 
-    private static func post<Body: Encodable>(_ path: String, body: Body) async {
-        guard let url = URL(string: ProxyConfig.baseURL + path), let data = try? JSONEncoder().encode(body) else { return }
+    @discardableResult
+    private static func post<Body: Encodable>(_ path: String, body: Body) async -> Bool {
+        guard let url = URL(string: ProxyConfig.baseURL + path), let data = try? JSONEncoder().encode(body) else {
+            return false
+        }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = data
         request.timeoutInterval = 15
-        _ = try? await URLSession.shared.data(for: request)
+        guard let result = try? await URLSession.shared.data(for: request) else { return false }
+        return (200..<300).contains((result.1 as? HTTPURLResponse)?.statusCode ?? 0)
     }
 }

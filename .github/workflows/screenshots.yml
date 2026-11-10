@@ -243,6 +243,28 @@ jobs:
           shoot 10-work-dialog 14 workDialog
           shoot 11-station-earlier 14 stationEarlier
 
+          # Trip cards (a station picked in search), on the next weekday morning so
+          # there are trains: from Union to Oakville (offered, track or not), the
+          # trip opened at full height, from Exhibition to Unionville (a change at
+          # Union), two days ahead (the day's trips only), and the offered trip
+          # tracked (the question about alerts, the train on the map).
+          MORNING=$(python3 -c "
+          import datetime, zoneinfo
+          tz = zoneinfo.ZoneInfo('America/Toronto')
+          day = datetime.datetime.now(tz).date() + datetime.timedelta(days=1)
+          while day.weekday() >= 5:
+              day += datetime.timedelta(days=1)
+          print(datetime.datetime(day.year, day.month, day.day, 7, 50, tzinfo=tz).isoformat())")
+          echo "Trip cards at $MORNING"
+          shoot 15-trip-plan 14 tripPlan -debugNow "$MORNING"
+          shoot 15b-trip-plan-open 14 tripPlan -debugNow "$MORNING" -planOpenFirst YES -planLarge YES
+          shoot 15c-trip-change 14 tripPlan -debugNow "$MORNING" -planTo UI -debugLocation 43.6365,-79.4186 \
+            -planOpenFirst YES
+          shoot 15d-trip-change-large 14 tripPlan -debugNow "$MORNING" -planTo UI -debugLocation 43.6365,-79.4186 \
+            -planOpenFirst YES -planLarge YES
+          shoot 15e-trip-later-day 14 tripPlan -planDaysAhead 2 -planLarge YES
+          shoot 15f-tracked-journey 22 trackedJourney -debugNow "$MORNING" -debugLocation 43.6365,-79.4186
+
           # The tracked train's Live Activity: track one, then switch to Settings. The
           # simulator's screenshots only caught the island while the app's alert
           # (sent a few seconds after the switch) showed it, so take a quick burst.
