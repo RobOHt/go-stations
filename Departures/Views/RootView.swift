@@ -186,7 +186,8 @@ struct RootView: View {
         }
     }
 
-    private static let searchPrompt = "Search stations or places"
+    /// The search plans a trip to what you pick.
+    private static let searchPrompt = "Plan a trip: station or place"
 
     /// The map with its search field. On iOS 26 the field is the system's own
     /// (`.searchable` in the bottom toolbar), so iOS sizes and places it like
