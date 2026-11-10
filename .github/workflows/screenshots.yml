@@ -20,6 +20,9 @@ on:
       checks_only:
         description: "true: only the app's self-checks, no screenshots"
         default: ""
+      only:
+        description: "Only these shots, by name (say 13c-activity-journey 15h-tracked-journey-stops); empty for all"
+        default: ""
 
 permissions:
   contents: write
@@ -203,10 +206,14 @@ jobs:
         if: inputs.checks_only != 'true'
         env:
           UDID: ${{ steps.sim.outputs.udid }}
+          ONLY: ${{ inputs.only }}
         run: |
           mkdir -p shots
+          # With `only`, just those shots (the recordings and bursts only without).
+          everything() { [ -z "$ONLY" ]; }
           shoot() {
             name=$1; wait=$2; scene=$3; shift 3
+            if ! everything && [[ " $ONLY " != *" $name "* ]]; then return 0; fi
             xcrun simctl terminate "$UDID" "$BUNDLE_ID" > /dev/null 2>&1 || true
             sleep 1
             xcrun simctl launch "$UDID" "$BUNDLE_ID" -debugScene "$scene" \
@@ -234,6 +241,7 @@ jobs:
           shoot m-barrie-15000 9 map -mapCenter 44.3600,-79.6900 -mapWidth 15000
           # The station tags as the map changes, recorded (DebugScene.mapTour): the
           # names popping up, a zoom in, a station opened and closed, a pan.
+          if everything; then
           xcrun simctl terminate "$UDID" "$BUNDLE_ID" > /dev/null 2>&1 || true
           sleep 1
           xcrun simctl io "$UDID" recordVideo --codec=h264 --force tour-full.mp4 > /dev/null 2>&1 &
@@ -250,6 +258,7 @@ jobs:
               || mv tour-full.mp4 shots/tour.mp4
           fi
           ls -l shots/tour.mp4 || true
+          fi
           xcrun simctl ui "$UDID" appearance light
           shoot m-light-union-6000 9 map -mapCenter 43.6453,-79.3806 -mapWidth 6000
           shoot m-light-union-40000 9 map -mapCenter 43.6453,-79.3806 -mapWidth 40000
@@ -257,12 +266,14 @@ jobs:
           xcrun simctl ui "$UDID" appearance dark
 
           # Someone new: no home or work, no board opened yet (the hint bottom left).
+          if everything; then
           xcrun simctl terminate "$UDID" "$BUNDLE_ID" > /dev/null 2>&1 || true
           sleep 1
           xcrun simctl launch "$UDID" "$BUNDLE_ID" -debugScene map -openedABoard NO > /dev/null
           sleep 12
           xcrun simctl io "$UDID" screenshot --type=png shots/1d-new-user.png > /dev/null 2>&1
           echo 1d-new-user
+          fi
           shoot 2-search-focused 8 searchFocused
           shoot 2b-search-tap-away 10 searchTapAway
           shoot 3-search-typing 10 searchTyping
@@ -313,20 +324,11 @@ jobs:
             -openTripAfter 6 -tripLarge YES
           shoot 15i-tracked-journey-rest 24 trackedJourney -debugNow "$MORNING" -debugLocation 43.5560,-79.5869 \
             -openTripAfter 6 -tripLarge YES -tripScrollToEnd YES
-          # Its Live Activity in the island (the alert a few seconds after the switch
-          # to Settings expands it): the sentence, the stops and the change.
-          xcrun simctl launch "$UDID" com.apple.Preferences > /dev/null
-          sleep 3
-          for i in 1 2 3 4 5 6; do
-            xcrun simctl io "$UDID" screenshot --type=png "shots/15g-journey-island-$i.png" > /dev/null 2>&1
-            sleep 0.5
-          done
-          xcrun simctl terminate "$UDID" com.apple.Preferences > /dev/null 2>&1 || true
-          echo 15g-journey-island
 
           # The tracked train's Live Activity: track one, then switch to Settings. The
           # simulator's screenshots only caught the island while the app's alert
           # (sent a few seconds after the switch) showed it, so take a quick burst.
+          if everything; then
           xcrun simctl terminate "$UDID" "$BUNDLE_ID" > /dev/null 2>&1 || true
           sleep 1
           xcrun simctl launch "$UDID" "$BUNDLE_ID" -debugScene liveActivity \
@@ -340,6 +342,7 @@ jobs:
           done
           xcrun simctl terminate "$UDID" com.apple.Preferences > /dev/null 2>&1 || true
           echo 12-island
+          fi
           # Its views drawn in the app: Lock Screen, compact, minimal, expanded.
           shoot 13-activity-gallery 8 activityGallery
           shoot 13b-activity-lock-screen 8 activityGallery -galleryLockScreen YES
@@ -348,7 +351,7 @@ jobs:
           shoot 13d-activity-journey-island 8 activityGallery -gallerySection journeyIsland
 
       - name: Trace the tracked train's motion
-        if: always() && steps.sim.outputs.udid != '' && inputs.checks_only != 'true'
+        if: always() && steps.sim.outputs.udid != '' && inputs.checks_only != 'true' && inputs.only == ''
         env:
           UDID: ${{ steps.sim.outputs.udid }}
         run: |
@@ -374,7 +377,7 @@ jobs:
 
       - name: Check the start-up station
         id: startup
-        if: inputs.checks_only != 'true'
+        if: inputs.checks_only != 'true' && inputs.only == ''
         env:
           UDID: ${{ steps.sim.outputs.udid }}
         run: |

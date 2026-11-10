@@ -736,7 +736,8 @@ struct TripApproachSentence: View {
 
     var body: some View {
         sentence
-            .font(.system(size: fontSize))
+            // Tight lines: three of them have to fit with the stops and the change.
+            .font(.system(size: fontSize).leading(.tight))
             .lineLimit(3)
             .minimumScaleFactor(0.8)
             .fixedSize(horizontal: false, vertical: true)
@@ -819,7 +820,7 @@ struct TripStopStrip: View {
     var body: some View {
         let shown = trip.strip(for: moment)
         let focus = trip.focus(moment)
-        VStack(spacing: compact ? 3 : 5) {
+        VStack(spacing: compact ? 3 : 4) {
             TripStripTrack(trip: trip, shown: shown, focus: focus, color: color, compact: compact)
                 .frame(height: 14)
             HStack(alignment: .top, spacing: 0) {
@@ -986,7 +987,8 @@ struct TripLockScreen: View {
                 HStack(alignment: .center, spacing: 10) {
                     TripLinePill(code: attributes.lineCode, color: attributes.lineColor, fontSize: 15, shape: Capsule())
                         .frame(height: 32)
-                    TripApproachSentence(attributes: attributes, trip: trip, moment: moment, onDark: onDark)
+                    TripApproachSentence(attributes: attributes, trip: trip, moment: moment, onDark: onDark,
+                                         fontSize: 14.5)
                     Spacer(minLength: 0)
                 }
             } else {
@@ -999,18 +1001,20 @@ struct TripLockScreen: View {
                             .font(.subheadline)
                     }
                     Spacer(minLength: 8)
-                    TripTimeBlock(trip: trip, moment: moment, fontSize: 26)
+                    TripTimeBlock(trip: trip, moment: moment, fontSize: 24)
                 }
             }
             TripStopStrip(trip: trip, moment: moment, color: attributes.color(onDark: onDark))
-                .padding(.top, 10)
+                .padding(.top, 8)
             if let change = state.change, moment.kind != .arrived {
-                TripChangeLine(change: change, onDark: onDark)
-                    .padding(.top, 9)
+                TripChangeLine(change: change, onDark: onDark, fontSize: 12.5)
+                    .padding(.top, 8)
             }
         }
+        // Within iOS's 160 pt for the Lock Screen, with room around it all (see the
+        // gallery's journey cards, which show each card's height).
         .padding(.horizontal, 16)
-        .padding(.vertical, 16)
+        .padding(.vertical, 15)
     }
 }
 
