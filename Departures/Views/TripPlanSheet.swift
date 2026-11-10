@@ -288,12 +288,17 @@ struct TripPlanSheet: View {
         let duration = DurationText.text(from: now, to: journey.arrivalThere)
         // When to set off for the station, to be there as the train leaves.
         let leaveAt = journey.departure.addingTimeInterval(-TimeInterval((model.plan?.start?.minutes ?? 0) * 60))
-        let leave = leaveAt.timeIntervalSince(now) <= 120 ? "Leave now" : "Leave by \(TorontoTime.hourMinute(leaveAt))"
+        let leavesNow = leaveAt.timeIntervalSince(now) <= 120
         return VStack(alignment: .leading, spacing: 14) {
             VStack(alignment: .leading, spacing: 12) {
-                Text("This trip will get you to \(model.destination.name) in \(duration).\n\(leave) to catch the train.")
-                    .font(.body.weight(.semibold))
-                    .fixedSize(horizontal: false, vertical: true)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("This trip will get you to \(model.destination.name) in \(duration).")
+                        .font(.body.weight(.semibold))
+                    // Smaller, under it: when to set off.
+                    leaveLine(by: leaveAt, now: leavesNow)
+                }
+                .font(.subheadline)
+                .fixedSize(horizontal: false, vertical: true)
                 JourneySummary(journey: journey, destination: model.destination)
                 Text("Would you like to take this trip?")
                     .font(.subheadline)
@@ -338,6 +343,15 @@ struct TripPlanSheet: View {
         }
         .padding(Self.cardPadding)
         .background(.background.secondary, in: RoundedRectangle(cornerRadius: Self.cardRadius, style: .circular))
+    }
+
+    /// "Leave by 07:42 to catch the train", the time standing out ("Leave now"
+    /// when it's time).
+    private func leaveLine(by time: Date, now: Bool) -> Text {
+        let rest = Text(" to catch the train.").foregroundStyle(.secondary)
+        if now { return Text("Leave now").fontWeight(.semibold) + rest }
+        let at = Text(TorontoTime.hourMinute(time)).fontWeight(.semibold).monospacedDigit()
+        return Text("Leave by ").foregroundStyle(.secondary) + at + rest
     }
 
     /// Once a trip is tracked: what you'll be told, and whether you want it.
