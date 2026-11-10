@@ -28,6 +28,11 @@ struct TrackedTrip: Codable, Equatable, Sendable {
     /// on well past it.
     static let linger: TimeInterval = 10 * 60
 
+    /// Live reports further apart than this missed what happened in between (the
+    /// app was in the background, say): a train seen at a station and then past it
+    /// left somewhere in between, not when the later report came.
+    static let reportGap: TimeInterval = 90
+
     var lineCode: String { row.lineCode }
     var tripNumber: String { row.tripNumber }
     var stopCodes: [String] { stops.map(\.code) }
@@ -101,11 +106,13 @@ struct TrackedTrip: Codable, Equatable, Sendable {
         guard train.isFresh(at: now), var fix = train.fix(in: stopCodes, from: live?.index ?? 0) else { return self }
         var stops = self.stops
         let before = live
+        // Reports missed since the last one: when it left a station isn't known.
+        let missed = before.map { train.time.timeIntervalSince($0.time) > Self.reportGap } ?? false
         if let before, before.isAt, before.index == fix.index, !fix.isAt {
             // Creeping along the platform it's at: still there.
             fix = LiveFix(index: fix.index, isAt: true, time: fix.time)
         }
-        if let before, before.isAt, before.index < fix.index, stops.indices.contains(before.index),
+        if !missed, let before, before.isAt, before.index < fix.index, stops.indices.contains(before.index),
            stops[before.index].departed == nil {
             stops[before.index].departed = train.time
         }

@@ -84,6 +84,13 @@ enum StationRole {
 final class MapController {
     fileprivate weak var mapView: MKMapView?
     private var pending: ((MKMapView) -> Void)?
+    /// Where the map draws the tracked train (with you, when you're on it), while
+    /// it's drawing it: nil when it hasn't for a few seconds (the app was away).
+    var trackedTrain: CLLocationCoordinate2D? {
+        guard let drawnTrain, Date().timeIntervalSince(drawnTrain.at) < 3 else { return nil }
+        return drawnTrain.coordinate
+    }
+    fileprivate var drawnTrain: (coordinate: CLLocationCoordinate2D, at: Date)?
     /// Where the last camera move meant to put a point, checked once the move ends.
     private var goal: (point: MKMapPoint, target: CGPoint, issued: Date)?
     /// A finger is on the map, or just left it: automatic camera moves wait.
@@ -933,6 +940,7 @@ struct NetworkMapView: UIViewRepresentable {
             drawn["tracked"] = nil
             trackedSpot = nil
             train = nil
+            controller?.drawnTrain = nil
             route = []
             routeStart = nil
             routeRenderers = [:]
@@ -1449,6 +1457,7 @@ struct NetworkMapView: UIViewRepresentable {
             updateOnBoard(in: mapView, now: now)
             guard let point = trainPoint(at: now) else { return }
             let coordinate = Self.coordinate(point)
+            controller?.drawnTrain = (coordinate, Date())
             if let train {
                 UIView.animate(withDuration: 1, delay: 0,
                                options: [.curveLinear, .beginFromCurrentState, .allowUserInteraction]) {

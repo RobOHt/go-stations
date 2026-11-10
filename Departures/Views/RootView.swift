@@ -514,11 +514,14 @@ struct RootView: View {
                             asked: asked)
     }
 
-    /// Opens the tracked trip's details (closing the station sheet or Settings first).
-    /// Opens the tracked trip's details and goes to the train on the map.
+    /// Opens the tracked trip's details (closing the station sheet or Settings first)
+    /// and goes to the train on the map: where the map draws it (with you, when
+    /// you're on it), else where its times put it.
     private func openTrackedTrip() {
         guard let trip = TripTracker.shared.trip, let station = network.station(trip.boardingCode) else { return }
-        if let train = trip.position(at: Date(), on: StartupStation.geometry) {
+        if let drawn = mapController.trackedTrain {
+            center(on: drawn, sheetOpen: true)
+        } else if let train = trip.position(at: Date(), on: StartupStation.geometry) {
             let place = TrackGeometry.coordinate(train)
             center(on: CLLocationCoordinate2D(latitude: place.latitude, longitude: place.longitude), sheetOpen: true)
         }

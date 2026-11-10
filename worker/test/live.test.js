@@ -154,3 +154,21 @@ test("creeping along the platform doesn't count as leaving", () => {
   assert.equal(result.job.obs.at, true);
   assert.equal(result.job.dep[2], undefined);
 });
+
+test("after a gap in the reports, a station it was seen at isn't left just now", () => {
+  // In at Mimico, then nothing for ten minutes (the app or the feed away), then on
+  // its way to Port Credit: it left Mimico somewhere in between, as timetabled.
+  let current = follow(job(), { ...seen[5] }, at("21:01:35")).job;
+  current = follow(current, { ...seen[6] }, at("21:01:50")).job;
+  const later = { ...seen[18], time: at("21:12:00") };
+  const result = follow(current, later, at("21:12:05"));
+  assert.equal(result.job.dep[2], undefined);
+  const stops = result.push.state.stops;
+  assert.equal(stops[2].time, planned[2]);
+  // Not taken to be 9 minutes late leaving Mimico: Port Credit as late as it runs.
+  assert.ok(stops[4].time <= planned[4] + 90 + 60, clock(stops[4].time));
+  // With the reports coming as they should, leaving is when it was seen to.
+  let steady = follow(job(), { ...seen[12] }, at("21:03:55")).job;
+  steady = follow(steady, { ...seen[13] }, at("21:04:25")).job;
+  assert.equal(steady.dep[2], at("21:04:22"));
+});

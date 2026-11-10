@@ -19,6 +19,11 @@ export const FRESH = 120;
 const GONE = 300;
 /** Delay changes smaller than this don't re-time the stops ahead. */
 const DELAY_STEP = 30;
+/**
+ * Reports further apart than this missed what happened in between: a train seen
+ * at a station and then past it left somewhere in between, not just now.
+ */
+const REPORT_GAP = 90;
 
 const TRIP_ID = /^(\d{8})-([A-Z]{2})-([A-Za-z0-9]{1,12})$/;
 
@@ -171,6 +176,9 @@ export function follow(job, train, now) {
   const arr = { ...(job.arr ?? {}) };
   const dep = { ...(job.dep ?? {}) };
 
+  // Reports missed since the last one looked at: when it left a station isn't known.
+  const missed = Number.isFinite(job.seen) && train.time - job.seen > REPORT_GAP;
+
   // Where it is, in this trip's stops: at or after where it was last seen.
   let index = train.stop ? codes.indexOf(train.stop, obs.k ?? 0) : -1;
   if (index < 0 && obs.k == null && train.stop) index = codes.indexOf(train.stop);
@@ -178,14 +186,14 @@ export function follow(job, train, now) {
     const sameStop = obs.k === index;
     if (train.status === "at") {
       if (!(obs.at && sameStop)) {
-        if (obs.at && obs.k != null && obs.k < index) dep[obs.k] ??= train.time;
+        if (!missed && obs.at && obs.k != null && obs.k < index) dep[obs.k] ??= train.time;
         arr[index] ??= train.time;
         Object.assign(obs, { k: index, at: true, since: train.time });
       }
     } else if (train.status === "to") {
       // Creeping along the platform it's at says "on its way to" that same station.
       if (!(obs.at && sameStop)) {
-        if (obs.at && obs.k != null && obs.k < index) dep[obs.k] ??= train.time;
+        if (!missed && obs.at && obs.k != null && obs.k < index) dep[obs.k] ??= train.time;
         if (!sameStop || obs.at) Object.assign(obs, { k: index, at: false, since: train.time });
       }
     }
