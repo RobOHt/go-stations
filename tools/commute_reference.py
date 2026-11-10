@@ -7,8 +7,9 @@ situations and fails if they ever pick a different station.
 
 The rules, in order:
 
-1. Within a few km of home or work, and that station is about as close as any:
-   that station.
+1. Within 1 km of home or work (at the office, on the platform): that station.
+   (Not further out: a train of your commute going past it, on the way to where
+   you change, shows where you change.)
 2. On a train. Home->work and work->home are each planned once on a typical
    weekday (the most common journey across the morning or evening rush). If a
    journey has a change, and you're on the track of one of its legs where the
@@ -57,7 +58,7 @@ DOWNTOWN = "UN"           # nobody drives downtown to catch a train: stations wi
 DOWNTOWN_RADIUS = 6000.0  # ...this of Union aren't driven to unless you start there too
 NEAR_MIN = 1200.0         # metres: always "near" home/work within this...
 NEAR_FACTOR = 1.5         # ...or within 1.5x the distance to the nearest station
-NEAR_FIRST_MAX = 5000.0   # metres: beyond this, a train ride outranks being "near"
+NEAR_FIRST = 1000.0       # metres: this close to home/work, that station, even on a train past it
 ALONG_SLACK = 1500.0      # metres along the track either side of where the timetable puts a train
 ACROSS = 350.0            # metres off the track (plus the location's own uncertainty)...
 ACROSS_STRAIGHT = 1000.0  # ...or off the straight line where no track shape joins two stops
@@ -545,7 +546,7 @@ class Planner:
         ranked = self.sorted_stations(user)
         if home is None and work is None:
             return self.fallback(ranked, home, work, self.net, user), "fallback"
-        near = self.zone(user, ranked, home, work, NEAR_FIRST_MAX)
+        near = self.zone(user, ranked, home, work, NEAR_FIRST)
         if near is not None:
             return near, "near"
         view = self.tt.view(day)

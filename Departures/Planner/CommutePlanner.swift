@@ -10,8 +10,9 @@ import Foundation
 ///
 /// The rules, in order:
 ///
-/// 1. Within a few km of home or work, and that station is about as close as
-///    any: that station.
+/// 1. Within 1 km of home or work (at the office, on the platform): that
+///    station. (Not further out: a train of your commute going past it, on the
+///    way to where you change, shows where you change.)
 /// 2. On a train. Home→work and work→home are each planned once on a typical
 ///    weekday (the most common journey across the morning or evening rush). If
 ///    a journey has a change, and you're on the track of one of its legs where
@@ -46,7 +47,7 @@ struct CommutePlanner: Sendable {
     static let downtownRadius = 6000.0  // ...this of Union aren't driven to unless you start there too
     static let nearMin = 1200.0         // metres: always "near" home/work within this...
     static let nearFactor = 1.5         // ...or within 1.5x the distance to the nearest station
-    static let nearFirstMax = 5000.0    // metres: beyond this, a train ride outranks being "near"
+    static let nearFirst = 1000.0       // metres: this close to home/work, that station, even on a train past it
     static let alongSlack = 1500.0      // metres along the track either side of where the timetable puts a train
     static let across = 350.0           // metres off the track (plus the location's own uncertainty)...
     static let acrossStraight = 1000.0  // ...or off the straight line where no track shape joins two stops
@@ -277,7 +278,7 @@ struct CommutePlanner: Sendable {
         if home == nil && work == nil {
             return Choice(station: fallback(user: user, ranked: ranked, home: home, work: work), reason: .fallback)
         }
-        if let near = zone(user: user, ranked: ranked, home: home, work: work, cap: Self.nearFirstMax) {
+        if let near = zone(user: user, ranked: ranked, home: home, work: work, cap: Self.nearFirst) {
             return Choice(station: near, reason: .near)
         }
         let view = self.view(day: clock.day, shifts: clock.shifts)

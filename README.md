@@ -6,8 +6,9 @@ A tiny native iOS app that puts the GO Transit station departure board in your p
 - **Search for where you're going.** Type a station or a place (anything Apple Maps finds) and pick it: a card shows how to get there by train, starting from the station you'd get there soonest from (on foot if one is within a 10-minute walk, otherwise by car, counting 5 minutes a change), or one you pick, with the same week strip as the boards. Today, near enough to set off, it offers the trip you'd make: "This trip will get you to Union Station in 1 h 5 min", track it or not. Below it, the day's trips, changes and all (up to two), each with its trains, how long to change, and for a place the walk at the end; the trips that leave earlier but get you there no sooner are left out. The map draws the trip you open in its lines' colours over the dimmed network, with its stations' names. Where you searched for lately is listed when you start typing.
 - **Tap a station, get the board.** A native bottom sheet opens with the departure screen as it looks in the station: same bilingual headers, colours, line badges, ⚡ express marker, platform numbers with ♿, red cancellations, and Union's "Info in X min" countdowns. Adapted for portrait so nothing scrolls sideways.
 - **Opens to the right board.** Set a home and a work station. On launch the app opens the board you most likely want, worked out on the phone from the timetable, so it's instant:
-  - near home or work, that station;
-  - on a train of your commute (judged from where the timetable puts the trains), the next station where you change;
+  - at home or work (within 1 km of the station), that station;
+  - on a train of your commute (judged from where the timetable puts the trains), the next station where you change, even going past home or work on the way there;
+  - near home or work otherwise, that station;
   - anywhere else, the station you'd get home from soonest (on weekday mornings, to work), on foot if one is within a 10-minute walk, otherwise by car.
 
   With neither set, it opens the nearest station (up to 25 km away), and a hint on the board says how to make it home or work.
