@@ -286,9 +286,11 @@ struct TripActivityGallery: View {
                     Spacer()
                     TripExpandedTrailing(attributes: sample.drawn, state: sample.state, isStale: false)
                 }
+                // Just under the camera, as on the phone (the title's top about 37 pt
+                // down, beside the pill).
                 TripExpandedCenter(attributes: sample.drawn, state: sample.state, isStale: false)
                     .frame(width: 180)
-                    .padding(.top, 42)
+                    .padding(.top, 23)
             }
             TripExpandedBottom(attributes: sample.drawn, state: sample.state, isStale: false)
         }

@@ -833,9 +833,9 @@ struct TripStopStrip: View {
     var body: some View {
         let shown = trip.strip(for: moment)
         let focus = trip.focus(moment)
-        VStack(spacing: compact ? 2 : 3) {
+        VStack(spacing: 3) {
             TripStripTrack(trip: trip, shown: shown, focus: focus, color: color, compact: compact)
-                .frame(height: compact ? 12 : 14)
+                .frame(height: 14)
             HStack(alignment: .top, spacing: 0) {
                 ForEach(shown, id: \.self) { index in
                     label(index, isFocus: index == focus)
@@ -855,13 +855,13 @@ struct TripStopStrip: View {
         let passed = moment.train.hasPassed(index, stopCount: trip.stops.count)
         return VStack(spacing: 0) {
             Text(stop.name)
-                .font(.system(size: compact ? 10.5 : 12, weight: isFocus ? .bold : .semibold))
+                .font(.system(size: compact ? 11 : 12, weight: isFocus ? .bold : .semibold))
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
                 .multilineTextAlignment(.center)
             if showsTimes, let time = stop.time {
                 Text(TripActivityFormat.time(time))
-                    .font(.system(size: compact ? 10 : 11.5, weight: .medium).monospacedDigit())
+                    .font(.system(size: compact ? 10.5 : 11.5, weight: .medium).monospacedDigit())
                     .foregroundStyle(.secondary)
             }
         }
@@ -1199,16 +1199,10 @@ struct TripExpandedCenter: View {
         let trip = TripActivityTrip(attributes, state)
         let moment = trip.moment(at: Date(), isStale: isStale)
         if moment.kind != .approaching {
-            // (Snug: with the stops and their times under it, it all has to fit the
-            // island's 160 pt.)
-            VStack(spacing: 0) {
-                TripTitle(attributes: attributes, trip: trip, font: .system(size: 16, weight: .semibold))
-                // With a change line along the bottom, just the title: the island's
-                // 160 pt don't fit both (and the stops show the next one).
-                if state.change == nil || moment.kind == .arrived {
-                    TripNextLine(attributes: attributes, trip: trip, moment: moment, change: state.change)
-                        .font(.footnote)
-                }
+            VStack(spacing: 2) {
+                TripTitle(attributes: attributes, trip: trip)
+                TripNextLine(attributes: attributes, trip: trip, moment: moment, change: state.change)
+                    .font(.subheadline)
             }
             .minimumScaleFactor(0.8)
         }
@@ -1225,20 +1219,24 @@ struct TripExpandedBottom: View {
     var body: some View {
         let trip = TripActivityTrip(attributes, state)
         let moment = trip.moment(at: Date(), isStale: isStale)
-        // (All within the island's 160 pt: with a change line, the stops go without
-        // their times, which the Lock Screen has.)
+        // (All within the island's 160 pt: on the way to your station with a change,
+        // the sentence, the stops and the change line only fit with the stops
+        // without their times, which the Lock Screen has.)
         let changeLine = moment.kind != .arrived ? state.change : nil
+        let tight = moment.kind == .approaching && changeLine != nil
         VStack(alignment: .leading, spacing: 0) {
             if moment.kind == .approaching {
                 TripApproachSentence(attributes: attributes, trip: trip, moment: moment, onDark: true,
-                                     fontSize: changeLine == nil ? 13 : 12.5, leadsIn: moment.target != nil)
-                    .padding(.bottom, changeLine == nil ? 6 : 3)
+                                     fontSize: tight ? 12.5 : 13, leadsIn: moment.target != nil)
+                    .padding(.bottom, tight ? 3 : 6)
             }
             TripStopStrip(trip: trip, moment: moment, color: attributes.lineColorOnDark, compact: true,
-                          showsTimes: changeLine == nil)
+                          showsTimes: !tight)
             if let change = changeLine {
-                TripChangeLine(change: change, onDark: true, fontSize: 11)
-                    .padding(.top, 3)
+                TripChangeLine(change: change, onDark: true, fontSize: tight ? 11 : 12)
+                    .padding(.top, tight ? 3 : 6)
+                    // In from the island's rounded bottom corner (#20).
+                    .padding(.leading, 10)
             }
         }
     }
