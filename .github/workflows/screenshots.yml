@@ -389,6 +389,20 @@ jobs:
           container=$(xcrun simctl get_app_container "$UDID" "$BUNDLE_ID" data)
           choice="$container/Documents/startup-choice.txt"
           failed=0
+          # Warm up first: the commute's journeys are worked out once per timetable
+          # and kept, which on a fresh simulator (this check run on its own) takes
+          # longer than a case waits.
+          IFS=$'\t' read -r _ home work lat lon when _ _ < e2e.tsv
+          xcrun simctl terminate "$UDID" "$BUNDLE_ID" > /dev/null 2>&1 || true
+          rm -f "$choice"
+          xcrun simctl launch "$UDID" "$BUNDLE_ID" -debugNow "$when" -debugLocation "$lat,$lon,10" \
+            -homeStation "$home" -workStation "$work" > /dev/null < /dev/null
+          for i in $(seq 1 240); do
+            [ -s "$choice" ] && break
+            sleep 0.5
+          done
+          echo "Warmed up: $(tr -d '\n' < "$choice" 2> /dev/null || echo 'nothing written')"
+          sleep 3
           while IFS=$'\t' read -r name home work lat lon when station reason <&3; do
             xcrun simctl terminate "$UDID" "$BUNDLE_ID" > /dev/null 2>&1 || true
             rm -f "$choice"
