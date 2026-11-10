@@ -58,12 +58,15 @@ extension TrackedTrip {
               now.timeIntervalSince(location.timestamp) < Self.fixMaxAge,
               location.horizontalAccuracy >= 0, location.horizontalAccuracy <= Self.fixMaxError
         else { return .unsure }
-        // The line around the train, from two stops behind where it is to the next
-        // (in case it's further back than its reports or times say): from where you
-        // get on while it's just left, not once it's well past there (so someone
-        // still on that platform isn't taken to be on it).
-        let at = max(trainIndex(at: now), boardingIndex + 1)
-        let from = max(boardingIndex, at - 2)
+        // The line around the train: from two stops behind where it is (or where it
+        // was last reported, if that's further back: held up since, it can't be
+        // past its times, but it can't be behind its last report either; never
+        // reported, from where you get on) to the next stop. From where you get on
+        // while it's just left, not once it's well past there (so someone still on
+        // that platform isn't taken to be on it).
+        let estimated = trainIndex(at: now)
+        let at = max(estimated, boardingIndex + 1)
+        let from = max(boardingIndex, min(estimated, live?.index ?? boardingIndex) - 2)
         let to = min(at + 1, stops.count - 1)
         let here = CommutePlanner.Point(latitude: location.coordinate.latitude,
                                         longitude: location.coordinate.longitude)

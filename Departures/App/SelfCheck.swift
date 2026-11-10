@@ -123,10 +123,17 @@ enum SelfCheck {
         check("missed: still on the platform once it's well on", verdict(farOn, "11:52:30", at: "OA") == "missed",
               verdict(farOn, "11:52:30", at: "OA"))
         check("missed: on it, well on", verdict(farOn, "11:52:30", at: "LO") == "caught")
+        // Its reports stopped after Clarkson, and it was held up there: its times
+        // have it near Mimico, but you're still on it at Clarkson.
+        check("missed: not when held up after its reports stopped", verdict(left, "11:52", at: "CL") == "caught",
+              verdict(left, "11:52", at: "CL"))
         // Nothing live: taken to have left 10 minutes after its time.
         check("missed: nothing live, not yet", verdict(trip, "11:44", at: "UN") == "notYet")
         check("missed: nothing live, long after its time", verdict(trip, "11:47", at: "UN") == "missed",
               verdict(trip, "11:47", at: "UN"))
+        // Never reported (so maybe late, not gone): on the platform isn't missed.
+        check("missed: nothing live, still on the platform", verdict(trip, "11:47", at: "OA") == "caught",
+              verdict(trip, "11:47", at: "OA"))
         // Not a trip from search (tracked from a board: maybe someone else's train).
         var fromBoard = left
         fromBoard.journeyKey = nil
