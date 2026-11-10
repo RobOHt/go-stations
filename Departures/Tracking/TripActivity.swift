@@ -1227,15 +1227,15 @@ struct TripExpandedBottom: View {
         let changeLine = moment.kind != .arrived ? state.change : nil
         VStack(alignment: .leading, spacing: 0) {
             if moment.kind == .approaching {
-                TripApproachSentence(attributes: attributes, trip: trip, moment: moment, onDark: true, fontSize: 13.5,
+                TripApproachSentence(attributes: attributes, trip: trip, moment: moment, onDark: true, fontSize: 13,
                                      leadsIn: moment.target != nil)
-                    .padding(.bottom, 6)
+                    .padding(.bottom, changeLine == nil ? 6 : 4)
             }
             TripStopStrip(trip: trip, moment: moment, color: attributes.lineColorOnDark, compact: true,
                           showsTimes: changeLine == nil)
             if let change = changeLine {
-                TripChangeLine(change: change, onDark: true, fontSize: 12)
-                    .padding(.top, 6)
+                TripChangeLine(change: change, onDark: true, fontSize: 11.5)
+                    .padding(.top, 4)
             }
         }
     }
