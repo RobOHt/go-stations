@@ -144,6 +144,38 @@ enum SelfCheck {
         check("missed: only the first train", verdict(later, "11:39", at: "UN") == "notYet")
         check("missed: what it says", TripAlerts.missedTitle(time: date("12:06"), terminus: "Union Station")
               == "You missed the 12:06 to Union Station")
+
+        // Where GO's feed put the train itself, about when the fix was taken.
+        func near(_ code: String, north metres: Double = 0) -> (Double, Double) {
+            let coordinate = RailNetwork.shared.station(code)?.coordinate
+            return ((coordinate?.latitude ?? 0) + metres / 111_000, coordinate?.longitude ?? 0)
+        }
+        func judged(_ trip: TrackedTrip, _ clock: String, you: (Double, Double), train: (Double, Double),
+                    reportedAgo: TimeInterval) -> String {
+            let now = date(clock)
+            let fix = CLLocation(coordinate: .init(latitude: you.0, longitude: you.1), altitude: 0, horizontalAccuracy: 20,
+                                 verticalAccuracy: -1, timestamp: now)
+            let report = TrackedTrip.TrainReport(latitude: train.0, longitude: train.1,
+                                                 time: now.addingTimeInterval(-reportedAgo))
+            return "\(trip.boarding(at: now, location: fix, train: report, on: geometry))"
+        }
+        check("missed: beside the train", judged(left, "11:39", you: near("CL"), train: near("CL", north: 150),
+                                                 reportedAgo: 10) == "caught")
+        // At the office, 600 m from where you get on, the train two stops on.
+        check("missed: near where you get on, the train well on",
+              judged(left, "11:39", you: near("OA", north: 600), train: near("CL"), reportedAgo: 10) == "missed",
+              judged(left, "11:39", you: near("OA", north: 600), train: near("CL"), reportedAgo: 10))
+        // An older report: it could have gone that much further since.
+        check("missed: an older report allows for the train moving on",
+              judged(left, "11:39", you: near("CL", north: 1_500), train: near("CL"), reportedAgo: 60) == "caught")
+        // Too far apart in time: back to the line around where it should be.
+        check("missed: a report long before the fix says nothing",
+              judged(left, "11:39", you: near("CL"), train: near("UN"), reportedAgo: 300) == "caught")
+        // Known to have left from the worker, though the app hasn't seen it.
+        let worker = trip.boarding(at: date("11:39"), location: CLLocation(
+            coordinate: .init(latitude: near("UN").0, longitude: near("UN").1), altitude: 0, horizontalAccuracy: 20,
+            verticalAccuracy: -1, timestamp: date("11:39")), left: date("11:36:30"), on: geometry)
+        check("missed: on the worker's word that it left", "\(worker)" == "missed", "\(worker)")
     }
 
     /// A trip with a change goes on with the next train in the same Live Activity.

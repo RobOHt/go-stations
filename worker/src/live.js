@@ -434,3 +434,27 @@ function round(degrees) {
 function clamp(value, low, high) {
   return Math.min(Math.max(Number.isInteger(value) ? value : low, low), high);
 }
+
+// --- Did you catch it? -------------------------------------------------------
+
+/** How long after the train leaves where you get on that the app is woken to check you're on it. */
+export const MISSED_AFTER = 120;
+
+/**
+ * On the first train of a trip from search (`missedCheck`, with the app's own
+ * push token, `device`): once it has left where you get on, and a couple of
+ * minutes have passed, the app is woken with a silent push to check you're on
+ * it (it knows where you are; the worker doesn't). The push's payload: when it
+ * left, and where the train was then. Null when it's not time, or done.
+ */
+export function missedCheck(job, train, now) {
+  if (!job.missedCheck || !job.device || job.missedSent || !job.live) return null;
+  const boarding = job.state?.boardingIndex ?? 0;
+  const left = job.dep?.[boarding] ?? (job.obs?.k > boarding ? job.obs.since : null);
+  if (!Number.isFinite(left) || now - left < MISSED_AFTER) return null;
+  const check = { trip: job.live.trip, left };
+  if (train && Number.isFinite(train.lat) && Number.isFinite(train.lon) && Number.isFinite(train.time)) {
+    Object.assign(check, { lat: train.lat, lon: train.lon, time: train.time });
+  }
+  return check;
+}

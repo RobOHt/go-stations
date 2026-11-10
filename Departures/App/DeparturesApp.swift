@@ -45,6 +45,9 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         // Trip alerts show while the app is open, and getting to your station is
         // heard (it can wake the app to take back the reminder to set off).
         TripAlerts.shared.start()
+        // A push token for the app itself, for the worker to wake it in the
+        // background (to check you caught your train). No permission needed.
+        application.registerForRemoteNotifications()
         #if DEBUG
         // The self-checks run first thing, before anything else on screen.
         if DebugScene.current == .selfCheck { Task { @MainActor in SelfCheck.run() } }
@@ -55,5 +58,33 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication,
                      supportedInterfaceOrientationsFor window: UIWindow?) -> UIInterfaceOrientationMask {
         .portrait
+    }
+
+    func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+        let token = TripActivityPush.hex(deviceToken)
+        guard token != TripActivityPush.deviceToken else { return }
+        TripActivityPush.deviceToken = token
+        // The tracked trip's worker job gets it too.
+        TripActivityController.shared.sync(TripTracker.shared.trip)
+    }
+
+    /// Woken by the worker a couple of minutes after your first train left where
+    /// you get on (a silent push, with where the train was then): did you catch it?
+    func application(_ application: UIApplication,
+                     didReceiveRemoteNotification userInfo: [AnyHashable: Any]) async -> UIBackgroundFetchResult {
+        guard let missed = userInfo["missed"] as? [String: Any] else { return .noData }
+        var report: TrackedTrip.TrainReport?
+        if let lat = (missed["lat"] as? NSNumber)?.doubleValue, let lon = (missed["lon"] as? NSNumber)?.doubleValue,
+           let time = (missed["time"] as? NSNumber)?.doubleValue {
+            report = TrackedTrip.TrainReport(latitude: lat, longitude: lon, time: Date(timeIntervalSince1970: time))
+        }
+        let left = (missed["left"] as? NSNumber).map { Date(timeIntervalSince1970: $0.doubleValue) }
+        // The train's latest report (bringing the tracked trip up to date too).
+        await LiveTrains.shared.refresh()
+        let stopped = await TripTracker.shared.checkMissed(report: report, left: left)
+        // A moment for the Live Activity to end and the worker to hear, before iOS
+        // puts the app away again.
+        if stopped { try? await Task.sleep(for: .seconds(3)) }
+        return stopped ? .newData : .noData
     }
 }

@@ -11,6 +11,7 @@ struct SettingsView: View {
             Form {
                 stationsSection
                 mapSection
+                missedChecksSection
                 aboutSection
             }
             .softTopScrollEdge()
@@ -82,6 +83,26 @@ struct SettingsView: View {
             Text("Map")
         } footer: {
             Text("Every train running now, moving along its line where GO's live data puts it (the timetable when that isn't available). Trains waiting at the end of their line aren't shown. Tap one to see its stops.")
+        }
+    }
+
+    /// The last few checks for a missed train (on a trip from search), when there
+    /// have been any: what each found, to see why one did or didn't fire.
+    @ViewBuilder
+    private var missedChecksSection: some View {
+        let lines = UserDefaults.standard.stringArray(forKey: TripTracker.missedChecksKey) ?? []
+        if !lines.isEmpty {
+            Section {
+                ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
+                    Text(line)
+                        .font(.footnote.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                }
+            } header: {
+                Text("Missed-train checks")
+            } footer: {
+                Text("A couple of minutes after the first train of a trip from search leaves, the app checks you're on it: by where you are and where GO says the train is. Far from it, you're told you missed it and tracking stops.")
+            }
         }
     }
 

@@ -2,7 +2,7 @@
 // Mimico to Danforth, changing at Union. Run with: node --test worker/test/*.test.js
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { ALERT_BEFORE, alertFor, alertTime, arrivalAt, follow, nextLeg, torontoClock, watchWindow } from "../src/live.js";
+import { ALERT_BEFORE, alertFor, alertTime, arrivalAt, follow, missedCheck, nextLeg, torontoClock, watchWindow } from "../src/live.js";
 
 // 2026-11-10 in Toronto (EST, UTC-5).
 const at = (clock) => {
@@ -149,4 +149,31 @@ test("into the end of its run early: it gets in early, but leaves stations along
   // Late is late, all the way.
   const late = follow(job(), { ...report, time: at("07:33:00"), delay: 120 }, at("07:33:10"));
   assert.equal(late.state.stops[3].time, at("07:36"));
+});
+
+test("a couple of minutes after the first train leaves, the app is woken to check you're on it", () => {
+  const device = "cd".repeat(32);
+  const trip = { ...job(), missedCheck: true, device, legs: [] };
+  const report = { trip: "1306", line: "LW", lat: 43.62, lon: -79.5, status: "to", stop: "UN", delay: 0 };
+  // Seen leaving Mimico (where you get on) at 07:25:30.
+  const atMimico = follow(trip, { ...report, stop: "MI", status: "at", time: at("07:25:00") }, at("07:25:05")).job;
+  const away = follow(atMimico, { ...report, time: at("07:25:30") }, at("07:25:35")).job;
+  assert.equal(away.dep[2], at("07:25:30"));
+  // Not straight away.
+  assert.equal(missedCheck(away, report, at("07:26:30")), null);
+  // Two minutes on: when it left, and where the train was.
+  const train = { ...report, time: at("07:27:28") };
+  assert.deepEqual(missedCheck(away, train, at("07:27:31")),
+    { trip: "1306", left: at("07:25:30"), lat: 43.62, lon: -79.5, time: at("07:27:28") });
+  // Once only.
+  assert.equal(missedCheck({ ...away, missedSent: true }, train, at("07:28:00")), null);
+  // Not without the app's token, or on a trip that doesn't ask for it.
+  assert.equal(missedCheck({ ...away, device: undefined }, train, at("07:28:00")), null);
+  assert.equal(missedCheck({ ...away, missedCheck: false }, train, at("07:28:00")), null);
+  // Not before it has left.
+  assert.equal(missedCheck(atMimico, train, at("07:28:00")), null);
+  // The next train of the trip (after the change) doesn't carry it.
+  const next = nextLeg({ ...job(), missedCheck: true, device }, at("07:35"));
+  assert.equal(next.missedCheck, undefined);
+  assert.equal(next.device, undefined);
 });

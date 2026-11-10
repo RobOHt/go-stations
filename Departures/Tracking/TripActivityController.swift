@@ -147,6 +147,9 @@ final class TripActivityController {
         let schedules = trip.legsFromHere().compactMap { Self.schedule(for: $0, attributes: attributes, now: now) }
         guard let first = schedules.first, first.trip.tripNumber == trip.tripNumber else { return }
         let alerts = TripAlerts.shared.isOn(for: trip)
+        // On the first train of a trip from search: woken to check you're on it.
+        let device = TripActivityPush.deviceToken
+        let missedCheck = trip.journeyKey != nil && (trip.legIndex ?? 0) == 0 && device != nil
         let job = TripActivityPush.Job(
             token: TripActivityPush.hex(token),
             environment: TripActivityPush.environment,
@@ -156,11 +159,13 @@ final class TripActivityController {
             dismissal: first.leg.dismissal,
             live: first.leg.live,
             alerts: alerts,
-            legs: schedules.dropFirst().map { $0.leg }
+            legs: schedules.dropFirst().map { $0.leg },
+            device: missedCheck ? device : nil,
+            missedCheck: missedCheck
         )
         // To the minute: the worker follows the train itself in between.
         func minute(_ number: Double) -> Int { Int(number / 60) }
-        let key = ([job.token, "\(alerts)"] + schedules.flatMap { schedule -> [String] in
+        let key = ([job.token, "\(alerts)", job.device ?? "-"] + schedules.flatMap { schedule -> [String] in
             let leg = schedule.leg
             return [schedule.trip.tripNumber, "\(schedule.trip.boardingIndex)-\(schedule.trip.destinationIndex)",
                     schedule.trip.stopCodes.joined()]
@@ -400,6 +405,11 @@ enum TripActivityPush {
         let alerts: Bool
         /// On a trip with changes, the trains after this one: the same for each.
         let legs: [Leg]
+        /// The app's own push token: on the first train of a trip from search
+        /// (`missedCheck`), the worker wakes the app with it a couple of minutes
+        /// after the train leaves where you get on, to check you're on it (#16).
+        let device: String?
+        let missedCheck: Bool
     }
 
     /// One train of a trip with changes, for after the one before gets in.
@@ -424,6 +434,13 @@ enum TripActivityPush {
     #else
     static let environment = "production"
     #endif
+
+    /// The app's push token (for the worker to wake it in the background), once
+    /// iOS has given one. Kept across launches.
+    static var deviceToken: String? {
+        get { UserDefaults.standard.string(forKey: "pushDeviceToken") }
+        set { UserDefaults.standard.set(newValue, forKey: "pushDeviceToken") }
+    }
 
     /// True when the worker took it on.
     @discardableResult

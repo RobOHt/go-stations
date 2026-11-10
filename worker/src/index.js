@@ -19,12 +19,15 @@
 // a stop or leaves one. On a journey with changes (`legs`), it takes the next
 // train on once the one you're on gets in where you change. With `alerts`, the
 // push 5 minutes before the train gets to where you change or get off comes with
-// an alert (sound, screen on). POST /v1/activity/end forgets one early. Nothing
-// is kept once the trip is over. The Apple push key is a Worker secret too
-// (APNS_KEY_P8, APNS_KEY_ID, APPLE_TEAM_ID).
+// an alert (sound, screen on). On the first train of a trip from search
+// (`missedCheck`, with the app's own push token, `device`), a couple of minutes
+// after it leaves where you get on, a silent push wakes the app to check you're
+// on it. POST /v1/activity/end forgets one early. Nothing is kept once the trip
+// is over. The Apple push key is a Worker secret too (APNS_KEY_P8, APNS_KEY_ID,
+// APPLE_TEAM_ID).
 
 import { DurableObject } from "cloudflare:workers";
-import { alertFor, alertTime, follow, mergeTrains, nextLeg, watchWindow } from "./live.js";
+import { alertFor, alertTime, follow, mergeTrains, missedCheck, nextLeg, watchWindow } from "./live.js";
 
 const UPSTREAM = "https://api.openmetrolinx.com/OpenDataAPI/api/V1";
 
@@ -270,6 +273,7 @@ async function activity(request, env, ending) {
       live: followable(leg.live, leg.state, now),
     });
   }
+  const device = typeof body.device === "string" ? body.device.toLowerCase() : "";
   const accepted = await pusher.track({
     token,
     environment: body.environment,
@@ -280,6 +284,8 @@ async function activity(request, env, ending) {
     live: followable(body.live, state, now),
     alerts: body.alerts === true,
     legs,
+    // The app's own token, to wake it once the first train has left (did you catch it?).
+    ...(body.missedCheck === true && /^[0-9a-f]{64,200}$/.test(device) ? { missedCheck: true, device } : {}),
   });
   return accepted ? new Response(null, { status: 204 }) : error(503, "Too many trips tracked");
 }
@@ -306,7 +312,7 @@ function followable(live, state, now) {
 }
 
 // What a followed trip keeps between looks at its train.
-const FOLLOWED = ["obs", "arr", "dep", "delay", "leave", "eta", "followed", "seen", "pushed"];
+const FOLLOWED = ["obs", "arr", "dep", "delay", "leave", "eta", "followed", "seen", "pushed", "missedSent"];
 
 // One object holds every tracked trip's schedule (there are only ever a few) and
 // wakes at the next time any of them is due, or every FOLLOW_EVERY seconds while
@@ -347,10 +353,18 @@ export class LiveActivities extends DurableObject {
       if (watching(job, now)) {
         // Where its train is (one look at the feeds for every trip followed).
         if (live === undefined) live = await liveTrains(this.env).catch(() => null);
-        const result = live ? follow(job, live.trains.find((train) => train.trip === job.live.trip), now) : null;
+        const train = live?.trains.find((each) => each.trip === job.live.trip);
+        const result = live ? follow(job, train, now) : null;
         if (result) {
           let next = result.job;
           let push = result.push;
+          // Gone from where you get on a couple of minutes ago: are you on it? (The
+          // app knows where you are.)
+          const check = missedCheck(next, train, now);
+          if (check) {
+            next.missedSent = true;
+            await this.note("missed check", await sendWake(this.env, next, { missed: check }));
+          }
           if (push?.event === "end" && next.legs?.length) {
             // In where you change: on to the next train.
             next = nextLeg(next, now);
@@ -372,7 +386,7 @@ export class LiveActivities extends DurableObject {
               continue;
             }
           }
-          if (result.changed || push) await this.ctx.storage.put(key, next);
+          if (result.changed || push || check) await this.ctx.storage.put(key, next);
           continue;
         }
         // Following it, but nothing new to go on: wait for the next look.
@@ -501,6 +515,35 @@ async function sendPush(env, job, { event, state, stale, dismissal, alert }) {
   // A refused key (expired, or swapped for a new one): sign a fresh token next time.
   if (response.status === 403) provider = null;
   return { gone: response.status === 410 || reason === "BadDeviceToken", result: `${response.status} ${reason}` };
+}
+
+// Wakes the app in the background with a silent push to its own token (not the
+// Live Activity's), carrying `payload`. Apple may hold it back a little, or
+// drop it when the app was swiped away.
+async function sendWake(env, job, payload) {
+  const host = job.environment === "development" ? "api.sandbox.push.apple.com" : "api.push.apple.com";
+  try {
+    const response = await fetch(`https://${host}/3/device/${job.device}`, {
+      method: "POST",
+      headers: {
+        authorization: `bearer ${await providerToken(env)}`,
+        "apns-topic": BUNDLE_ID,
+        "apns-push-type": "background",
+        "apns-priority": "5",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ aps: { "content-available": 1 }, ...payload }),
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (response.ok) return "200";
+    const reason = (await response.json().catch(() => ({}))).reason ?? "";
+    console.log(`APNs ${response.status} ${reason} (wake)`);
+    if (response.status === 403) provider = null;
+    return `${response.status} ${reason}`;
+  } catch (e) {
+    console.log("APNs unreachable:", String(e));
+    return "unreachable";
+  }
 }
 
 // Asks Metrolinx for the Union board: "200 OK" means the API key works.

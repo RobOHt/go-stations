@@ -1,3 +1,4 @@
+import CoreLocation
 import Foundation
 import Observation
 
@@ -441,24 +442,67 @@ final class TripTracker {
     }
 
     /// Once the first train of a trip from search has left where you get on (see
-    /// `TrackedTrip.boarding(at:location:on:)`): when you're nowhere near it, you
-    /// missed it. Says so (with alerts on), and stops tracking: the Live Activity
-    /// ends, and no alerts come for the trip. At most about once a minute. True
-    /// when it stopped.
+    /// `TrackedTrip.boarding(at:location:train:left:on:)`): when you're nowhere
+    /// near it, you missed it. Says so (with alerts on), and stops tracking: the
+    /// Live Activity ends, and no alerts come for the trip. At most about once a
+    /// minute from the app itself. `report` and `left`: where the train was and
+    /// when it left, from the worker when it wakes the app for this. True when it
+    /// stopped.
     @discardableResult
-    func checkMissed(now: Date = Date()) async -> Bool {
-        guard let trip, trip.journeyKey != nil, let left = trip.leftBoarding(at: now),
-              now.timeIntervalSince(left) >= TrackedTrip.missedAfter else { return false }
-        if let missedCheckedAt, now.timeIntervalSince(missedCheckedAt) < 50 { return false }
+    func checkMissed(now: Date = Date(), report: TrackedTrip.TrainReport? = nil, left known: Date? = nil) async -> Bool {
+        guard let trip, trip.journeyKey != nil, (trip.legIndex ?? 0) == 0,
+              let left = known ?? trip.leftBoarding(at: now),
+              now.timeIntervalSince(left) >= TrackedTrip.missedAfter else {
+            if known != nil { noteMissedCheck("woken: nothing to check (no first train of a trip from search)") }
+            return false
+        }
+        if known == nil, let missedCheckedAt, now.timeIntervalSince(missedCheckedAt) < 50 { return false }
         missedCheckedAt = now
         let location = await LocationProvider.shared.locationIfAllowed()
-        // (Still the same train, and still not on it.)
-        guard let current = self.trip, current.activityID == trip.activityID, current.legIndex == trip.legIndex,
-              current.boarding(at: Date(), location: location, on: StartupStation.geometry) == .missed
+        // Where the train was: as the worker said, or its latest report here,
+        // whichever is nearer in time to the fix.
+        var reports = report.map { [$0] } ?? []
+        if let latest = LiveTrains.shared.latest(trip.tripNumber) {
+            reports.append(TrackedTrip.TrainReport(latitude: latest.lat, longitude: latest.lon, time: latest.time))
+        }
+        let train = location.flatMap { fix in
+            reports.min { abs($0.time.timeIntervalSince(fix.timestamp)) < abs($1.time.timeIntervalSince(fix.timestamp)) }
+        }
+        // (Still the same train.)
+        guard let current = self.trip, current.activityID == trip.activityID, current.legIndex == trip.legIndex
         else { return false }
+        let verdict = current.boarding(at: Date(), location: location, train: train, left: known,
+                                       on: StartupStation.geometry)
+        noteMissedCheck((known != nil ? "woken: " : "") + Self.describe(verdict, location: location, train: train,
+                                                                          now: now))
+        guard verdict == .missed else { return false }
         TripAlerts.shared.missed(current)
         stop()
         return true
+    }
+
+    /// The last few checks for a missed train, newest first ("16:10 missed: 2140 m
+    /// from the train…"), shown in Settings, to see why one did or didn't fire.
+    static let missedChecksKey = "missedChecks"
+
+    private func noteMissedCheck(_ line: String) {
+        var lines = UserDefaults.standard.stringArray(forKey: Self.missedChecksKey) ?? []
+        lines.insert("\(TorontoTime.hourMinute(Date())) \(line)", at: 0)
+        UserDefaults.standard.set(Array(lines.prefix(6)), forKey: Self.missedChecksKey)
+    }
+
+    private static func describe(_ verdict: TrackedTrip.Boarding, location: CLLocation?,
+                                 train: TrackedTrip.TrainReport?, now: Date) -> String {
+        guard let location else { return "\(verdict) (no location)" }
+        var parts: [String] = []
+        if let train {
+            let gap = Int(abs(train.time.timeIntervalSince(location.timestamp)).rounded())
+            parts.append("\(Int(location.distance(from: train.location).rounded())) m from the train, \(gap) s apart")
+        } else {
+            parts.append("no report of the train")
+        }
+        parts.append("fix ±\(Int(location.horizontalAccuracy.rounded())) m, \(Int(now.timeIntervalSince(location.timestamp).rounded())) s old")
+        return "\(verdict) (\(parts.joined(separator: ", ")))"
     }
 
     /// At a change, once the train you're on is in where you change: the next one

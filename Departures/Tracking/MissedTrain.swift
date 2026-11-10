@@ -10,9 +10,23 @@ import Foundation
 /// tracked from a board or the map, which may be someone else's. Only the first
 /// train: missing a later one is another matter. And only on good evidence: the
 /// train seen leaving (or, with nothing live, long after its time), a couple of
-/// minutes gone, and a recent, accurate fix well away from the line around it.
-/// On the platform, or with no fix to go on, it isn't called missed.
+/// minutes gone, and a recent, accurate fix well away from where the train was
+/// reported then (GO's own GPS), or without that, from the line around it.
+/// Without a fix to go on, it isn't called missed.
+///
+/// It runs when the app does: while it's open, and woken in the background by
+/// the worker a couple of minutes after the train leaves (a silent push, see
+/// `TripActivityPush`), with Always location for the fix.
 extension TrackedTrip {
+    /// Where GO's feed put the train, and when.
+    struct TrainReport: Equatable, Sendable {
+        let latitude: Double
+        let longitude: Double
+        let time: Date
+
+        var location: CLLocation { CLLocation(latitude: latitude, longitude: longitude) }
+    }
+
     enum Boarding: Equatable {
         /// It hasn't left where you get on yet (or it's not the first train, or
         /// not a trip from search).
@@ -30,8 +44,17 @@ extension TrackedTrip {
     /// With nothing live about it, it's taken to have left this long after its
     /// time (long enough for all but a badly late train).
     static let missedWithoutLive: TimeInterval = 10 * 60
-    /// Farther than this from the line where the train is, you're not on it.
-    static let offTheLine: CLLocationDistance = 1_000
+    /// On the train, you're within this of where it was reported (both by GPS,
+    /// the report a few seconds old), plus your fix's own error, plus as far as
+    /// the train could go between the report and the fix.
+    static let byTheTrain: CLLocationDistance = 500
+    static let trainSpeed: Double = 30  // m/s
+    /// A report further than this in time from the fix says nothing about where
+    /// the train was then.
+    static let reportGapMax: TimeInterval = 90
+    /// Without a report: farther than this (plus the fix's own error) from the
+    /// line where the train should be, you're not on it.
+    static let offTheLine: CLLocationDistance = 300
     /// A fix older or rougher than this says nothing.
     static let fixMaxAge: TimeInterval = 3 * 60
     static let fixMaxError: CLLocationDistance = 300
@@ -51,13 +74,26 @@ extension TrackedTrip {
     }
 
     /// Whether you caught the first train, by where you are (`location`) once it
-    /// has left where you get on.
-    func boarding(at now: Date, location: CLLocation?, on geometry: TrackGeometry) -> Boarding {
-        guard journeyKey != nil, let left = leftBoarding(at: now) else { return .notYet }
+    /// has left where you get on, and where it was reported (`train`).
+    /// `left`: when it's known to have left (the worker saw it), if the app hasn't.
+    func boarding(at now: Date, location: CLLocation?, train: TrainReport? = nil, left known: Date? = nil,
+                  on geometry: TrackGeometry) -> Boarding {
+        guard journeyKey != nil, (legIndex ?? 0) == 0, let left = known ?? leftBoarding(at: now) else { return .notYet }
         guard now.timeIntervalSince(left) >= Self.missedAfter, let location,
               now.timeIntervalSince(location.timestamp) < Self.fixMaxAge,
               location.horizontalAccuracy >= 0, location.horizontalAccuracy <= Self.fixMaxError
         else { return .unsure }
+        let error = location.horizontalAccuracy
+        // Where the train itself was, about when you were where you are: on it,
+        // you're beside it. (A few hundred metres from where you got on, at the
+        // office say, isn't: by then the train is a couple of kilometres on.)
+        if let train {
+            let gap = abs(train.time.timeIntervalSince(location.timestamp))
+            if gap <= Self.reportGapMax {
+                let reach = Self.byTheTrain + error + Self.trainSpeed * gap
+                return location.distance(from: train.location) <= reach ? .caught : .missed
+            }
+        }
         // The line around the train: from two stops behind where it is (or where it
         // was last reported, if that's further back: held up since, it can't be
         // past its times, but it can't be behind its last report either; never
@@ -81,7 +117,7 @@ extension TrackedTrip {
             }
         }
         guard nearest.isFinite else { return .unsure }
-        return nearest > Self.offTheLine ? .missed : .caught
+        return nearest > Self.offTheLine + error ? .missed : .caught
     }
 
     /// The stop the train is at or on its way to now: by its latest live report,
