@@ -520,6 +520,8 @@ struct CommutePlanner: Sendable {
             let line: String
             let stops: [String]
             let times: [Int]
+            /// The service day it runs on (yyyyMMdd).
+            var day: String = ""
         }
 
         struct Connection: Sendable {
@@ -538,7 +540,8 @@ struct CommutePlanner: Sendable {
         var view = View()
         for (slot, offset) in [-1, 0, 1].enumerated() {
             let shift = slot < shifts.count ? shifts[slot] : 1440 * offset
-            for index in timetable.days[Self.shift(day, by: offset)] ?? [] {
+            let serviceDay = Self.shift(day, by: offset)
+            for index in timetable.days[serviceDay] ?? [] {
                 guard index >= 0, index < timetable.trips.count else { continue }
                 let trip = timetable.trips[index]
                 guard trip.pattern >= 0, trip.pattern < timetable.patterns.count else { continue }
@@ -547,7 +550,8 @@ struct CommutePlanner: Sendable {
                 guard count >= 2 else { continue }
                 view.trips.append(View.Trip(number: trip.number, line: trip.line,
                                             stops: Array(stops.prefix(count)),
-                                            times: trip.times.prefix(count).map { $0 + shift }))
+                                            times: trip.times.prefix(count).map { $0 + shift },
+                                            day: serviceDay))
             }
         }
         for (t, trip) in view.trips.enumerated() {
@@ -643,6 +647,152 @@ struct CommutePlanner: Sendable {
             }
         }
         return choice
+    }
+
+    // MARK: Trips anywhere
+
+    // Planning a trip from search, to a station or a place, by the same rules as
+    // the start-up choice: the station you'd get there soonest from, on foot or
+    // by car, counting the change penalty.
+
+    /// A station a trip can end at, and the minutes from it to where you're
+    /// going: none for the station itself, a walk or a ride for a place near it.
+    struct Target: Sendable, Equatable {
+        let station: String
+        let minutes: Double
+        let onFoot: Bool
+
+        init(station: String, minutes: Double = 0, onFoot: Bool = true) {
+            self.station = station
+            self.minutes = minutes
+            self.onFoot = onFoot
+        }
+    }
+
+    /// A station to start from, and how long getting there takes.
+    struct Access: Sendable, Equatable {
+        let station: String
+        let minutes: Double
+        let onFoot: Bool
+    }
+
+    /// One train of a trip: a trip in the view, and where you get on and off it.
+    struct Hop: Sendable, Equatable {
+        let trip: Int
+        let board: Int
+        let alight: Int
+    }
+
+    /// One way to make a trip: its trains, when it leaves the first station and
+    /// gets to the last (minutes in its view), and which target that is.
+    struct Itinerary: Sendable {
+        let legs: [Hop]
+        let departure: Int
+        let arrival: Int
+        let target: Target
+        /// When you'd get where you're going (after the walk or ride from the
+        /// station), plus the change penalty: what trips are compared by.
+        let score: Int
+    }
+
+    /// The stations you could start from at `user`, and getting to each, nearest
+    /// first, as the start-up rules pick them: on foot when one is within about a
+    /// 10-minute walk, otherwise by car (not downtown unless you're there already).
+    /// Never one of `avoiding` (where you're going).
+    func accessOptions(from user: Point, avoiding: Set<String> = []) -> [Access] {
+        let ranked = rankedStations(user).filter { !avoiding.contains($0.code) }
+        guard let nearest = ranked.first else { return [] }
+        if nearest.distance <= Self.walkRadius {
+            return ranked.filter { $0.distance <= Self.walkOptions }
+                .map { Access(station: $0.code, minutes: Self.walkMinutes($0.distance), onFoot: true) }
+        }
+        let startsDowntown = position[Self.downtownStation].map { Self.distance(user, $0) <= Self.downtownRadius } ?? true
+        let others = ranked.filter { startsDowntown || !downtown.contains($0.code) }
+        var within = Array(others.filter { $0.distance <= Self.driveRadius }.prefix(Self.driveMax))
+        if within.isEmpty { within = Array(others.prefix(Self.driveFallback)) }
+        return within.map { Access(station: $0.code, minutes: Self.driveMinutes($0.distance), onFoot: false) }
+    }
+
+    /// Getting from `user` to one station: a walk when it's within about 15
+    /// minutes on foot, otherwise a drive.
+    func access(from user: Point, to station: String) -> Access? {
+        guard let point = position[station] else { return nil }
+        let metres = Self.distance(user, point)
+        if metres <= Self.walkOptions {
+            return Access(station: station, minutes: Self.walkMinutes(metres), onFoot: true)
+        }
+        return Access(station: station, minutes: Self.driveMinutes(metres), onFoot: false)
+    }
+
+    /// How far `user` is from a station, in metres.
+    func distance(from user: Point, to station: String) -> Double? {
+        position[station].map { Self.distance(user, $0) }
+    }
+
+    /// The best trip to any of `targets` leaving `origin` at `ready` (minutes in `view`).
+    func bestTrip(from origin: String, at ready: Int, to targets: [Target], in view: View) -> Itinerary? {
+        var best: Itinerary?
+        for target in targets where target.station != origin {
+            guard let journey = journey(from: origin, at: ready, to: target.station, in: view),
+                  let first = journey.legs.first
+            else { continue }
+            let trip = Itinerary(
+                legs: journey.legs.map { Hop(trip: $0.trip, board: $0.board, alight: $0.alight) },
+                departure: view.trips[first.trip].times[first.board],
+                arrival: journey.arrival,
+                target: target,
+                score: journey.score + Int(target.minutes.rounded(.up))
+            )
+            if let current = best,
+               (current.score, current.legs.count, current.arrival) <= (trip.score, trip.legs.count, trip.arrival) {
+                continue
+            }
+            best = trip
+        }
+        return best
+    }
+
+    /// Where to start for the soonest arrival at any of `targets`, setting off at
+    /// `ready`: the start among `options` (nearest first) and its trip.
+    func fastest(from options: [Access], to targets: [Target], at ready: Int,
+                 in view: View) -> (access: Access, trip: Itinerary)? {
+        var best: (access: Access, trip: Itinerary)?
+        for option in options {
+            let leave = ready + Int(option.minutes.rounded(.up))
+            // Nearest first: once just getting to a station takes until the best so far
+            // gets you there, it and every station after it can't win.
+            if let best, leave >= best.trip.score { break }
+            guard let trip = bestTrip(from: option.station, at: leave, to: targets, in: view) else { continue }
+            if let current = best, (current.trip.score, current.access.minutes) <= (trip.score, option.minutes) {
+                continue
+            }
+            best = (option, trip)
+        }
+        return best
+    }
+
+    /// Every trip worth taking from `origin` to any of `targets`, leaving from
+    /// `start` until `end` (minutes in `view`), by when they leave: for each train
+    /// you could set off on, the best way on from it, leaving out the ones that
+    /// leave earlier and get you there no sooner than a later one.
+    func trips(from origin: String, to targets: [Target], leaving start: Int, until end: Int,
+               in view: View) -> [Itinerary] {
+        var found: [Itinerary] = []
+        var ready = start
+        while ready < end, found.count < 300 {
+            guard let trip = bestTrip(from: origin, at: ready, to: targets, in: view), trip.departure < end else { break }
+            found.append(trip)
+            // (It leaves at or after `ready`, so this always moves on.)
+            ready = trip.departure + 1
+        }
+        var kept: [Itinerary] = []
+        var soonest = Int.max
+        for trip in found.reversed() {
+            guard trip.score < soonest else { continue }
+            kept.append(trip)
+            soonest = trip.score
+        }
+        return kept.reversed()
     }
 
     // MARK: Days

@@ -145,6 +145,41 @@ struct TripActivityAttributes: ActivityAttributes {
         /// Counted up by each push update from the worker, so iOS draws the
         /// activity again even when nothing else in it changed.
         var revision: Int? = nil
+        /// On a trip with changes, once it has changed trains: the train followed
+        /// now, in place of the one the activity started with (see `current(_:)`).
+        var leg: Leg? = nil
+        /// Where you change next, and to which train.
+        var change: Change? = nil
+    }
+
+    /// A train changed to, on a trip with changes: what the activity shows for it
+    /// in place of its own attributes (which can't change).
+    struct Leg: Codable, Hashable {
+        var tripNumber: String
+        var lineCode: String
+        var lineColorHex: String
+        var lineName: String?
+        var direction: String?
+        var boardingName: String
+        var destinationName: String
+        var terminusName: String
+        var boardingTime: Date?
+        /// When it became the train followed.
+        var since: Date?
+    }
+
+    /// Where you change trains next, and the train you change to.
+    struct Change: Codable, Hashable {
+        /// Where you change (its short name).
+        var station: String
+        var lineCode: String
+        var lineColorHex: String
+        var lineName: String?
+        /// When the next train leaves there.
+        var departure: Date
+        /// Where it goes, and where you get off it.
+        var terminusName: String
+        var destinationName: String
     }
 
     /// One of the train's stops.
@@ -208,7 +243,7 @@ enum TripActivityTime {
 extension TripActivityAttributes.ContentState {
     private enum CodingKeys: String, CodingKey {
         case departure, arrival, hasDeparted, minutesLate, platform, stops, boardingIndex, destinationIndex,
-             awaitsTrain, revision
+             awaitsTrain, revision, leg, change
     }
 
     init(from decoder: Decoder) throws {
@@ -223,6 +258,8 @@ extension TripActivityAttributes.ContentState {
         destinationIndex = try values.decodeIfPresent(Int.self, forKey: .destinationIndex)
         awaitsTrain = try values.decodeIfPresent(Bool.self, forKey: .awaitsTrain)
         revision = try values.decodeIfPresent(Int.self, forKey: .revision)
+        leg = try values.decodeIfPresent(TripActivityAttributes.Leg.self, forKey: .leg)
+        change = try values.decodeIfPresent(TripActivityAttributes.Change.self, forKey: .change)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -237,6 +274,71 @@ extension TripActivityAttributes.ContentState {
         try values.encodeIfPresent(destinationIndex, forKey: .destinationIndex)
         try values.encodeIfPresent(awaitsTrain, forKey: .awaitsTrain)
         try values.encodeIfPresent(revision, forKey: .revision)
+        try values.encodeIfPresent(leg, forKey: .leg)
+        try values.encodeIfPresent(change, forKey: .change)
+    }
+}
+
+extension TripActivityAttributes.Leg {
+    private enum CodingKeys: String, CodingKey {
+        case tripNumber, lineCode, lineColorHex, lineName, direction, boardingName, destinationName, terminusName,
+             boardingTime, since
+    }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        tripNumber = try values.decode(String.self, forKey: .tripNumber)
+        lineCode = try values.decode(String.self, forKey: .lineCode)
+        lineColorHex = try values.decode(String.self, forKey: .lineColorHex)
+        lineName = try values.decodeIfPresent(String.self, forKey: .lineName)
+        direction = try values.decodeIfPresent(String.self, forKey: .direction)
+        boardingName = try values.decode(String.self, forKey: .boardingName)
+        destinationName = try values.decode(String.self, forKey: .destinationName)
+        terminusName = try values.decode(String.self, forKey: .terminusName)
+        boardingTime = try TripActivityTime.decodeIfPresent(values, .boardingTime)
+        since = try TripActivityTime.decodeIfPresent(values, .since)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var values = encoder.container(keyedBy: CodingKeys.self)
+        try values.encode(tripNumber, forKey: .tripNumber)
+        try values.encode(lineCode, forKey: .lineCode)
+        try values.encode(lineColorHex, forKey: .lineColorHex)
+        try values.encodeIfPresent(lineName, forKey: .lineName)
+        try values.encodeIfPresent(direction, forKey: .direction)
+        try values.encode(boardingName, forKey: .boardingName)
+        try values.encode(destinationName, forKey: .destinationName)
+        try values.encode(terminusName, forKey: .terminusName)
+        try values.encodeIfPresent(boardingTime.map(TripActivityTime.number), forKey: .boardingTime)
+        try values.encodeIfPresent(since.map(TripActivityTime.number), forKey: .since)
+    }
+}
+
+extension TripActivityAttributes.Change {
+    private enum CodingKeys: String, CodingKey {
+        case station, lineCode, lineColorHex, lineName, departure, terminusName, destinationName
+    }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        station = try values.decode(String.self, forKey: .station)
+        lineCode = try values.decode(String.self, forKey: .lineCode)
+        lineColorHex = try values.decode(String.self, forKey: .lineColorHex)
+        lineName = try values.decodeIfPresent(String.self, forKey: .lineName)
+        departure = try TripActivityTime.decode(values, .departure)
+        terminusName = try values.decode(String.self, forKey: .terminusName)
+        destinationName = try values.decode(String.self, forKey: .destinationName)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var values = encoder.container(keyedBy: CodingKeys.self)
+        try values.encode(station, forKey: .station)
+        try values.encode(lineCode, forKey: .lineCode)
+        try values.encode(lineColorHex, forKey: .lineColorHex)
+        try values.encodeIfPresent(lineName, forKey: .lineName)
+        try values.encode(TripActivityTime.number(departure), forKey: .departure)
+        try values.encode(terminusName, forKey: .terminusName)
+        try values.encode(destinationName, forKey: .destinationName)
     }
 }
 
@@ -263,6 +365,27 @@ extension TripActivityAttributes.Stop {
 extension TripActivityAttributes {
     /// Tapping the Live Activity opens the tracked trip in the app.
     static let openURL = URL(string: "gostations://trip")!
+
+    /// The train followed now: the activity's own, or on a trip with changes the
+    /// one it has changed to. The views are drawn with this.
+    func current(_ state: ContentState) -> TripActivityAttributes {
+        guard let leg = state.leg else { return self }
+        var attributes = self
+        attributes.tripNumber = leg.tripNumber
+        attributes.lineCode = leg.lineCode
+        attributes.lineColorHex = leg.lineColorHex
+        attributes.lineName = leg.lineName
+        attributes.direction = leg.direction
+        attributes.boardingName = leg.boardingName
+        attributes.destinationName = leg.destinationName
+        attributes.terminusName = leg.terminusName
+        attributes.boardingTime = leg.boardingTime
+        if let since = leg.since { attributes.trackedAt = since }
+        return attributes
+    }
+
+    /// A line's colour from its hex, as the views draw it.
+    static func color(hex: String) -> Color { rgb(hex).color }
 
     var lineColor: Color { Self.rgb(lineColorHex).color }
 
@@ -529,6 +652,8 @@ struct TripNextLine: View {
     let attributes: TripActivityAttributes
     let trip: TripActivityTrip
     let moment: TripMoment
+    /// Where you change next, on a trip with changes.
+    var change: TripActivityAttributes.Change? = nil
 
     var body: some View {
         line.lineLimit(1)
@@ -548,6 +673,9 @@ struct TripNextLine: View {
         case .waiting:
             return plain("Waiting at ") + bold(name(0))
         case .riding:
+            if change != nil, moment.next == trip.destination {
+                return plain("Change at ") + bold(name(moment.next))
+            }
             return plain("Next stop: ") + bold(name(moment.next))
         case .atStop:
             return plain("At ") + bold(name(moment.next))
@@ -629,6 +757,42 @@ struct TripApproachSentence: View {
         return text + Text(verb)
             + Text(.currentDate, format: .reference(to: target, allowedFields: [.hour, .minute]))
                 .fontWeight(.bold)
+    }
+}
+
+/// On a trip with changes: "Change at Union to the 17:30 Stouffville line train
+/// to Lincolnville", with the next line's pill.
+struct TripChangeLine: View {
+    let change: TripActivityAttributes.Change
+    let onDark: Bool
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Text(change.lineCode)
+                .font(.system(size: 11, weight: .heavy))
+                .foregroundStyle(.white)
+                .lineLimit(1)
+                .fixedSize()
+                .padding(.horizontal, 7)
+                .frame(height: 20)
+                .background(TripActivityAttributes.color(hex: change.lineColorHex), in: Capsule())
+            sentence
+                .font(.system(size: 13))
+                .lineLimit(2)
+                .minimumScaleFactor(0.85)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private var sentence: Text {
+        let line = change.lineName.map { "\($0) line" } ?? "\(change.lineCode) line"
+        return Text("Change at ").foregroundStyle(.secondary)
+            + Text(change.station).fontWeight(.semibold)
+            + Text(" to the ").foregroundStyle(.secondary)
+            + Text(TripActivityFormat.time(change.departure)).fontWeight(.semibold).monospacedDigit()
+            + Text(" \(line) train to \(change.terminusName)").foregroundStyle(.secondary)
     }
 }
 
@@ -825,7 +989,7 @@ struct TripLockScreen: View {
                         .frame(height: 32)
                     VStack(alignment: .leading, spacing: 2) {
                         TripTitle(attributes: attributes, trip: trip)
-                        TripNextLine(attributes: attributes, trip: trip, moment: moment)
+                        TripNextLine(attributes: attributes, trip: trip, moment: moment, change: state.change)
                             .font(.subheadline)
                     }
                     Spacer(minLength: 8)
@@ -833,6 +997,9 @@ struct TripLockScreen: View {
                 }
             }
             TripStopStrip(trip: trip, moment: moment, color: attributes.color(onDark: onDark))
+            if let change = state.change, moment.kind != .arrived {
+                TripChangeLine(change: change, onDark: onDark)
+            }
         }
         .padding(14)
     }
@@ -985,7 +1152,8 @@ struct TripExpandedCenter: View {
         let trip = TripActivityTrip(attributes, state)
         VStack(spacing: 2) {
             TripTitle(attributes: attributes, trip: trip)
-            TripNextLine(attributes: attributes, trip: trip, moment: trip.moment(at: Date(), isStale: isStale))
+            TripNextLine(attributes: attributes, trip: trip, moment: trip.moment(at: Date(), isStale: isStale),
+                         change: state.change)
                 .font(.subheadline)
         }
         .minimumScaleFactor(0.8)

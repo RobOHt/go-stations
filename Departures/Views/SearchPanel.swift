@@ -1,7 +1,7 @@
 import MapKit
 import SwiftUI
 
-/// A place found by search, shown as a pin with its nearest stations.
+/// A place found by search: a pin on the map, and a trip there.
 struct SearchPlace: Equatable {
     let name: String
     let subtitle: String
@@ -14,15 +14,6 @@ struct SearchPlace: Equatable {
     }
 }
 
-struct NearbyStation: Identifiable, Sendable {
-    let station: Station
-    /// Driving time from the place; nil when Apple Maps couldn't route it.
-    let travelTime: TimeInterval?
-    let distance: CLLocationDistance
-
-    var id: String { station.code }
-}
-
 /// Station and place search for the bottom search bar.
 @MainActor
 @Observable
@@ -33,7 +24,6 @@ final class PlaceSearchModel {
     private(set) var stationMatches: [Station] = []
     private(set) var places: [MKLocalSearchCompletion] = []
     private(set) var place: SearchPlace?
-    private(set) var nearby: [NearbyStation] = []
     private(set) var isResolving = false
     /// True while Apple Maps is still suggesting places for the latest text.
     private(set) var isSuggesting = false
@@ -95,11 +85,10 @@ final class PlaceSearchModel {
         placeError = nil
     }
 
-    /// Drops the picked place, its pin and its closest stations.
+    /// Drops the picked place and its pin.
     func clearPlace() {
         resolveTask?.cancel()
         place = nil
-        nearby = []
         isResolving = false
     }
 
@@ -108,7 +97,7 @@ final class PlaceSearchModel {
         clearQuery()
     }
 
-    /// Looks up a suggestion's location and its nearest stations by driving time.
+    /// Looks up a suggestion's location (a trip there is planned once it's found).
     func choose(_ completion: MKLocalSearchCompletion) {
         let request = MKLocalSearch.Request(completion: completion)
         resolve(request, fallbackName: completion.title, subtitle: completion.subtitle)
@@ -133,7 +122,6 @@ final class PlaceSearchModel {
         request.region = RailNetwork.serviceArea
         isResolving = true
         placeError = nil
-        nearby = []
 
         resolveTask = Task {
             let response = try? await MKLocalSearch(request: request).start()
@@ -153,10 +141,54 @@ final class PlaceSearchModel {
             isSuggesting = false
             places = []
             stationMatches = []
+        }
+    }
+}
 
-            let stations = await StationFinder.nearest(to: found.coordinate)
-            guard !Task.isCancelled, place == found else { return }
-            nearby = stations
+/// Where trips were planned to from search, latest first, so they're a tap away
+/// next time (on this device).
+@MainActor
+@Observable
+final class SearchHistory {
+    static let shared = SearchHistory()
+
+    private(set) var items: [PlanDestination] = []
+
+    /// How many are kept.
+    static let limit = 8
+    private static let key = "searchHistory"
+
+    private init() {
+        #if DEBUG
+        // Debug launches start without one (the screenshots stay the same).
+        if DebugScene.current != nil { UserDefaults.standard.removeObject(forKey: Self.key) }
+        #endif
+        if let data = UserDefaults.standard.data(forKey: Self.key),
+           let saved = try? JSONDecoder().decode([PlanDestination].self, from: data) {
+            items = saved
+        }
+    }
+
+    func add(_ destination: PlanDestination) {
+        items.removeAll { $0.id == destination.id }
+        items.insert(destination, at: 0)
+        if items.count > Self.limit { items.removeLast(items.count - Self.limit) }
+        save()
+    }
+
+    func remove(_ destination: PlanDestination) {
+        items.removeAll { $0.id == destination.id }
+        save()
+    }
+
+    func clear() {
+        items = []
+        save()
+    }
+
+    private func save() {
+        if let data = try? JSONEncoder().encode(items) {
+            UserDefaults.standard.set(data, forKey: Self.key)
         }
     }
 }
@@ -171,14 +203,6 @@ extension MKMapItem {
         }
     }
 
-    /// A map item at a point, for directions.
-    static func at(_ location: CLLocation) -> MKMapItem {
-        if #available(iOS 26.0, *) {
-            MKMapItem(location: location, address: nil)
-        } else {
-            MKMapItem(placemark: MKPlacemark(coordinate: location.coordinate))
-        }
-    }
 }
 
 /// Receives MKLocalSearchCompleter results and hands them on.
@@ -191,64 +215,6 @@ private final class CompleterBridge: NSObject, MKLocalSearchCompleterDelegate {
 
     func completer(_ completer: MKLocalSearchCompleter, didFailWithError error: Error) {
         onResults?([])
-    }
-}
-
-enum StationFinder {
-    /// How much longer than the closest station another one may take and still be
-    /// listed: 25% (a 20 min drive lists others up to 25 min; a 4 min drive, up to 5).
-    static let closeEnough = 0.25
-
-    /// The closest stations to a point by driving time. Apple Maps routes the six
-    /// nearest in a straight line. The fastest is always listed; others only when
-    /// they're nearly as close (see `closeEnough`), up to `count` in all.
-    static func nearest(to coordinate: CLLocationCoordinate2D, count: Int = 3) async -> [NearbyStation] {
-        let origin = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
-        let candidates = RailNetwork.shared.stations
-            .map { (station: $0, distance: $0.location.distance(from: origin)) }
-            .sorted { $0.distance < $1.distance }
-            .prefix(6)
-
-        let results = await withTaskGroup(of: NearbyStation.self) { group in
-            for candidate in candidates {
-                group.addTask {
-                    await drive(from: coordinate, to: candidate.station, straightLine: candidate.distance)
-                }
-            }
-            var all: [NearbyStation] = []
-            for await result in group { all.append(result) }
-            return all
-        }
-
-        let sorted = results.sorted { a, b in
-            switch (a.travelTime, b.travelTime) {
-            case let (x?, y?): return x < y
-            case (.some, nil): return true
-            case (nil, .some): return false
-            case (nil, nil): return a.distance < b.distance
-            }
-        }
-        guard let best = sorted.first else { return [] }
-        let comparable = sorted.filter { candidate in
-            if let time = candidate.travelTime, let bestTime = best.travelTime {
-                return time <= bestTime * (1 + closeEnough)
-            }
-            // No drive time from Apple Maps: compare road (or straight-line) distance.
-            return candidate.distance <= best.distance * (1 + closeEnough)
-        }
-        return Array(comparable.prefix(count))
-    }
-
-    @MainActor
-    private static func drive(from coordinate: CLLocationCoordinate2D, to station: Station,
-                              straightLine: CLLocationDistance) async -> NearbyStation {
-        let request = MKDirections.Request()
-        request.source = MKMapItem.at(CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude))
-        request.destination = MKMapItem.at(station.location)
-        request.transportType = .automobile
-        let eta = try? await MKDirections(request: request).calculateETA()
-        return NearbyStation(station: station, travelTime: eta?.expectedTravelTime,
-                             distance: eta?.distance ?? straightLine)
     }
 }
 
@@ -272,19 +238,23 @@ enum BottomBarMetrics {
 }
 
 /// Results in a glass card above the system search field: station matches and
-/// Apple Maps suggestions while typing, the closest stations by car for a picked
-/// place, and home/work while the field is active but empty.
+/// Apple Maps suggestions while typing, and while the field is active but empty,
+/// home and work and the places you planned trips to lately. Picking one plans a
+/// trip there.
 struct SearchResults: View {
     @Bindable var model: PlaceSearchModel
-    /// The search field is active (focused, or showing a picked place).
+    /// The search field is active (focused, or looking a place up).
     let isSearching: Bool
     let onStation: (Station) -> Void
-    /// A place was picked: put the keyboard away (its results stay up).
+    /// A place was picked: put the keyboard away while it's looked up.
     let onPickPlace: () -> Void
+    /// A recent trip's destination was picked.
+    let onRecent: (PlanDestination) -> Void
 
     @Environment(AppSettings.self) private var settings
     @State private var contentHeight: CGFloat = 0
     private let network = RailNetwork.shared
+    private let history = SearchHistory.shared
 
     private struct SavedStation: Identifiable {
         let role: StationRole
@@ -294,7 +264,12 @@ struct SearchResults: View {
     }
 
     private var hasContent: Bool {
-        model.place != nil || model.hasQuery || (isSearching && !savedStations.isEmpty)
+        model.isResolving || model.hasQuery || (isSearching && (!savedStations.isEmpty || !recents.isEmpty))
+    }
+
+    /// Recent trips, without home and work (they're listed above them).
+    private var recents: [PlanDestination] {
+        history.items.filter { $0.station == nil || ($0.station != settings.homeCode && $0.station != settings.workCode) }
     }
 
     private var savedStations: [SavedStation] {
@@ -319,9 +294,7 @@ struct SearchResults: View {
     private var results: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 4) {
-                if let place = model.place {
-                    nearbySection(place)
-                } else if model.hasQuery {
+                if model.hasQuery || model.isResolving {
                     if !model.stationMatches.isEmpty {
                         sectionTitle("Stations")
                         ForEach(model.stationMatches) { station in
@@ -346,9 +319,26 @@ struct SearchResults: View {
                         }
                     }
                 } else {
-                    sectionTitle("Your stations")
-                    ForEach(savedStations) { saved in
-                        stationRow(saved.station, detail: saved.label, role: saved.role) { onStation(saved.station) }
+                    if !savedStations.isEmpty {
+                        sectionTitle("Your stations")
+                        ForEach(savedStations) { saved in
+                            stationRow(saved.station, detail: saved.label, role: saved.role) { onStation(saved.station) }
+                        }
+                    }
+                    if !recents.isEmpty {
+                        HStack {
+                            sectionTitle("Recent")
+                            Spacer()
+                            Button("Clear") {
+                                withAnimation(.snappy) { history.clear() }
+                            }
+                            .font(.footnote.weight(.semibold))
+                            .padding(.horizontal, 12)
+                            .padding(.top, 8)
+                        }
+                        ForEach(recents) { recent in
+                            recentRow(recent)
+                        }
                     }
                 }
             }
@@ -362,55 +352,6 @@ struct SearchResults: View {
         // As tall as the results, up to 340 pt, and shorter when the keyboard leaves less room.
         .frame(maxHeight: min(max(contentHeight, 1), 340))
         .glass(.plain, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
-    }
-
-    @ViewBuilder
-    private func nearbySection(_ place: SearchPlace) -> some View {
-        HStack(spacing: 10) {
-            Image(systemName: "mappin.circle.fill")
-                .font(.title2)
-                .foregroundStyle(.red)
-            VStack(alignment: .leading, spacing: 1) {
-                Text(place.name).font(.headline).lineLimit(1)
-                Text(place.subtitle.isEmpty ? "Closest by car" : place.subtitle)
-                    .font(.footnote).foregroundStyle(.secondary).lineLimit(1)
-            }
-            Spacer(minLength: 8)
-            Button {
-                model.clear()
-            } label: {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.title2)
-                    .symbolRenderingMode(.hierarchical)
-                    .foregroundStyle(.secondary)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Close")
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-
-        if model.nearby.isEmpty {
-            HStack(spacing: 8) {
-                ProgressView()
-                Text("Finding the closest stations by driving time…")
-                    .font(.subheadline).foregroundStyle(.secondary)
-            }
-            .padding(12)
-        } else {
-            sectionTitle(model.nearby.count == 1 ? "Closest station by car" : "Closest stations by car")
-            ForEach(model.nearby) { nearby in
-                stationRow(nearby.station, detail: Self.describe(nearby)) { onStation(nearby.station) }
-            }
-        }
-    }
-
-    private static func describe(_ nearby: NearbyStation) -> String {
-        let kilometres = nearby.distance / 1000
-        let distance = kilometres < 10 ? String(format: "%.1f km", kilometres) : String(format: "%.0f km", kilometres)
-        guard let time = nearby.travelTime else { return distance }
-        let minutes = max(1, Int((time / 60).rounded()))
-        return "\(minutes) min drive · \(distance)"
     }
 
     private func sectionTitle(_ title: String) -> some View {
@@ -463,6 +404,51 @@ struct SearchResults: View {
         case .work: return RoleColor.work
         case .plain: return network.line(code: station.lineCodes.first ?? "")?.color ?? .gray
         }
+    }
+
+    /// A recent trip's destination, with a button to take it off the list.
+    private func recentRow(_ recent: PlanDestination) -> some View {
+        HStack(spacing: 0) {
+            Button {
+                onRecent(recent)
+            } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "clock.arrow.circlepath")
+                        .font(.footnote.weight(.bold))
+                        .foregroundStyle(.white)
+                        .frame(width: 30, height: 30)
+                        .background(recentColor(recent), in: Circle())
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(recent.name).font(.body.weight(.semibold)).foregroundStyle(.primary).lineLimit(1)
+                        if !recent.subtitle.isEmpty {
+                            Text(recent.subtitle).font(.footnote).foregroundStyle(.secondary).lineLimit(1)
+                        }
+                    }
+                    Spacer(minLength: 8)
+                }
+                .padding(.leading, 10)
+                .padding(.vertical, 8)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Trip to \(recent.name)")
+            Button {
+                withAnimation(.snappy) { history.remove(recent) }
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Remove \(recent.name) from recent trips")
+        }
+    }
+
+    private func recentColor(_ recent: PlanDestination) -> Color {
+        guard let code = recent.station, let station = network.station(code) else { return .red }
+        return network.line(code: station.lineCodes.first ?? "")?.color ?? .gray
     }
 
     private func placeRow(_ completion: MKLocalSearchCompletion) -> some View {

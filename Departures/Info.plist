@@ -17,6 +17,8 @@
 			</array>
 		</dict>
 	</array>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>With trip alerts on, GO Stations uses your location to take back the reminder to leave for your train once you're at the station, even when the app is closed.</string>
 	<key>NSSupportsLiveActivities</key>
 	<true/>
 	<key>NSSupportsLiveActivitiesFrequentUpdates</key>

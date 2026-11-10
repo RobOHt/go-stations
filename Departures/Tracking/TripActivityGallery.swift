@@ -13,7 +13,10 @@ struct TripActivityGallery: View {
 
     private struct Sample {
         let attributes: TripActivityAttributes
-        let state: Snapshot
+        var state: Snapshot
+
+        /// As the widget draws it: on a trip with changes, the train changed to.
+        var drawn: TripActivityAttributes { attributes.current(state) }
     }
 
     private let now = Date()
@@ -57,6 +60,7 @@ struct TripActivityGallery: View {
         expanded(riding)
             .padding(.top, 6)
         expanded(approaching)
+        expanded(changing)
     }
 
     @ViewBuilder private var lockScreens: some View {
@@ -68,6 +72,11 @@ struct TripActivityGallery: View {
         lockScreen(standing)
             .environment(\.colorScheme, .light)
         lockScreen(leavingLater)
+            .environment(\.colorScheme, .dark)
+        heading("A trip with a change")
+        lockScreen(changing)
+            .environment(\.colorScheme, .light)
+        lockScreen(changed)
             .environment(\.colorScheme, .dark)
     }
 
@@ -131,6 +140,36 @@ struct TripActivityGallery: View {
                boarding: "UN", destination: "ML", fromBoard: true)
     }
 
+    /// A trip with a change, on its first train: Oakville to Union, then the
+    /// Lakeshore East to Danforth.
+    private var changing: Sample {
+        var trip = sample("LW", ["AL", "BU", "AP", "BO", "OA", "CL", "PO", "LO", "MI", "EX", "UN"],
+                          minutes: [-30, -25, -20, -16, -12, -8, -4, 0.5, 4, 8, 13],
+                          boarding: "OA", destination: "UN", fromBoard: false)
+        trip.state.change = TripActivityAttributes.Change(
+            station: "Union", lineCode: "LE", lineColorHex: RailNetwork.shared.line(code: "LE")?.hex ?? "FF0D00",
+            lineName: "Lakeshore East", departure: now.addingTimeInterval(19 * 60),
+            terminusName: "Oshawa", destinationName: "Danforth")
+        return trip
+    }
+
+    /// The same trip at Union, waiting for the Lakeshore East train: the activity
+    /// started for the first train shows the second.
+    private var changed: Sample {
+        let first = changing
+        let second = sample("LE", ["UN", "DA", "SC", "EG", "GU", "RO", "PIN", "AJ", "WH", "OS"],
+                            minutes: [5, 13, 17, 21, 25, 28, 33, 37, 42, 48],
+                            boarding: "UN", destination: "DA", fromBoard: true)
+        var state = second.state
+        let next = second.attributes
+        state.leg = TripActivityAttributes.Leg(
+            tripNumber: next.tripNumber, lineCode: next.lineCode, lineColorHex: next.lineColorHex,
+            lineName: next.lineName, direction: next.direction, boardingName: next.boardingName,
+            destinationName: next.destinationName, terminusName: next.terminusName,
+            boardingTime: next.boardingTime, since: now.addingTimeInterval(-60))
+        return Sample(attributes: first.attributes, state: state)
+    }
+
     /// In at Unionville a minute ago.
     private var arrived: Sample {
         sample("ST", ["UN", "KE", "AG", "MK", "UI", "CE", "MR", "MJ", "ST", "LI"],
@@ -150,12 +189,12 @@ struct TripActivityGallery: View {
     /// The compact island: leading view, the camera, trailing view.
     private func compact(_ sample: Sample) -> some View {
         HStack(spacing: 0) {
-            TripCompactLeading(attributes: sample.attributes, state: sample.state, isStale: false)
+            TripCompactLeading(attributes: sample.drawn, state: sample.state, isStale: false)
                 .padding([.leading, .vertical], TripActivityLayout.compactInset)
                 .padding(.trailing, 6)
             Color.clear
                 .frame(width: 120)
-            TripCompactTrailing(attributes: sample.attributes, state: sample.state, isStale: false)
+            TripCompactTrailing(attributes: sample.drawn, state: sample.state, isStale: false)
                 .padding(.leading, 6)
                 .padding(.trailing, 14)
         }
@@ -167,7 +206,7 @@ struct TripActivityGallery: View {
     }
 
     private func minimal(_ sample: Sample) -> some View {
-        TripMinimal(attributes: sample.attributes, state: sample.state, isStale: false)
+        TripMinimal(attributes: sample.drawn, state: sample.state, isStale: false)
             .frame(width: 36.67, height: 36.67)
             .background(Color.black, in: Circle())
             .environment(\.colorScheme, .dark)
@@ -179,15 +218,15 @@ struct TripActivityGallery: View {
         VStack(spacing: 10) {
             ZStack(alignment: .top) {
                 HStack(alignment: .top) {
-                    TripExpandedLeading(attributes: sample.attributes)
+                    TripExpandedLeading(attributes: sample.drawn)
                     Spacer()
-                    TripExpandedTrailing(attributes: sample.attributes, state: sample.state, isStale: false)
+                    TripExpandedTrailing(attributes: sample.drawn, state: sample.state, isStale: false)
                 }
-                TripExpandedCenter(attributes: sample.attributes, state: sample.state, isStale: false)
+                TripExpandedCenter(attributes: sample.drawn, state: sample.state, isStale: false)
                     .frame(width: 180)
                     .padding(.top, 42)
             }
-            TripExpandedBottom(attributes: sample.attributes, state: sample.state, isStale: false)
+            TripExpandedBottom(attributes: sample.drawn, state: sample.state, isStale: false)
                 .padding(.top, 6)
         }
         .padding(.horizontal, 18)
@@ -205,7 +244,7 @@ struct TripActivityGallery: View {
     }
 
     private func lockScreen(_ sample: Sample) -> some View {
-        TripLockScreen(attributes: sample.attributes, state: sample.state, isStale: false)
+        TripLockScreen(attributes: sample.drawn, state: sample.state, isStale: false)
             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
     }
 }
