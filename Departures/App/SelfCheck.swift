@@ -123,10 +123,10 @@ enum SelfCheck {
         check("missed: still on the platform once it's well on", verdict(farOn, "11:52:30", at: "OA") == "missed",
               verdict(farOn, "11:52:30", at: "OA"))
         check("missed: on it, well on", verdict(farOn, "11:52:30", at: "LO") == "caught")
-        // Nothing live: taken to have left 5 minutes after its time.
-        check("missed: nothing live, not yet", verdict(trip, "11:40", at: "UN") == "notYet")
-        check("missed: nothing live, well after its time", verdict(trip, "11:42", at: "UN") == "missed",
-              verdict(trip, "11:42", at: "UN"))
+        // Nothing live: taken to have left 10 minutes after its time.
+        check("missed: nothing live, not yet", verdict(trip, "11:44", at: "UN") == "notYet")
+        check("missed: nothing live, long after its time", verdict(trip, "11:47", at: "UN") == "missed",
+              verdict(trip, "11:47", at: "UN"))
         // Not a trip from search (tracked from a board: maybe someone else's train).
         var fromBoard = left
         fromBoard.journeyKey = nil

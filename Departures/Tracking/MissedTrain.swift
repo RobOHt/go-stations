@@ -9,7 +9,7 @@ import Foundation
 /// Only trips from search (planned from where you are, to ride), not trains
 /// tracked from a board or the map, which may be someone else's. Only the first
 /// train: missing a later one is another matter. And only on good evidence: the
-/// train seen leaving (or, with nothing live, well after its time), a couple of
+/// train seen leaving (or, with nothing live, long after its time), a couple of
 /// minutes gone, and a recent, accurate fix well away from the line around it.
 /// On the platform, or with no fix to go on, it isn't called missed.
 extension TrackedTrip {
@@ -27,8 +27,9 @@ extension TrackedTrip {
 
     /// How long after it left before where you are says anything.
     static let missedAfter: TimeInterval = 2 * 60
-    /// With nothing live about it, it's taken to have left this long after its time.
-    static let missedWithoutLive: TimeInterval = 5 * 60
+    /// With nothing live about it, it's taken to have left this long after its
+    /// time (long enough for all but a badly late train).
+    static let missedWithoutLive: TimeInterval = 10 * 60
     /// Farther than this from the line where the train is, you're not on it.
     static let offTheLine: CLLocationDistance = 1_000
     /// A fix older or rougher than this says nothing.
@@ -57,11 +58,12 @@ extension TrackedTrip {
               now.timeIntervalSince(location.timestamp) < Self.fixMaxAge,
               location.horizontalAccuracy >= 0, location.horizontalAccuracy <= Self.fixMaxError
         else { return .unsure }
-        // The line around the train, a stop either side of where it is: from where
-        // you get on while it's just left, not once it's well past there (so
-        // someone still on that platform isn't taken to be on it).
+        // The line around the train, from two stops behind where it is to the next
+        // (in case it's further back than its reports or times say): from where you
+        // get on while it's just left, not once it's well past there (so someone
+        // still on that platform isn't taken to be on it).
         let at = max(trainIndex(at: now), boardingIndex + 1)
-        let from = max(boardingIndex, at - 1)
+        let from = max(boardingIndex, at - 2)
         let to = min(at + 1, stops.count - 1)
         let here = CommutePlanner.Point(latitude: location.coordinate.latitude,
                                         longitude: location.coordinate.longitude)
