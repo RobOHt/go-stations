@@ -278,7 +278,25 @@ struct RootView: View {
     }
 
     private var mapScreen: some View {
-        mapCanvas
+        NetworkMapView(
+            controller: mapController,
+            selectedCode: selected?.code,
+            homeCode: settings.homeCode,
+            workCode: settings.workCode,
+            place: tripPlan?.destination.place ?? search.place,
+            onTapMap: { searchFocused = false },
+            trackedTrip: TripTracker.shared.trip,
+            onSelectTrain: { openTrackedTrip() },
+            runningTrips: settings.showsAllTrains ? runningTrips : [],
+            onSelectRunningTrain: { trip, next in openRunningTrain(trip, at: next) },
+            attributionLift: attributionLift,
+            journey: tripPlan?.shown,
+            onSelect: { station in select(station, detent: .medium) }
+        )
+        .ignoresSafeArea()
+        // The map softly blurred behind the search bar, so it and the buttons above
+        // it stand out from busy streets (#19).
+        .overlay { SearchBarBlur() }
         .overlay { floatingUI }
         .task(id: settings.showsAllTrains) {
             // Which trains are running, once a minute (the map moves them in between),
@@ -308,48 +326,6 @@ struct RootView: View {
                 try? await Task.sleep(for: .seconds(5))
             }
         }
-    }
-
-    /// The map, full screen. On iOS 26 and later it's the content of a scroll view
-    /// that doesn't scroll: iOS then draws its own soft blur (the scroll edge
-    /// effect) behind the search bar over it, as under its own bars (#19).
-    @ViewBuilder
-    private var mapCanvas: some View {
-        if #available(iOS 26.0, *) {
-            GeometryReader { proxy in
-                ScrollView {
-                    mapView
-                        .frame(width: proxy.size.width, height: proxy.size.height)
-                }
-                .scrollDisabled(true)
-                .scrollIndicators(.hidden)
-                .scrollEdgeEffectStyle(.soft, for: .bottom)
-                // (Only behind the search bar: none under the status bar.)
-                .scrollEdgeEffectHidden(true, for: .top)
-            }
-            .ignoresSafeArea()
-        } else {
-            mapView
-                .ignoresSafeArea()
-        }
-    }
-
-    private var mapView: some View {
-        NetworkMapView(
-            controller: mapController,
-            selectedCode: selected?.code,
-            homeCode: settings.homeCode,
-            workCode: settings.workCode,
-            place: tripPlan?.destination.place ?? search.place,
-            onTapMap: { searchFocused = false },
-            trackedTrip: TripTracker.shared.trip,
-            onSelectTrain: { openTrackedTrip() },
-            runningTrips: settings.showsAllTrains ? runningTrips : [],
-            onSelectRunningTrain: { trip, next in openRunningTrain(trip, at: next) },
-            attributionLift: attributionLift,
-            journey: tripPlan?.shown,
-            onSelect: { station in select(station, detent: .medium) }
-        )
     }
 
     /// Apple's logo and Legal link sit just above the search bar, bottom left: while
@@ -921,5 +897,34 @@ private struct MapHint: View {
         .padding(.vertical, 8)
         .frame(minHeight: 48)
         .glass(.plain, in: Capsule())
+    }
+}
+
+/// Behind the search bar along the bottom: the map blurred, fading in from just
+/// above the bar to the screen's edge, as tall as the bar (the safe area the bar
+/// takes, plus a little to fade in over). A material faded in by a gradient; it
+/// takes no touches, so the map still pans under it.
+private struct SearchBarBlur: View {
+    var body: some View {
+        GeometryReader { proxy in
+            let height = proxy.safeAreaInsets.bottom + 14
+            VStack(spacing: 0) {
+                Spacer(minLength: 0)
+                Rectangle()
+                    .fill(.ultraThinMaterial)
+                    .frame(height: height)
+                    .mask {
+                        LinearGradient(stops: [
+                            .init(color: .clear, location: 0),
+                            .init(color: .black.opacity(0.55), location: 0.35),
+                            .init(color: .black.opacity(0.9), location: 0.7),
+                            .init(color: .black, location: 1),
+                        ], startPoint: .top, endPoint: .bottom)
+                    }
+            }
+            .ignoresSafeArea()
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 }
