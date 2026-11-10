@@ -397,7 +397,8 @@ jobs:
             [ "$home" != "-" ] && args+=(-homeStation "$home")
             [ "$work" != "-" ] && args+=(-workStation "$work")
             xcrun simctl launch "$UDID" "$BUNDLE_ID" "${args[@]}" > /dev/null < /dev/null
-            for i in $(seq 1 30); do
+            # (Up to 30 s: run on its own, the first case is the app's first launch.)
+            for i in $(seq 1 60); do
               [ -s "$choice" ] && break
               sleep 0.5
             done
