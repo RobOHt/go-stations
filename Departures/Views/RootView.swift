@@ -278,22 +278,7 @@ struct RootView: View {
     }
 
     private var mapScreen: some View {
-        NetworkMapView(
-            controller: mapController,
-            selectedCode: selected?.code,
-            homeCode: settings.homeCode,
-            workCode: settings.workCode,
-            place: tripPlan?.destination.place ?? search.place,
-            onTapMap: { searchFocused = false },
-            trackedTrip: TripTracker.shared.trip,
-            onSelectTrain: { openTrackedTrip() },
-            runningTrips: settings.showsAllTrains ? runningTrips : [],
-            onSelectRunningTrain: { trip, next in openRunningTrain(trip, at: next) },
-            attributionLift: attributionLift,
-            journey: tripPlan?.shown,
-            onSelect: { station in select(station, detent: .medium) }
-        )
-        .ignoresSafeArea()
+        mapCanvas
         .overlay { floatingUI }
         .task(id: settings.showsAllTrains) {
             // Which trains are running, once a minute (the map moves them in between),
@@ -323,6 +308,46 @@ struct RootView: View {
                 try? await Task.sleep(for: .seconds(5))
             }
         }
+    }
+
+    /// The map, full screen. On iOS 26 and later it's the content of a scroll view
+    /// that doesn't scroll: iOS then draws its own soft blur (the scroll edge
+    /// effect) behind the search bar over it, as under its own bars (#19).
+    @ViewBuilder
+    private var mapCanvas: some View {
+        if #available(iOS 26.0, *) {
+            GeometryReader { proxy in
+                ScrollView {
+                    mapView
+                        .frame(width: proxy.size.width, height: proxy.size.height)
+                }
+                .scrollDisabled(true)
+                .scrollIndicators(.hidden)
+                .scrollEdgeEffectStyle(.soft, for: .bottom)
+            }
+            .ignoresSafeArea()
+        } else {
+            mapView
+                .ignoresSafeArea()
+        }
+    }
+
+    private var mapView: some View {
+        NetworkMapView(
+            controller: mapController,
+            selectedCode: selected?.code,
+            homeCode: settings.homeCode,
+            workCode: settings.workCode,
+            place: tripPlan?.destination.place ?? search.place,
+            onTapMap: { searchFocused = false },
+            trackedTrip: TripTracker.shared.trip,
+            onSelectTrain: { openTrackedTrip() },
+            runningTrips: settings.showsAllTrains ? runningTrips : [],
+            onSelectRunningTrain: { trip, next in openRunningTrain(trip, at: next) },
+            attributionLift: attributionLift,
+            journey: tripPlan?.shown,
+            onSelect: { station in select(station, detent: .medium) }
+        )
     }
 
     /// Apple's logo and Legal link sit just above the search bar, bottom left: while
