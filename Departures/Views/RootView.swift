@@ -900,24 +900,33 @@ private struct MapHint: View {
     }
 }
 
-/// Behind the search bar along the bottom: the map blurred, more and more from just
-/// above the bar down to about its bottom, as tall as the bar (the safe area the bar
-/// takes, plus a little to blur in over). No tint, so the map keeps its colours, in
-/// dark mode too (see `ProgressiveBlur`). It takes no touches, so the map still
-/// pans under it. With Reduce Transparency on, none.
+/// Behind the search bar along the bottom: the map blurred, more and more from about
+/// the top of the bar down to about its bottom. As tall as the bar's part of the safe
+/// area plus a little, less a fifth, and on top of the keyboard while that's up (where
+/// the bar is then). No tint, so the map keeps its colours, in dark mode too (see
+/// `ProgressiveBlur`). It takes no touches, so the map still pans under it. With
+/// Reduce Transparency on, none.
 private struct SearchBarBlur: View {
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    /// The bottom safe area without the keyboard's part: the bar's.
+    @State private var barInset: CGFloat = 0
 
     var body: some View {
         GeometryReader { proxy in
+            let keyboard = max(0, proxy.safeAreaInsets.bottom - barInset)
             VStack(spacing: 0) {
                 Spacer(minLength: 0)
                 if !reduceTransparency {
                     ProgressiveBlur(radius: 10, fullAt: 0.75)
-                        .frame(height: proxy.safeAreaInsets.bottom + 14)
+                        .frame(height: keyboard + (barInset + 14) * 0.8)
                 }
             }
             .ignoresSafeArea()
+        }
+        .background {
+            Color.clear
+                .ignoresSafeArea(.keyboard)
+                .onGeometryChange(for: CGFloat.self) { $0.safeAreaInsets.bottom } action: { barInset = $0 }
         }
         .allowsHitTesting(false)
         .accessibilityHidden(true)
