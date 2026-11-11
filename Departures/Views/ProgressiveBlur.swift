@@ -144,6 +144,8 @@ final class ProgressiveBlurView: UIView {
     /// A strip, top to bottom, clear to opaque: eased in from the top, opaque from
     /// `fullAt` down. The filter stretches it over the view.
     static func mask(fullAt: CGFloat) -> CGImage? {
+        // To a hundredth: as near as shows, and few to keep.
+        let fullAt = (fullAt * 100).rounded() / 100
         if let mask = masks[fullAt] { return mask }
         let rows = 256
         guard let context = CGContext(data: nil, width: 1, height: rows, bitsPerComponent: 8, bytesPerRow: 0,

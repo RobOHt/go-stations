@@ -901,12 +901,13 @@ private struct MapHint: View {
 }
 
 /// Behind the search bar along the bottom: the map blurred, more and more from about
-/// the top of the bar down to about its bottom. As tall as the bar's part of the safe
-/// area plus a little, less a fifth of that; while the keyboard is up (with the bar on
-/// top of it, and the bar's part of the safe area taking in the keyboard), as much
-/// shorter as without it. No tint, so the map keeps its colours, in dark mode too (see
-/// `ProgressiveBlur`). It takes no touches, so the map still pans under it. With
-/// Reduce Transparency on, none.
+/// the top of the bar down to about its bottom, and fully below that. As tall as the
+/// bar's part of the safe area plus a little, less a fifth of that. While the keyboard
+/// is up, the bar rides on it and its part of the safe area takes in the keyboard: the
+/// blur then reaches down behind the keyboard, but starts and gets to full where it
+/// would without it, by the bar. No tint, so the map keeps its colours, in dark mode
+/// too (see `ProgressiveBlur`). It takes no touches, so the map still pans under it.
+/// With Reduce Transparency on, none.
 private struct SearchBarBlur: View {
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     /// The bottom safe area while the keyboard is down: the bar's own.
@@ -916,12 +917,15 @@ private struct SearchBarBlur: View {
     var body: some View {
         GeometryReader { proxy in
             let inset = proxy.safeAreaInsets.bottom
-            let shorter = 0.2 * ((keyboardUp ? barInset ?? inset : inset) + 14)
+            let bar = keyboardUp ? barInset ?? inset : inset
+            // Its height without the keyboard, and with it (reaching down behind it).
+            let bare = 0.8 * (bar + 14)
+            let height = max(1, bare + inset - bar)
             VStack(spacing: 0) {
                 Spacer(minLength: 0)
                 if !reduceTransparency {
-                    ProgressiveBlur(radius: 10, fullAt: 0.75)
-                        .frame(height: max(0, inset + 14 - shorter))
+                    ProgressiveBlur(radius: 10, fullAt: min(1, 0.75 * bare / height))
+                        .frame(height: height)
                 }
             }
             .ignoresSafeArea()
