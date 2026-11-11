@@ -9,6 +9,8 @@ import SwiftUI
 final class TripPlanModel: Identifiable {
     let id = UUID()
     let destination: PlanDestination
+    /// Opened from a station's board (its Get here): that station, to go back to.
+    let backTo: String?
     /// The station picked to start from; nil for the fastest from where you are.
     private(set) var origin: String?
     /// A later day picked on the week strip; nil for today.
@@ -32,10 +34,13 @@ final class TripPlanModel: Identifiable {
     @ObservationIgnored private let work: String?
     @ObservationIgnored private var planning: Task<Void, Never>?
 
-    init(destination: PlanDestination, home: String?, work: String?) {
+    /// `plan`: one already made (by a board's Get here), shown while it's made afresh.
+    init(destination: PlanDestination, home: String?, work: String?, plan: TripPlan? = nil, backTo: String? = nil) {
         self.destination = destination
         self.home = home
         self.work = work
+        self.plan = plan
+        self.backTo = backTo
     }
 
     func start() {
@@ -121,6 +126,8 @@ final class TripPlanModel: Identifiable {
 /// trip opened in the list (or the one offered), the rest of the network dimmed.
 struct TripPlanSheet: View {
     @Bindable var model: TripPlanModel
+    /// Back to the board it was opened from (see `TripPlanModel.backTo`).
+    var onBack: (() -> Void)?
     let onClose: () -> Void
 
     @Environment(AppSettings.self) private var settings
@@ -153,21 +160,60 @@ struct TripPlanSheet: View {
 
     // MARK: Header
 
+    @ViewBuilder
     private var header: some View {
-        HStack(alignment: .top, spacing: 12) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("To \(model.destination.name)")
-                    .font(.title2.bold())
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.7)
-                originMenu
+        if let onBack, let back = model.backTo.flatMap(network.station) {
+            // From a board: the way back to it, then where to and from.
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .center, spacing: 12) {
+                    Button(action: onBack) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "chevron.left")
+                                .font(.subheadline.weight(.bold))
+                            Text("\(back.name) departures")
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.8)
+                        }
+                        .font(.subheadline.weight(.semibold))
+                        .padding(.leading, 12)
+                        .padding(.trailing, 14)
+                        .frame(minHeight: 44)
+                        .contentShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .glass(in: Capsule())
+                    .accessibilityLabel("Back to \(back.name) departures")
+
+                    Spacer(minLength: 8)
+
+                    GlassCloseButton { onClose() }
+                }
+                VStack(alignment: .leading, spacing: 6) {
+                    title
+                    originMenu
+                }
             }
             .padding(.top, PinnedHeaderMetrics.textTop)
+        } else {
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 6) {
+                    title
+                    originMenu
+                }
+                .padding(.top, PinnedHeaderMetrics.textTop)
 
-            Spacer(minLength: 8)
+                Spacer(minLength: 8)
 
-            GlassCloseButton { onClose() }
+                GlassCloseButton { onClose() }
+            }
         }
+    }
+
+    private var title: some View {
+        Text("To \(model.destination.name)")
+            .font(.title2.bold())
+            .lineLimit(2)
+            .minimumScaleFactor(0.7)
     }
 
     /// "From Oakville · 6 min walk", which opens the choice of where to start.

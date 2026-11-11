@@ -304,6 +304,10 @@ jobs:
           shoot 5e-station-planned-large 12 stationLarge -boardDaysAhead 2
           # Narrowed to a part of the day (a long day has the switch).
           shoot 5f-station-planned-noon 12 stationLarge -boardDaysAhead 2 -boardPeriod noon
+          # Get here on a board away from you (Oakville's, from Union), then its trip card,
+          # with the way back to the board.
+          shoot 5g-station-get-here 16 station -debugStation OA
+          shoot 5h-get-here-trip 22 station -debugStation OA -getHere YES
           shoot 6-station-large 10 stationLarge
           shoot 7-trip 15 trip
           # Control: a board scrolled under its pinned header (does the simulator draw edge effects?).

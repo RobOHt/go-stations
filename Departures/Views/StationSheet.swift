@@ -5,6 +5,9 @@ import UIKit
 /// board below. Tapping a train opens its stop list in another sheet.
 struct StationSheet: View {
     let station: Station
+    /// Its Get here button, tapped: the trip card to it (with the plan the button
+    /// has made). Nil: no button.
+    var onGetHere: ((TripPlan?) -> Void)? = nil
 
     @Environment(AppSettings.self) private var settings
     @Environment(\.scenePhase) private var scenePhase
@@ -28,8 +31,11 @@ struct StationSheet: View {
     /// Bumped when the app comes back to the foreground, restarting the refresh loop
     /// so the board updates right away instead of waiting out the interval.
     @State private var wake = 0
+    /// The trip here from where you are, for the Get here button (nil until made).
+    @State private var getHere: TripPlan?
     #if DEBUG
     @State private var debugScroll = ScrollPosition(edge: .top)
+    @State private var tappedGetHere = false
     #endif
 
     var body: some View {
@@ -63,6 +69,11 @@ struct StationSheet: View {
         let earlier = earlierRows.map { list in (filter.map { list.filter($0.includes) } ?? list).filter { part.contains($0.scheduled) } }
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
+                if let onGetHere, let plan = getHere, plan.destination.station == station.code,
+                   GetHereButton.shows(plan) {
+                    GetHereButton(plan: plan) { onGetHere(plan) }
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                }
                 DayStrip(selected: chosen, now: Date()) { day in
                     withAnimation(.snappy) { BoardTime.shared.day = day }
                 }
@@ -123,6 +134,10 @@ struct StationSheet: View {
         .task(id: "\(station.code)#\(wake)#\(selectedTrip == nil)") {
             guard selectedTrip == nil else { return }
             await model.run(station: station)
+        }
+        .task(id: "getHere#\(station.code)#\(wake)") {
+            guard onGetHere != nil else { return }
+            await planGetHere()
         }
         .sheet(item: $selectedTrip) { trip in
             TripSheet(selection: trip)
@@ -214,6 +229,35 @@ struct StationSheet: View {
         if let error = model.errorMessage, model.snapshot == nil { return error }
         if model.snapshot == nil { return "Loading | Chargement" }
         return nil
+    }
+
+    // MARK: Get here
+
+    /// The trip here for the Get here button: planned like a trip from search,
+    /// now and every minute while the board is up (where you are only looked up
+    /// again after 10 minutes). Never asks for your location (without it, from
+    /// home, work or Union).
+    private func planGetHere() async {
+        var maxAge: TimeInterval = 120
+        while !Task.isCancelled {
+            let location = await LocationProvider.shared.locationIfAllowed(maxAge: maxAge)
+            maxAge = 600
+            let made = await TripPlanner.plan(to: PlanDestination(station: station), from: nil, on: nil,
+                                              location: location, home: settings.homeCode,
+                                              work: settings.workCode, now: AppClock.now)
+            guard !Task.isCancelled else { return }
+            withAnimation(.snappy) { getHere = made }
+            #if DEBUG
+            // `-getHere YES`: tapped once it's there.
+            if !tappedGetHere, DebugScene.current != nil, UserDefaults.standard.bool(forKey: "getHere"),
+               GetHereButton.shows(made) {
+                tappedGetHere = true
+                try? await Task.sleep(for: .seconds(1.5))
+                onGetHere?(made)
+            }
+            #endif
+            try? await Task.sleep(for: .seconds(60))
+        }
     }
 
     // MARK: Header
@@ -501,4 +545,73 @@ private struct AlertCard: View {
 enum RoleColor {
     static let home = Color(uiColor: StationRole.home.uiColor)
     static let work = Color(uiColor: StationRole.work.uiColor)
+}
+
+/// On a station's board, a tap away: how to get there from where you are, by
+/// train (search's stations open their boards first). "Get here · 36 min from
+/// Port Credit", from the plan the board makes (`StationSheet.planGetHere`).
+struct GetHereButton: View {
+    let plan: TripPlan
+    let onTap: () -> Void
+
+    private let network = RailNetwork.shared
+
+    var body: some View {
+        let now = AppClock.now
+        let duration = plan.recommended.map { DurationText.text(from: now, to: $0.arrivalThere) }
+        let origin = plan.origin.flatMap(network.station)?.name
+        Button(action: onTap) {
+            HStack(spacing: 10) {
+                Image(systemName: "arrow.triangle.turn.up.right.diamond.fill")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(Color.accentColor)
+                Text("Get here")
+                    .font(.body.weight(.bold))
+                    .foregroundStyle(Self.labelColor)
+                Spacer(minLength: 8)
+                if let detail = Self.detail(duration: duration, from: origin) {
+                    Text(detail)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                }
+                Image(systemName: "chevron.right")
+                    .font(.footnote.weight(.bold))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 16)
+            .frame(minHeight: 52)
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .glass(.tinted(Color.accentColor.opacity(0.3)), in: Capsule())
+        .accessibilityHint("Shows how to get here by train")
+    }
+
+    /// Only when getting there by train makes sense: not when you're there, or it's
+    /// the station nearest you (you'd just go there), or there's no timetable.
+    static func shows(_ plan: TripPlan) -> Bool {
+        shows(isThere: plan.isThere, isNearest: plan.isNearest, noTimetable: plan.noTimetable)
+    }
+
+    static func shows(isThere: Bool, isNearest: Bool, noTimetable: Bool) -> Bool {
+        !isThere && !isNearest && !noTimetable
+    }
+
+    /// "36 min from Port Credit" (getting there now, from the station you'd set
+    /// off from), "From Port Credit" when no train soon is the one to take, nil
+    /// with no station to start from.
+    static func detail(duration: String?, from origin: String?) -> String? {
+        guard let origin else { return nil }
+        guard let duration else { return "From \(origin)" }
+        return "\(duration) from \(origin)"
+    }
+
+    /// The accent's green, light on dark and dark on light so it reads on the glass.
+    private static let labelColor = Color(uiColor: UIColor { traits in
+        traits.userInterfaceStyle == .dark
+            ? UIColor(red: 0.77, green: 0.93, blue: 0.48, alpha: 1)
+            : UIColor(red: 0.29, green: 0.45, blue: 0.04, alpha: 1)
+    })
 }

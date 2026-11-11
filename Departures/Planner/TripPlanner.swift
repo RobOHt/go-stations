@@ -132,6 +132,9 @@ struct TripPlan: Sendable {
     let readyAt: Date?
     /// You're there already (or a short walk away).
     let isThere: Bool
+    /// The station it goes to is the nearest one to where you are: you'd go
+    /// straight there, not by train from another.
+    let isNearest: Bool
     /// No timetable to plan with.
     let noTimetable: Bool
 }
@@ -188,15 +191,19 @@ enum TripPlanner {
         let saved = [home, work, "UN"].compactMap { $0 }
             .first { !targetCodes.contains($0) && RailNetwork.shared.station($0) != nil }
 
+        var isNearest = false
         func empty(origin: String?, kind: TripPlan.Origin, noTimetable: Bool = false) -> TripPlan {
             TripPlan(destination: destination, origin: origin, originKind: kind, start: nil, journeys: [],
                      day: dayKey, isToday: isToday, recommended: nil, readyAt: nil, isThere: isThere,
-                     noTimetable: noTimetable)
+                     isNearest: isNearest, noTimetable: noTimetable)
         }
         guard let planner = await Self.planner() else {
             return empty(origin: origin ?? saved, kind: .saved, noTimetable: true)
         }
         if isThere { return empty(origin: nil, kind: .fastest) }
+        if let station = destination.station, let user {
+            isNearest = planner.accessOptions(from: user).first?.station == station
+        }
 
         let reach = Self.reach
         let result = await Task.detached(priority: .userInitiated) {
@@ -254,7 +261,7 @@ enum TripPlanner {
         }
         return TripPlan(destination: destination, origin: found.origin, originKind: found.kind, start: start,
                         journeys: journeys, day: dayKey, isToday: isToday, recommended: recommended,
-                        readyAt: readyAt, isThere: false, noTimetable: false)
+                        readyAt: readyAt, isThere: false, isNearest: isNearest, noTimetable: false)
     }
 
     /// Where a trip to `destination` can end: the station itself, or for a place

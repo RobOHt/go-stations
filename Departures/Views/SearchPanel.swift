@@ -239,8 +239,9 @@ enum BottomBarMetrics {
 
 /// Results in a glass card above the system search field: station matches and
 /// Apple Maps suggestions while typing, and while the field is active but empty,
-/// home and work and the places you planned trips to lately. Picking one plans a
-/// trip there.
+/// home and work and the places you planned trips to lately. A station opens its
+/// board (with the trip there a tap away on it); a place or a recent trip, the
+/// trip card.
 struct SearchResults: View {
     @Bindable var model: PlaceSearchModel
     /// The search field is active (focused, or looking a place up).

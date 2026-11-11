@@ -63,7 +63,9 @@ struct RootView: View {
         }
         .sheet(isPresented: stationSheetPresented) {
             if let selected {
-                StationSheet(station: selected)
+                StationSheet(station: selected) { plan in
+                    getHere(to: selected, plan: plan)
+                }
                     // The sheet's visible top edge. Its content starts lower (iOS keeps a
                     // safe area at the top of the sheet for the grabber), so measure a
                     // background that ignores the safe area and spans the whole sheet.
@@ -85,7 +87,9 @@ struct RootView: View {
                 .presentationDragIndicator(.visible)
         }
         .sheet(item: $tripPlan, onDismiss: { search.clearPlace() }) { model in
-            TripPlanSheet(model: model) { tripPlan = nil }
+            TripPlanSheet(model: model, onBack: model.backTo.map { code in { backToBoard(code) } }) {
+                tripPlan = nil
+            }
                 .environment(settings)
                 // Its visible top edge, as for the station sheet.
                 .background {
@@ -503,15 +507,29 @@ struct RootView: View {
         }
     }
 
-    /// A station picked in search: how to get there (its board opens from the map).
+    /// A station picked in search: its board, as on the map, with the trip there
+    /// a tap away on it (Get here).
     private func openFromSearch(_ station: Station) {
         endSearch()
         search.clearPlace()
-        planTrip(to: PlanDestination(station: station))
+        select(station, detent: .medium)
     }
 
-    /// Opens the trip card to `destination` (closing any other sheet first), and
-    /// keeps it in the search history.
+    /// A board's Get here: the trip card to its station (with the plan the button
+    /// made, while it's made afresh), and the way back to the board.
+    private func getHere(to station: Station, plan: TripPlan?) {
+        planTrip(to: PlanDestination(station: station), plan: plan, backTo: station.code)
+    }
+
+    /// The trip card's way back: the board it was opened from.
+    private func backToBoard(_ code: String) {
+        guard let station = network.station(code) else {
+            tripPlan = nil
+            return
+        }
+        select(station, detent: .medium)
+    }
+
     /// Where a tapped notification asked to go: the trip card to its station.
     private func followRoute() {
         guard let code = AppRoute.shared.planTo else { return }
@@ -520,10 +538,14 @@ struct RootView: View {
         planTrip(to: PlanDestination(station: station))
     }
 
-    private func planTrip(to destination: PlanDestination) {
+    /// Opens the trip card to `destination` (closing any other sheet first), and
+    /// keeps it in the search history. `plan`: one already made, shown while it's
+    /// made afresh; `backTo`: the board it was opened from, to go back to.
+    private func planTrip(to destination: PlanDestination, plan: TripPlan? = nil, backTo: String? = nil) {
         searchFocused = false
         SearchHistory.shared.add(destination)
-        let model = TripPlanModel(destination: destination, home: settings.homeCode, work: settings.workCode)
+        let model = TripPlanModel(destination: destination, home: settings.homeCode, work: settings.workCode,
+                                  plan: plan, backTo: backTo)
         model.start()
         mapController.frame([destination.coordinate], minWidth: 6_000, coveredFraction: 0.5, asked: true)
         guard selected != nil || showSettings || trackedSelection != nil else {

@@ -21,6 +21,7 @@ enum SelfCheck {
         earlyArrival()
         missedTrain()
         progressiveBlur()
+        getHere()
         lines.append("done")
         write()
         NSLog("SelfCheck: done")
@@ -236,6 +237,22 @@ enum SelfCheck {
         let shape = [0, 0.375, 0.75, 1].map(alpha)
         check("blur: its mask", shape[0] == 0 && (100...155).contains(shape[1]) && shape[2] == 255 && shape[3] == 255,
               "\(shape)")
+    }
+
+    /// A board's Get here: what it says, and when it's left out.
+    private static func getHere() {
+        check("get here: how long, from where",
+              GetHereButton.detail(duration: "36 min", from: "Port Credit") == "36 min from Port Credit")
+        check("get here: no train soon to take",
+              GetHereButton.detail(duration: nil, from: "Port Credit") == "From Port Credit")
+        check("get here: nowhere to start from", GetHereButton.detail(duration: "36 min", from: nil) == nil)
+        check("get here: shown away from the station",
+              GetHereButton.shows(isThere: false, isNearest: false, noTimetable: false))
+        check("get here: not at the station", !GetHereButton.shows(isThere: true, isNearest: false, noTimetable: false))
+        check("get here: not at the station nearest you",
+              !GetHereButton.shows(isThere: false, isNearest: true, noTimetable: false))
+        check("get here: not without a timetable",
+              !GetHereButton.shows(isThere: false, isNearest: false, noTimetable: true))
     }
 
     // MARK: Made-up trips
