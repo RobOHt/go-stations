@@ -910,14 +910,13 @@ private struct MapHint: View {
 /// With Reduce Transparency on, none.
 private struct SearchBarBlur: View {
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
-    /// The bottom safe area while the keyboard is down: the bar's own.
+    /// The bottom safe area with the keyboard down: the bar's own.
     @State private var barInset: CGFloat?
-    @State private var keyboardUp = false
 
     var body: some View {
         GeometryReader { proxy in
             let inset = proxy.safeAreaInsets.bottom
-            let bar = keyboardUp ? barInset ?? inset : inset
+            let bar = barInset ?? inset
             // Its height without the keyboard, and with it (reaching down behind it).
             let bare = 0.8 * (bar + 14)
             let height = max(1, bare + inset - bar)
@@ -930,16 +929,12 @@ private struct SearchBarBlur: View {
             }
             .ignoresSafeArea()
             .onChange(of: inset, initial: true) { _, inset in
-                if !keyboardUp { barInset = inset }
+                // The keyboard adds a couple of hundred points at least; anything less
+                // is the bar's own. (Going by the keyboard's notifications didn't work:
+                // on the simulator, the safe area had taken it in before they got here.)
+                if let barInset, inset > barInset + 150 { return }
+                barInset = inset
             }
-        }
-        // Up as it starts to come up; down once it's all the way down, so the blur
-        // doesn't jump while it goes.
-        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
-            keyboardUp = true
-        }
-        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardDidHideNotification)) { _ in
-            keyboardUp = false
         }
         .allowsHitTesting(false)
         .accessibilityHidden(true)
