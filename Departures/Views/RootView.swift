@@ -902,31 +902,40 @@ private struct MapHint: View {
 
 /// Behind the search bar along the bottom: the map blurred, more and more from about
 /// the top of the bar down to about its bottom. As tall as the bar's part of the safe
-/// area plus a little, less a fifth, and on top of the keyboard while that's up (where
-/// the bar is then). No tint, so the map keeps its colours, in dark mode too (see
+/// area plus a little, less a fifth of that; while the keyboard is up (with the bar on
+/// top of it, and the bar's part of the safe area taking in the keyboard), as much
+/// shorter as without it. No tint, so the map keeps its colours, in dark mode too (see
 /// `ProgressiveBlur`). It takes no touches, so the map still pans under it. With
 /// Reduce Transparency on, none.
 private struct SearchBarBlur: View {
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
-    /// The bottom safe area without the keyboard's part: the bar's.
-    @State private var barInset: CGFloat = 0
+    /// The bottom safe area while the keyboard is down: the bar's own.
+    @State private var barInset: CGFloat?
+    @State private var keyboardUp = false
 
     var body: some View {
         GeometryReader { proxy in
-            let keyboard = max(0, proxy.safeAreaInsets.bottom - barInset)
+            let inset = proxy.safeAreaInsets.bottom
+            let shorter = 0.2 * ((keyboardUp ? barInset ?? inset : inset) + 14)
             VStack(spacing: 0) {
                 Spacer(minLength: 0)
                 if !reduceTransparency {
                     ProgressiveBlur(radius: 10, fullAt: 0.75)
-                        .frame(height: keyboard + (barInset + 14) * 0.8)
+                        .frame(height: max(0, inset + 14 - shorter))
                 }
             }
             .ignoresSafeArea()
+            .onChange(of: inset, initial: true) { _, inset in
+                if !keyboardUp { barInset = inset }
+            }
         }
-        .background {
-            Color.clear
-                .ignoresSafeArea(.keyboard)
-                .onGeometryChange(for: CGFloat.self) { $0.safeAreaInsets.bottom } action: { barInset = $0 }
+        // Up as it starts to come up; down once it's all the way down, so the blur
+        // doesn't jump while it goes.
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
+            keyboardUp = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardDidHideNotification)) { _ in
+            keyboardUp = false
         }
         .allowsHitTesting(false)
         .accessibilityHidden(true)
