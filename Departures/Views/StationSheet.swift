@@ -782,9 +782,12 @@ private struct GetHereToolbarButton: View {
         let duration = plan.recommended.map { DurationText.text(from: AppClock.now, to: $0.arrivalThere) }
         let origin = plan.origin.flatMap(RailNetwork.shared.station)?.name
         Button(action: onTap) {
-            Label("Get here", systemImage: "arrow.triangle.turn.up.right.diamond.fill")
-                .labelStyle(.titleAndIcon)
-                .font(.subheadline.weight(.bold))
+            // (Its words too: a toolbar shows a Label's icon alone.)
+            HStack(spacing: 6) {
+                Image(systemName: "arrow.triangle.turn.up.right.diamond.fill")
+                Text("Get here")
+            }
+            .font(.subheadline.weight(.bold))
         }
         .buttonStyle(.glassProminent)
         .tint(Color.accentColor)
