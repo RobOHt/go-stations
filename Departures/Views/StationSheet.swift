@@ -244,21 +244,23 @@ struct StationSheet: View {
 
     /// The day the board shows (on a busy one, the part of it too), which way on
     /// your home or work board, and Get here: each a tap away, at the bottom of
-    /// the card. The labels give way to icons where they don't all fit.
+    /// the card. Where they don't all fit, the day goes to its icon first (the
+    /// board's title says a later day), then which way.
     private func bottomBar(chosen: Date?, parts: [DayPeriod], part: DayPeriod,
                            commute: (direction: CommuteDirection, toward: StationRole)?) -> some View {
         let plan = getHere.flatMap { plan in
             onGetHere != nil && plan.destination.station == station.code && GetHereButton.shows(plan) ? plan : nil
         }
-        func row(compact: Bool) -> some View {
+        func row(dayCompact: Bool, directionCompact: Bool) -> some View {
             HStack(spacing: 8) {
-                BoardDayMenu(selected: chosen, now: Date(), parts: parts, part: part) { day in
+                BoardDayMenu(selected: chosen, now: Date(), parts: parts, part: part, compact: dayCompact) { day in
                     withAnimation(.snappy) { BoardTime.shared.day = day }
                 } onSelectPart: { new in
                     withAnimation(.snappy) { BoardTime.shared.period = new }
                 }
                 if let commute {
-                    BoardDirectionButton(toward: commute.toward, showsAll: showsAllDirections, compact: compact) {
+                    BoardDirectionButton(toward: commute.toward, showsAll: showsAllDirections,
+                                         compact: directionCompact) {
                         withAnimation(.snappy) { showsAllDirections.toggle() }
                     }
                 }
@@ -272,8 +274,9 @@ struct StationSheet: View {
         }
         return GlassGroup(spacing: 8) {
             ViewThatFits(in: .horizontal) {
-                row(compact: false)
-                row(compact: true)
+                row(dayCompact: false, directionCompact: false)
+                row(dayCompact: true, directionCompact: false)
+                row(dayCompact: true, directionCompact: true)
             }
         }
     }
@@ -560,6 +563,7 @@ private struct AlertCard: View {
 
 /// In the board's bottom bar: the day it shows ("Today", "Sat 14", with the part
 /// of a busy day: "Today · Noon"), and in its menu the week ahead and the parts.
+/// Compact, just its icon (and the part of the day, when it's narrowed to one).
 struct BoardDayMenu: View {
     /// A later day at midnight; nil for today.
     let selected: Date?
@@ -567,6 +571,7 @@ struct BoardDayMenu: View {
     /// The parts of the day it can narrow to (none: the whole day only).
     let parts: [DayPeriod]
     let part: DayPeriod
+    var compact = false
     let onSelectDay: (Date?) -> Void
     let onSelectPart: (DayPeriod) -> Void
 
@@ -597,18 +602,25 @@ struct BoardDayMenu: View {
         } label: {
             HStack(spacing: 6) {
                 Image(systemName: "calendar")
-                Text(title)
-                    .lineLimit(1)
-                Image(systemName: "chevron.down")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(.secondary)
+                if !compact {
+                    Text(title)
+                        .lineLimit(1)
+                    Image(systemName: "chevron.down")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.secondary)
+                } else if part != .allDay {
+                    Text(part.label)
+                        .lineLimit(1)
+                }
             }
             .font(.subheadline.weight(.semibold))
             .foregroundStyle(.primary)
-            .padding(.horizontal, 14)
-            .frame(minHeight: 44)
+            .padding(.horizontal, compact && part == .allDay ? 0 : 14)
+            .frame(minWidth: 44, minHeight: 44)
             .contentShape(Capsule())
         }
+        // (White like the other buttons, not the accent a menu's label takes.)
+        .tint(Color.primary)
         .glass(.interactive, in: Capsule())
         .fixedSize()
         .accessibilityLabel("Day: \(spoken)")
