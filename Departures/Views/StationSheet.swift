@@ -51,6 +51,7 @@ struct StationSheet: View {
         }
     }
 
+    @ViewBuilder
     private var board: some View {
         // On your home board only the trains toward work, on your work board only the
         // ones toward home, unless you ask for them all.
