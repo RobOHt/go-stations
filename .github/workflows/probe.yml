@@ -22,6 +22,12 @@ on:
       approach:
         description: "STATION (e.g. UN): trains coming into it, as the feeds and the worker have them"
         default: ""
+      cancellations:
+        description: "true: how cancelled trains show in each feed; with station, its NextService lines too"
+        default: ""
+      station:
+        description: "STATION (e.g. UN): with cancellations, that station's NextService lines"
+        default: ""
 
 jobs:
   probe:
@@ -34,10 +40,16 @@ jobs:
       MODE: ${{ inputs.mode }}
       TRIP: ${{ inputs.trip }}
       APPROACH: ${{ inputs.approach }}
+      CANCELLATIONS: ${{ inputs.cancellations }}
+      STATION: ${{ inputs.station }}
     steps:
       - uses: actions/checkout@v5
       - name: Probe
         run: |
+          if [ "$CANCELLATIONS" = true ]; then
+            python3 tools/probe_live.py --cancellations ${STATION:+--station "$STATION"}
+            exit 0
+          fi
           if [ -n "$TRIP" ]; then
             python3 tools/probe_live.py --trip "$TRIP"
             exit 0

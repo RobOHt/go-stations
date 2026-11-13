@@ -448,6 +448,71 @@ def worker(polls, gap):
         time.sleep(max(0, gap - (time.time() - started)))
 
 
+def truthy(value):
+    return str(value).strip().lower() in ("true", "1", "yes", "y")
+
+
+def cancellations(station):
+    """How a cancelled train shows in each feed: the exceptions feed (what the
+    app reads), GTFS TripUpdates, Trains/All, the service alerts, and, given a
+    station, its NextService lines for those trains."""
+    section("ServiceUpdate/Exceptions/Train")
+    status, seconds, body, size = get("/ServiceUpdate/Exceptions/Train")
+    report("/ServiceUpdate/Exceptions/Train", body, status, seconds, size)
+    trips = find_list(body or {}, "Trip", "Trips.Trip", "Exceptions.Trip")
+    print(f"{len(trips)} trips")
+    numbers = set()
+    for trip in trips:
+        stops = trip.get("Stop") or trip.get("Stops") or []
+        if isinstance(stops, dict):
+            stops = [stops]
+        cancelled = [stop.get("Code") for stop in stops if isinstance(stop, dict) and truthy(stop.get("IsCancelled"))]
+        flat = {k: v for k, v in trip.items() if not isinstance(v, (list, dict))}
+        numbers.add(str(trip.get("TripNumber") or "").strip())
+        print(flat, f"| {len(stops)} stops, cancelled at {len(cancelled)}: {cancelled[:8]}")
+    if trips:
+        print("Shape of the first:")
+        for line in shape(trips[0], limit=3):
+            print("  " + line)
+
+    section("GTFS TripUpdates: trains not running as scheduled")
+    status, seconds, body, size = get("/Gtfs/Feed/TripUpdates")
+    report("/Gtfs/Feed/TripUpdates", body, status, seconds, size)
+    shown = 0
+    for entity in find_list(body or {}, "entity"):
+        if not is_train(entity):
+            continue
+        update = entity.get("trip_update") or {}
+        relation = (update.get("trip") or {}).get("schedule_relationship")
+        skipped = [stop.get("stop_id") for stop in update.get("stop_time_update") or []
+                   if stop.get("schedule_relationship") not in (None, "SCHEDULED", 0)]
+        if relation not in (None, "SCHEDULED", 0) or skipped:
+            shown += 1
+            print(json.dumps(update.get("trip")), f"| skipped {len(skipped)}: {skipped[:8]}")
+    print(f"{shown} shown")
+
+    section("Trains/All entries for the exceptions' trains")
+    _, _, glance, _ = get("/ServiceataGlance/Trains/All")
+    for train in find_list(glance or {}, "Trips.Trip"):
+        if str(train.get("TripNumber") or "").strip() in numbers:
+            print({k: v for k, v in train.items() if not isinstance(v, (list, dict))})
+
+    section("Service alerts naming trains")
+    _, _, alerts, _ = get("/ServiceUpdate/ServiceAlert/All")
+    for message in find_list(alerts or {}, "Messages.Message"):
+        trips = message.get("Trips") or []
+        if trips:
+            refs = [t.get("TripNumber") for t in trips if isinstance(t, dict)]
+            print(message.get("SubjectEnglish"), "|", refs[:8])
+
+    if station:
+        section(f"Stop/NextService/{station}: every field of each line")
+        status, seconds, body, size = get(f"/Stop/NextService/{station}")
+        report(f"/Stop/NextService/{station}", body, status, seconds, size)
+        for line in find_list(body or {}, "NextService.Lines"):
+            print(json.dumps(line))
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--polls", type=int, default=4)
@@ -456,8 +521,14 @@ def main():
     parser.add_argument("--worker", action="store_true", help="the Worker's /v1/live/trains, as the app sees it")
     parser.add_argument("--trip", help="DAY/NUMBER: one trip's Schedule/Trip stops, in the order Metrolinx gives them")
     parser.add_argument("--approach", help="STATION: trains coming into it (e.g. UN), as the feeds and the Worker have them")
+    parser.add_argument("--cancellations", action="store_true",
+                        help="how cancelled trains show in each feed (with --station, its NextService too)")
+    parser.add_argument("--station", help="with --cancellations: a station's NextService lines")
     args = parser.parse_args()
     print("Now:", datetime.now(TORONTO).isoformat(timespec="seconds"))
+    if args.cancellations:
+        cancellations(args.station)
+        return
     if args.worker:
         worker(args.polls, args.gap)
         return
