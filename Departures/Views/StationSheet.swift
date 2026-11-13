@@ -41,6 +41,17 @@ struct StationSheet: View {
     #endif
 
     var body: some View {
+        // A navigation stack only for the bar at the bottom: from iOS 26 it's the
+        // system's toolbar, which needs one. Its own top bar stays hidden (the
+        // header is ours), and its background clear, so the sheet's glass shows.
+        NavigationStack {
+            board
+                .toolbarVisibility(.hidden, for: .navigationBar)
+                .containerBackground(.clear, for: .navigation)
+        }
+    }
+
+    private var board: some View {
         // On your home board only the trains toward work, on your work board only the
         // ones toward home, unless you ask for them all.
         let commute = self.commute
@@ -105,8 +116,15 @@ struct StationSheet: View {
         .scrollIndicators(.hidden)
         // The name, lines and buttons stay pinned in a bar over the board.
         .pinnedHeader { header }
-        // The day, which way, and Get here: in a bar at the bottom.
-        .pinnedBottomBar { bottomBar(chosen: chosen, parts: showsParts ? parts : [], part: part, commute: commute) }
+        // The day, which way, and Get here: in the bar at the bottom.
+        .modifier(BoardBar(
+            chosen: chosen, parts: showsParts ? parts : [], part: part, toward: commute?.toward,
+            showsAll: showsAllDirections, plan: getHerePlan,
+            onSelectDay: { day in withAnimation(.snappy) { BoardTime.shared.day = day } },
+            onSelectPart: { new in withAnimation(.snappy) { BoardTime.shared.period = new } },
+            onToggleDirection: { withAnimation(.snappy) { showsAllDirections.toggle() } },
+            onGetHere: { plan in onGetHere?(plan) }
+        ))
         .environment(\.glassBackdrop, .sheet)
         // No pull-to-refresh: pulling down closes the sheet. The board keeps
         // itself current instead.
@@ -242,43 +260,11 @@ struct StationSheet: View {
 
     // MARK: The bar at the bottom
 
-    /// The day the board shows (on a busy one, the part of it too), which way on
-    /// your home or work board, and Get here: each a tap away, at the bottom of
-    /// the card. Where they don't all fit, the day goes to its icon first (the
-    /// board's title says a later day), then which way.
-    private func bottomBar(chosen: Date?, parts: [DayPeriod], part: DayPeriod,
-                           commute: (direction: CommuteDirection, toward: StationRole)?) -> some View {
-        let plan = getHere.flatMap { plan in
-            onGetHere != nil && plan.destination.station == station.code && GetHereButton.shows(plan) ? plan : nil
-        }
-        func row(dayCompact: Bool, directionCompact: Bool) -> some View {
-            HStack(spacing: 8) {
-                BoardDayMenu(selected: chosen, now: Date(), parts: parts, part: part, compact: dayCompact) { day in
-                    withAnimation(.snappy) { BoardTime.shared.day = day }
-                } onSelectPart: { new in
-                    withAnimation(.snappy) { BoardTime.shared.period = new }
-                }
-                if let commute {
-                    BoardDirectionButton(toward: commute.toward, showsAll: showsAllDirections,
-                                         compact: directionCompact) {
-                        withAnimation(.snappy) { showsAllDirections.toggle() }
-                    }
-                }
-                if let plan, let onGetHere {
-                    GetHereButton(plan: plan) { onGetHere(plan) }
-                        .transition(.opacity.combined(with: .scale(scale: 0.9)))
-                } else {
-                    Spacer(minLength: 0)
-                }
-            }
-        }
-        return GlassGroup(spacing: 8) {
-            ViewThatFits(in: .horizontal) {
-                row(dayCompact: false, directionCompact: false)
-                row(dayCompact: true, directionCompact: false)
-                row(dayCompact: true, directionCompact: true)
-            }
-        }
+    /// The trip here for Get here, when the board has one to offer (see `planGetHere`).
+    private var getHerePlan: TripPlan? {
+        guard onGetHere != nil, let plan = getHere, plan.destination.station == station.code,
+              GetHereButton.shows(plan) else { return nil }
+        return plan
     }
 
     // MARK: Header
@@ -561,6 +547,85 @@ private struct AlertCard: View {
     }
 }
 
+/// A board's bar at the bottom: the day it shows (on a busy one, the part of it
+/// too), which way on your home or work board, and Get here, each a tap away.
+/// From iOS 26 it's the system's bottom toolbar, which floats its glass where iOS
+/// puts it, concentric with the screen's corners, over the board's soft scroll
+/// edge; Get here is its one prominent action, on the trailing side. Before iOS
+/// 26, a bar of our own, frosted.
+private struct BoardBar: ViewModifier {
+    let chosen: Date?
+    let parts: [DayPeriod]
+    let part: DayPeriod
+    /// Home or work, on your home or work board (nil: no direction to pick).
+    let toward: StationRole?
+    let showsAll: Bool
+    let plan: TripPlan?
+    let onSelectDay: (Date?) -> Void
+    let onSelectPart: (DayPeriod) -> Void
+    let onToggleDirection: () -> Void
+    let onGetHere: (TripPlan) -> Void
+
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content
+                .scrollEdgeEffectStyle(.soft, for: .bottom)
+                .toolbar {
+                    // With all three, the day is just its icon (the board's title names
+                    // a later day), so which way keeps its words.
+                    ToolbarItem(placement: .bottomBar) {
+                        day(compact: toward != nil && plan != nil, chrome: false)
+                    }
+                    if let toward {
+                        // (Text buttons each get their own glass.)
+                        ToolbarSpacer(.fixed, placement: .bottomBar)
+                        ToolbarItem(placement: .bottomBar) {
+                            BoardDirectionButton(toward: toward, showsAll: showsAll, chrome: false,
+                                                 toggle: onToggleDirection)
+                        }
+                    }
+                    ToolbarSpacer(.flexible, placement: .bottomBar)
+                    if let plan {
+                        ToolbarItem(placement: .bottomBar) {
+                            GetHereToolbarButton(plan: plan) { onGetHere(plan) }
+                        }
+                    }
+                }
+        } else {
+            content.pinnedBottomBar { ownBar }
+        }
+    }
+
+    private func day(compact: Bool, chrome: Bool) -> some View {
+        BoardDayMenu(selected: chosen, now: Date(), parts: parts, part: part, compact: compact, chrome: chrome,
+                     onSelectDay: onSelectDay, onSelectPart: onSelectPart)
+    }
+
+    /// Before iOS 26: glass-like capsules in a frosted bar. Where they don't all
+    /// fit, the day goes to its icon first, then which way.
+    private var ownBar: some View {
+        func row(dayCompact: Bool, directionCompact: Bool) -> some View {
+            HStack(spacing: 8) {
+                day(compact: dayCompact, chrome: true)
+                if let toward {
+                    BoardDirectionButton(toward: toward, showsAll: showsAll, compact: directionCompact,
+                                         toggle: onToggleDirection)
+                }
+                if let plan {
+                    GetHereButton(plan: plan) { onGetHere(plan) }
+                } else {
+                    Spacer(minLength: 0)
+                }
+            }
+        }
+        return ViewThatFits(in: .horizontal) {
+            row(dayCompact: false, directionCompact: false)
+            row(dayCompact: true, directionCompact: false)
+            row(dayCompact: true, directionCompact: true)
+        }
+    }
+}
+
 /// In the board's bottom bar: the day it shows ("Today", "Sat 14", with the part
 /// of a busy day: "Today · Noon"), and in its menu the week ahead and the parts.
 /// Compact, just its icon (and the part of the day, when it's narrowed to one).
@@ -572,6 +637,8 @@ struct BoardDayMenu: View {
     let parts: [DayPeriod]
     let part: DayPeriod
     var compact = false
+    /// Its own glass capsule; without, the label alone (the system toolbar gives it glass).
+    var chrome = true
     let onSelectDay: (Date?) -> Void
     let onSelectPart: (DayPeriod) -> Void
 
@@ -615,13 +682,10 @@ struct BoardDayMenu: View {
             }
             .font(.subheadline.weight(.semibold))
             .foregroundStyle(.primary)
-            .padding(.horizontal, compact && part == .allDay ? 0 : 14)
-            .frame(minWidth: 44, minHeight: 44)
-            .contentShape(Capsule())
+            .modifier(BarCapsule(on: chrome, iconOnly: compact && part == .allDay))
         }
         // (White like the other buttons, not the accent a menu's label takes.)
         .tint(Color.primary)
-        .glass(.interactive, in: Capsule())
         .fixedSize()
         .accessibilityLabel("Day: \(spoken)")
     }
@@ -660,6 +724,8 @@ struct BoardDirectionButton: View {
     let toward: StationRole
     let showsAll: Bool
     var compact = false
+    /// Its own glass capsule; without, the label alone (the system toolbar gives it glass).
+    var chrome = true
     let toggle: () -> Void
 
     var body: some View {
@@ -675,16 +741,54 @@ struct BoardDirectionButton: View {
                 }
             }
             .font(.subheadline.weight(.semibold))
-            .padding(.horizontal, compact ? 0 : 14)
-            .frame(minWidth: 44, minHeight: 44)
-            .contentShape(Capsule())
+            .modifier(BarCapsule(on: chrome, iconOnly: compact))
         }
         .buttonStyle(.plain)
-        .glass(.interactive, in: Capsule())
         .fixedSize()
         .accessibilityLabel(showsAll ? "Showing trains in all directions" : "Showing trains \(label.lowercased())")
         .accessibilityHint(showsAll ? (toward == .work ? "Shows just the trains toward work" : "Shows just the trains toward home")
                                     : "Shows the trains in all directions")
+    }
+}
+
+/// A bar button's own glass capsule, 44 points tall (a circle for an icon alone),
+/// when it isn't in the system toolbar, which gives its items their glass.
+private struct BarCapsule: ViewModifier {
+    let on: Bool
+    var iconOnly = false
+
+    func body(content: Content) -> some View {
+        if on {
+            content
+                .padding(.horizontal, iconOnly ? 0 : 14)
+                .frame(minWidth: 44, minHeight: 44)
+                .contentShape(Capsule())
+                .glass(.interactive, in: Capsule())
+        } else {
+            content
+        }
+    }
+}
+
+/// Get here in the system's bottom toolbar: its one prominent action, in the
+/// accent's green, on the trailing side (as the guidelines have a key action).
+@available(iOS 26.0, *)
+private struct GetHereToolbarButton: View {
+    let plan: TripPlan
+    let onTap: () -> Void
+
+    var body: some View {
+        let duration = plan.recommended.map { DurationText.text(from: AppClock.now, to: $0.arrivalThere) }
+        let origin = plan.origin.flatMap(RailNetwork.shared.station)?.name
+        Button(action: onTap) {
+            Label("Get here", systemImage: "arrow.triangle.turn.up.right.diamond.fill")
+                .labelStyle(.titleAndIcon)
+                .font(.subheadline.weight(.bold))
+        }
+        .buttonStyle(.glassProminent)
+        .tint(Color.accentColor)
+        .accessibilityLabel(GetHereButton.detail(duration: duration, from: origin).map { "Get here, \($0)" } ?? "Get here")
+        .accessibilityHint("Shows how to get here by train")
     }
 }
 
