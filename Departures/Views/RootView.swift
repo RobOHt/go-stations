@@ -190,7 +190,7 @@ struct RootView: View {
             case .active:
                 settings.reloadFromCloud()
                 if let backgroundedAt, Date.now.timeIntervalSince(backgroundedAt) > 15 * 60 {
-                    // A day picked on a board's week strip was for then: back to today.
+                    // A day picked in a board's day menu was for then: back to today.
                     BoardTime.shared.day = nil
                     BoardTime.shared.period = .allDay
                 }
@@ -777,7 +777,7 @@ struct RootView: View {
         if let period = UserDefaults.standard.string(forKey: "boardPeriod").flatMap(DayPeriod.init(rawValue:)) {
             BoardTime.shared.period = period
         }
-        // `-boardDaysAhead N`: boards show that day, as if picked on the week strip.
+        // `-boardDaysAhead N`: boards show that day, as if picked in the day menu.
         let ahead = UserDefaults.standard.integer(forKey: "boardDaysAhead")
         if ahead > 0 {
             BoardTime.shared.day = BoardDay.calendar.date(byAdding: .day, value: ahead,

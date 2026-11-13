@@ -2,8 +2,9 @@ import SwiftUI
 import UIKit
 
 /// The departure screen, rebuilt for a portrait phone: same title bar, same
-/// bilingual column headers, same colours and symbols. The Stops column moves
-/// under the destination so nothing ever scrolls sideways.
+/// colours and symbols, bilingual throughout. The stops go on one line under the
+/// destination (so nothing scrolls sideways, and a few trains fit at half
+/// height); a train's own view has them all.
 struct BoardView: View {
     let rows: [BoardRow]
     let station: Station
@@ -20,9 +21,6 @@ struct BoardView: View {
     var onToggleEarlier: (() -> Void)? = nil
     /// Rows from the timetable past the live ones: no platform or countdown yet.
     var timetableRowIDs: Set<String> = []
-    /// On your home or work station's board: which way the trains go, and the switch
-    /// for all of them; no switch without it.
-    var direction: BoardDirection? = nil
     /// A later day the board shows (the timetable's whole day) instead of today.
     var chosenDay: Date? = nil
 
@@ -31,11 +29,6 @@ struct BoardView: View {
         LazyVStack(spacing: 0) {
             BoardTitleBar(now: now, chosenDay: chosenDay)
             DottedRule()
-            if let direction {
-                DirectionSwitch(direction: direction)
-                DottedRule()
-            }
-            BoardColumnHeader()
 
             if let onToggleEarlier {
                 EarlierToggle(isShowing: earlierRows != nil, action: onToggleEarlier)
@@ -164,74 +157,6 @@ private struct BoardDayHeading: View {
     }
 }
 
-/// Which way the trains on your home or work station's board go: toward the other
-/// one, or every way.
-struct BoardDirection {
-    /// Home or work: the trains shown go toward it, unless `showsAll`.
-    let toward: StationRole
-    let showsAll: Bool
-    let toggle: () -> Void
-
-    var english: String { toward == .work ? "Toward work" : "Toward home" }
-    var french: String { toward == .work ? "Vers le travail" : "Vers la maison" }
-}
-
-/// Two choices side by side, bilingual like the column headers: the trains toward
-/// home (or work), or all of them.
-private struct DirectionSwitch: View {
-    let direction: BoardDirection
-
-    var body: some View {
-        HStack(spacing: 8) {
-            choice(english: direction.english, french: direction.french,
-                   symbol: direction.toward.symbolName, tint: Color(uiColor: direction.toward.uiColor),
-                   isOn: !direction.showsAll)
-            choice(english: "All directions", french: "Toutes directions",
-                   symbol: "arrow.left.arrow.right", tint: BoardTheme.white,
-                   isOn: direction.showsAll)
-        }
-        .padding(.horizontal, BoardTheme.horizontalPadding)
-        .padding(.vertical, 8)
-    }
-
-    private func choice(english: String, french: String, symbol: String, tint: Color, isOn: Bool) -> some View {
-        Button {
-            if !isOn { direction.toggle() }
-        } label: {
-            HStack(spacing: 8) {
-                Image(systemName: symbol)
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(isOn ? tint : BoardTheme.dimGrey)
-                    .frame(width: 18)
-                VStack(alignment: .leading, spacing: 0) {
-                    Text(english)
-                        .font(.system(size: 13, weight: .bold))
-                        .foregroundStyle(isOn ? BoardTheme.white : BoardTheme.dimGrey)
-                    Text(french)
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(isOn ? BoardTheme.frenchGrey : BoardTheme.dots)
-                }
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
-                Spacer(minLength: 0)
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .frame(maxWidth: .infinity)
-            .background(isOn ? BoardTheme.headerStrip : Color.clear,
-                        in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .strokeBorder(isOn ? Color.white.opacity(0.22) : BoardTheme.dots.opacity(0.6), lineWidth: 1)
-            }
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(english)
-        .accessibilityAddTraits(isOn ? .isSelected : [])
-    }
-}
-
 /// The small button above the trains that shows or hides the ones that already left.
 private struct EarlierToggle: View {
     let isShowing: Bool
@@ -300,7 +225,7 @@ struct BoardTitleBar: View {
 // MARK: - Day strip
 
 /// Today and the week after it, weekday over date like a calendar's week: one tap
-/// picks the day the board shows.
+/// picks the day (the trip card's; a board's is in its bottom bar's day menu).
 struct DayStrip: View {
     /// A later day at midnight; nil for today.
     let selected: Date?
@@ -356,43 +281,6 @@ struct DayStrip: View {
     private static let weekday = formatter("EEE")
     private static let date = formatter("d")
     private static let spoken = formatter("EEEE, MMMM d")
-}
-
-// MARK: - Column header
-
-struct BoardColumnHeader: View {
-    var body: some View {
-        HStack(alignment: .top, spacing: 0) {
-            BilingualLabel(english: "Scheduled", french: "Programmé")
-                .frame(width: BoardTheme.detailIndent + 10, alignment: .leading)
-            BilingualLabel(english: "To · Stops", french: "À · Arrêts")
-            Spacer(minLength: 6)
-            BilingualLabel(english: "Platform", french: "Quai", alignment: .trailing)
-        }
-        .padding(.horizontal, BoardTheme.horizontalPadding)
-        .padding(.vertical, 6)
-        .frame(maxWidth: .infinity)
-        .background(BoardTheme.headerStrip)
-    }
-}
-
-struct BilingualLabel: View {
-    let english: String
-    let french: String
-    var alignment: HorizontalAlignment = .leading
-
-    var body: some View {
-        VStack(alignment: alignment, spacing: 0) {
-            Text(english)
-                .font(.system(size: 13, weight: .bold))
-                .foregroundStyle(BoardTheme.white)
-            Text(french)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(BoardTheme.frenchGrey)
-        }
-        .lineLimit(1)
-        .fixedSize()
-    }
 }
 
 // MARK: - Row
@@ -497,7 +385,8 @@ struct BoardRowView: View {
             Text(row.stops.joined(separator: " - "))
                 .font(.system(size: 13.5, weight: .semibold))
                 .foregroundStyle(BoardTheme.white)
-                .lineLimit(2)
+                .lineLimit(1)
+                .truncationMode(.tail)
         }
     }
 }

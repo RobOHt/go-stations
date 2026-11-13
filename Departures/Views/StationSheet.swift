@@ -2,7 +2,9 @@ import SwiftUI
 import UIKit
 
 /// Bottom sheet for one station: name, lines and home/work toggles on glass, the
-/// board below. Tapping a train opens its stop list in another sheet.
+/// board right under them, so a few trains show even at half height. The day,
+/// which way, and Get here sit in a bar at the bottom, where thumbs are, over the
+/// board's soft edge. Tapping a train opens its stop list in another sheet.
 struct StationSheet: View {
     let station: Station
     /// Its Get here button, tapped: the trip card to it (with the plan the button
@@ -21,7 +23,7 @@ struct StationSheet: View {
     /// Timetable trains after the live ones, so the board always shows a few trains
     /// (your way, when it's filtered), however far ahead the next ones are.
     @State private var laterRows: [BoardRow] = []
-    /// The timetable's whole day picked on the week strip (nil while it loads).
+    /// The timetable's whole day picked in the day menu (nil while it loads).
     @State private var plannedRows: [BoardRow]?
     /// What the home or work button is about to do, asked first. Worked out when the
     /// button is tapped, so the words don't change while the dialog closes.
@@ -51,7 +53,7 @@ struct StationSheet: View {
         let liveTrips = Set(allRows.map(\.tripNumber))
         let added = model.snapshot == nil ? [] : (filter.map { laterRows.filter($0.includes) } ?? laterRows)
             .filter { !liveTrips.contains($0.tripNumber) }
-        // A later day picked on the week strip: the timetable's whole day.
+        // A later day picked in the day menu: the timetable's whole day.
         let chosen = BoardTime.shared.shownDay(at: Date())
         let planned = plannedRows.map { list in filter.map { list.filter($0.includes) } ?? list }
         let dayRows = chosen == nil ? live + added : planned ?? []
@@ -69,25 +71,6 @@ struct StationSheet: View {
         let earlier = earlierRows.map { list in (filter.map { list.filter($0.includes) } ?? list).filter { part.contains($0.scheduled) } }
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
-                if let onGetHere, let plan = getHere, plan.destination.station == station.code,
-                   GetHereButton.shows(plan) {
-                    GetHereButton(plan: plan) { onGetHere(plan) }
-                        .transition(.opacity.combined(with: .move(edge: .top)))
-                }
-                DayStrip(selected: chosen, now: Date()) { day in
-                    withAnimation(.snappy) { BoardTime.shared.day = day }
-                }
-                if showsParts {
-                    Picker("Time of day", selection: Binding(get: { part }, set: { new in
-                        withAnimation(.snappy) { BoardTime.shared.period = new }
-                    })) {
-                        Text(DayPeriod.allDay.label).tag(DayPeriod.allDay)
-                        ForEach(parts, id: \.self) { part in
-                            Text(part.label).tag(part)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                }
                 TimelineView(.periodic(from: .now, by: 1)) { context in
                     BoardView(
                         rows: rows,
@@ -107,11 +90,6 @@ struct StationSheet: View {
                         earlierRows: chosen == nil ? earlier : nil,
                         onToggleEarlier: chosen == nil ? toggleEarlier : nil,
                         timetableRowIDs: chosen == nil ? Set(added.map(\.id)) : [],
-                        direction: commute.map { commute in
-                            BoardDirection(toward: commute.toward, showsAll: showsAllDirections) {
-                                withAnimation(.snappy) { showsAllDirections.toggle() }
-                            }
-                        },
                         chosenDay: chosen
                     )
                 }
@@ -127,6 +105,8 @@ struct StationSheet: View {
         .scrollIndicators(.hidden)
         // The name, lines and buttons stay pinned in a bar over the board.
         .pinnedHeader { header }
+        // The day, which way, and Get here: in a bar at the bottom.
+        .pinnedBottomBar { bottomBar(chosen: chosen, parts: showsParts ? parts : [], part: part, commute: commute) }
         .environment(\.glassBackdrop, .sheet)
         // No pull-to-refresh: pulling down closes the sheet. The board keeps
         // itself current instead.
@@ -257,6 +237,44 @@ struct StationSheet: View {
             }
             #endif
             try? await Task.sleep(for: .seconds(60))
+        }
+    }
+
+    // MARK: The bar at the bottom
+
+    /// The day the board shows (on a busy one, the part of it too), which way on
+    /// your home or work board, and Get here: each a tap away, at the bottom of
+    /// the card. The labels give way to icons where they don't all fit.
+    private func bottomBar(chosen: Date?, parts: [DayPeriod], part: DayPeriod,
+                           commute: (direction: CommuteDirection, toward: StationRole)?) -> some View {
+        let plan = getHere.flatMap { plan in
+            onGetHere != nil && plan.destination.station == station.code && GetHereButton.shows(plan) ? plan : nil
+        }
+        func row(compact: Bool) -> some View {
+            HStack(spacing: 8) {
+                BoardDayMenu(selected: chosen, now: Date(), parts: parts, part: part) { day in
+                    withAnimation(.snappy) { BoardTime.shared.day = day }
+                } onSelectPart: { new in
+                    withAnimation(.snappy) { BoardTime.shared.period = new }
+                }
+                if let commute {
+                    BoardDirectionButton(toward: commute.toward, showsAll: showsAllDirections, compact: compact) {
+                        withAnimation(.snappy) { showsAllDirections.toggle() }
+                    }
+                }
+                if let plan, let onGetHere {
+                    GetHereButton(plan: plan) { onGetHere(plan) }
+                        .transition(.opacity.combined(with: .scale(scale: 0.9)))
+                } else {
+                    Spacer(minLength: 0)
+                }
+            }
+        }
+        return GlassGroup(spacing: 8) {
+            ViewThatFits(in: .horizontal) {
+                row(compact: false)
+                row(compact: true)
+            }
         }
     }
 
@@ -540,6 +558,124 @@ private struct AlertCard: View {
     }
 }
 
+/// In the board's bottom bar: the day it shows ("Today", "Sat 14", with the part
+/// of a busy day: "Today · Noon"), and in its menu the week ahead and the parts.
+struct BoardDayMenu: View {
+    /// A later day at midnight; nil for today.
+    let selected: Date?
+    let now: Date
+    /// The parts of the day it can narrow to (none: the whole day only).
+    let parts: [DayPeriod]
+    let part: DayPeriod
+    let onSelectDay: (Date?) -> Void
+    let onSelectPart: (DayPeriod) -> Void
+
+    var body: some View {
+        Menu {
+            Section("Day") {
+                Picker("Day", selection: Binding(get: { selected }, set: onSelectDay)) {
+                    ForEach(Array(days.enumerated()), id: \.element) { index, day in
+                        Text(BoardDay.names(for: day, now: now).english)
+                            .tag(index == 0 ? Date?.none : Date?.some(day))
+                    }
+                }
+                .pickerStyle(.inline)
+                .labelsHidden()
+            }
+            if parts.count > 1 {
+                Section("Time of day") {
+                    Picker("Time of day", selection: Binding(get: { part }, set: onSelectPart)) {
+                        Text(DayPeriod.allDay.label).tag(DayPeriod.allDay)
+                        ForEach(parts, id: \.self) { part in
+                            Text(part.label).tag(part)
+                        }
+                    }
+                    .pickerStyle(.inline)
+                    .labelsHidden()
+                }
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "calendar")
+                Text(title)
+                    .lineLimit(1)
+                Image(systemName: "chevron.down")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.secondary)
+            }
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(.primary)
+            .padding(.horizontal, 14)
+            .frame(minHeight: 44)
+            .contentShape(Capsule())
+        }
+        .glass(.interactive, in: Capsule())
+        .fixedSize()
+        .accessibilityLabel("Day: \(spoken)")
+    }
+
+    /// "Today", "Sat 14", and the part of the day when it's narrowed to one.
+    private var title: String {
+        let day = selected.map(Self.short.string(from:)) ?? "Today"
+        return part == .allDay ? day : "\(day) · \(part.label)"
+    }
+
+    private var spoken: String {
+        let day = selected.map { BoardDay.names(for: $0, now: now).english } ?? "Today"
+        return part == .allDay ? day : "\(day), \(part.label)"
+    }
+
+    /// Today and the next `BoardTime.daysAhead` days, at midnight (as the trip card's week strip has them).
+    private var days: [Date] {
+        let calendar = BoardDay.calendar
+        let today = calendar.startOfDay(for: now)
+        return (0...BoardTime.daysAhead).compactMap { calendar.date(byAdding: .day, value: $0, to: today) }
+    }
+
+    private static let short: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_CA")
+        formatter.timeZone = TorontoTime.zone
+        formatter.dateFormat = "EEE d"
+        return formatter
+    }()
+}
+
+/// In the board's bottom bar, on your home or work station's board: which way its
+/// trains go ("Toward work"), or "All directions"; a tap switches. Just the icon
+/// where the labels don't all fit.
+struct BoardDirectionButton: View {
+    let toward: StationRole
+    let showsAll: Bool
+    var compact = false
+    let toggle: () -> Void
+
+    var body: some View {
+        let label = showsAll ? "All directions" : (toward == .work ? "Toward work" : "Toward home")
+        Button(action: toggle) {
+            HStack(spacing: 6) {
+                Image(systemName: showsAll ? "arrow.left.arrow.right" : toward.symbolName)
+                    .foregroundStyle(showsAll ? Color.primary : Color(uiColor: toward.uiColor))
+                if !compact {
+                    Text(label)
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                }
+            }
+            .font(.subheadline.weight(.semibold))
+            .padding(.horizontal, compact ? 0 : 14)
+            .frame(minWidth: 44, minHeight: 44)
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .glass(.interactive, in: Capsule())
+        .fixedSize()
+        .accessibilityLabel(showsAll ? "Showing trains in all directions" : "Showing trains \(label.lowercased())")
+        .accessibilityHint(showsAll ? (toward == .work ? "Shows just the trains toward work" : "Shows just the trains toward home")
+                                    : "Shows the trains in all directions")
+    }
+}
+
 /// Home and work colours, as in Apple Maps: home blue, work brown. Used on the
 /// map pins, the buttons, Settings, search and the trip sheet.
 enum RoleColor {
@@ -547,9 +683,10 @@ enum RoleColor {
     static let work = Color(uiColor: StationRole.work.uiColor)
 }
 
-/// On a station's board, a tap away: how to get there from where you are, by
-/// train (search's stations open their boards first). "Get here · 36 min from
-/// Port Credit", from the plan the board makes (`StationSheet.planGetHere`).
+/// In a station's board's bottom bar: Get here, filling the room the day and the
+/// direction leave. It opens the trip card here from where you are, with the
+/// plan the board made (`StationSheet.planGetHere`); how long that takes, and
+/// from where ("36 min from Port Credit"), VoiceOver says.
 struct GetHereButton: View {
     let plan: TripPlan
     let onTap: () -> Void
@@ -557,35 +694,24 @@ struct GetHereButton: View {
     private let network = RailNetwork.shared
 
     var body: some View {
-        let now = AppClock.now
-        let duration = plan.recommended.map { DurationText.text(from: now, to: $0.arrivalThere) }
+        let duration = plan.recommended.map { DurationText.text(from: AppClock.now, to: $0.arrivalThere) }
         let origin = plan.origin.flatMap(network.station)?.name
         Button(action: onTap) {
-            HStack(spacing: 10) {
+            HStack(spacing: 6) {
                 Image(systemName: "arrow.triangle.turn.up.right.diamond.fill")
-                    .font(.body.weight(.semibold))
                     .foregroundStyle(Color.accentColor)
                 Text("Get here")
-                    .font(.body.weight(.bold))
                     .foregroundStyle(Self.labelColor)
-                Spacer(minLength: 8)
-                if let detail = Self.detail(duration: duration, from: origin) {
-                    Text(detail)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
-                }
-                Image(systemName: "chevron.right")
-                    .font(.footnote.weight(.bold))
-                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
             }
-            .padding(.horizontal, 16)
-            .frame(minHeight: 52)
+            .font(.subheadline.weight(.bold))
+            .padding(.horizontal, 14)
+            .frame(maxWidth: .infinity, minHeight: 44)
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)
         .glass(.tinted(Color.accentColor.opacity(0.3)), in: Capsule())
+        .accessibilityLabel(Self.detail(duration: duration, from: origin).map { "Get here, \($0)" } ?? "Get here")
         .accessibilityHint("Shows how to get here by train")
     }
 

@@ -203,6 +203,46 @@ private struct PinnedHeader<Header: View>: ViewModifier {
     }
 }
 
+// MARK: - Pinned sheet bar at the bottom
+
+extension View {
+    /// Pins `bar` over the bottom of this scroll view, like a toolbar, where
+    /// thumbs are: the content scrolls under it with the system's soft scroll
+    /// edge, and the bar's glass buttons float over that.
+    func pinnedBottomBar<Bar: View>(@ViewBuilder _ bar: () -> Bar) -> some View {
+        modifier(PinnedBottomBar(bar: bar()
+            .padding(.horizontal, 14)
+            .padding(.top, 8)
+            .padding(.bottom, 6)))
+    }
+}
+
+/// See `pinnedBottomBar`. Before iOS 26 (no soft scroll edge) the bar is like a
+/// toolbar of then: frosted, with a hairline above.
+private struct PinnedBottomBar<Bar: View>: ViewModifier {
+    let bar: Bar
+
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content
+                .scrollEdgeEffectStyle(.soft, for: .bottom)
+                .safeAreaBar(edge: .bottom) { bar }
+        } else {
+            content
+                .safeAreaInset(edge: .bottom, spacing: 0) {
+                    bar
+                        .frame(maxWidth: .infinity)
+                        .background {
+                            Rectangle()
+                                .fill(.bar)
+                                .overlay(alignment: .top) { Divider() }
+                                .ignoresSafeArea(edges: .bottom)
+                        }
+                }
+        }
+    }
+}
+
 /// A lone round glass close button, matching the grouped glass buttons.
 struct GlassCloseButton: View {
     let action: () -> Void

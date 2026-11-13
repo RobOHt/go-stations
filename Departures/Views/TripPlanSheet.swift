@@ -119,7 +119,7 @@ final class TripPlanModel: Identifiable {
 }
 
 /// The trip card, from search: "To Union Station", where it starts (the station
-/// you'd get there soonest from, or one you pick), a week strip like the boards',
+/// you'd get there soonest from, or one you pick), a week strip,
 /// and the day's trips with their changes. Today, near enough to set off, it
 /// offers the trip you'd make: "This trip will get you to Union Station in 1 h 5
 /// min", track it or not; tracking it then asks about alerts. The map shows the

@@ -43,7 +43,7 @@ final class BoardModel {
     }
 }
 
-/// The day the boards show when it isn't today: picked on a board's week strip. It
+/// The day the boards show when it isn't today: picked in a board's day menu. It
 /// stays for every board opened after it (planning a trip means looking at a few
 /// stations) until Today is picked again, the day comes, or the app has been away a
 /// while.
