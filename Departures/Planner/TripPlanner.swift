@@ -206,6 +206,8 @@ enum TripPlanner {
         }
 
         let reach = Self.reach
+        // Today: round the trains GO says are cancelled, or won't stop where you'd get on or off.
+        let cancelled = isToday ? await CancelledTrains.shared.list(maxAge: 60) : nil
         let result = await Task.detached(priority: .userInitiated) {
             () -> (origin: String?, kind: TripPlan.Origin, start: CommutePlanner.Access?,
                    itineraries: [CommutePlanner.Itinerary], view: CommutePlanner.View, nowMinute: Int)? in
@@ -213,7 +215,8 @@ enum TripPlanner {
             // on another day.
             guard let clock = isToday ? CommutePlanner.Clock.at(now) : CommutePlanner.Clock.on(day: dayKey, minute: 8 * 60)
             else { return nil }
-            let view = planner.view(day: dayKey, shifts: clock.shifts)
+            var view = planner.view(day: dayKey, shifts: clock.shifts)
+            if let cancelled { view.close(cancelled) }
             var start: CommutePlanner.Access?
             var picked = origin
             var kind = TripPlan.Origin.chosen

@@ -539,6 +539,14 @@ struct CommutePlanner: Sendable {
 
         var trips: [Trip] = []
         var connections: [Connection] = []
+        /// Stops you can't get on or off at, by trip (its index in `trips`): where
+        /// GO says the train won't stop (it still runs through them), or all of a
+        /// cancelled trip's.
+        var closed: [Int: Set<Int>] = [:]
+
+        func isClosed(_ trip: Int, _ stop: Int) -> Bool {
+            !closed.isEmpty && closed[trip]?.contains(stop) == true
+        }
     }
 
     /// Trips around a calendar day, times in minutes from that day's start.
@@ -609,7 +617,8 @@ struct CommutePlanner: Sendable {
                 var changed = false
                 for j in 1...maxLegs {
                     if let boards, boards[j] != nil { continue }
-                    if (best[j - 1][a] ?? inf) + transfer <= connection.dep {
+                    if (best[j - 1][a] ?? inf) + transfer <= connection.dep,
+                       !view.isClosed(connection.trip, connection.k) {
                         if boards == nil { boards = Array(repeating: nil, count: maxLegs + 1) }
                         boards![j] = connection.k
                         changed = true
@@ -619,6 +628,8 @@ struct CommutePlanner: Sendable {
             }
             guard let boards else { continue }
             let b = stops[connection.k + 1]
+            // (Not off where it won't stop.)
+            if view.isClosed(connection.trip, connection.k + 1) { continue }
             for j in 1...maxLegs {
                 if let board = boards[j], connection.arr < (best[j][b] ?? inf) {
                     best[j][b] = connection.arr

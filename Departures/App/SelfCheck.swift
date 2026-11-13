@@ -23,6 +23,7 @@ enum SelfCheck {
         progressiveBlur()
         getHere()
         cancelledTrain()
+        plannedRoundCancelled()
         lines.append("done")
         write()
         NSLog("SelfCheck: done")
@@ -335,6 +336,31 @@ enum SelfCheck {
         let running = try? JSONDecoder().decode(TripActivityAttributes.ContentState.self,
                                                 from: Data((push + #""platform": "2"}"#).utf8))
         check("cancelled: a running train's push has none", running != nil && running?.cancelled == nil)
+    }
+
+    /// Trips planned today go round trains GO says won't stop where you'd get on
+    /// or off, and still ride through where they won't stop.
+    private static func plannedRoundCancelled() {
+        // Two made-up Lakeshore West trains, Aldershot to Union, half an hour apart
+        // (minutes from the start of the service day).
+        let times = [430, 442, 460, 465, 471, 480]
+        let timetable = CommutePlanner.Timetable(
+            generated: "self-check", patterns: [["AL", "BU", "OA", "CL", "PO", "UN"]],
+            trips: [CommutePlanner.Timetable.Trip(number: "1925", line: "LW", pattern: 0, times: times),
+                    CommutePlanner.Timetable.Trip(number: "1927", line: "LW", pattern: 0, times: times.map { $0 + 30 })],
+            days: ["20261110": [0, 1]])
+        let planner = CommutePlanner(network: StartupStation.network, timetable: timetable)
+        func taken(skipping skips: [String], to dest: String) -> String? {
+            var view = planner.view(day: "20261110", shifts: [-1440, 0, 1440])
+            let feeds = CancelledTrains.List(entries: [.init(trip: "1925", day: "20261110", skips: skips)],
+                                             fetchedAt: Date())
+            view.close(feeds)
+            return planner.journey(from: "OA", at: 450, to: dest, in: view)?.legs.first.map { view.trips[$0.trip].number }
+        }
+        check("planned: the first train, running", taken(skipping: [], to: "UN") == "1925")
+        check("planned: not the one that won't stop where you get on", taken(skipping: ["AL", "BU", "OA"], to: "UN") == "1927")
+        check("planned: through where it won't stop", taken(skipping: ["PO"], to: "UN") == "1925")
+        check("planned: not the one that won't stop where you get off", taken(skipping: ["PO"], to: "PO") == "1927")
     }
 
     // MARK: Made-up trips

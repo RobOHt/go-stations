@@ -109,3 +109,17 @@ actor CancelledTrains {
         return List(entries: List.entries(from: exceptions), fetchedAt: Date())
     }
 }
+
+extension CommutePlanner.View {
+    /// Closes the stops GO says its trains won't stop at, and every stop of a
+    /// cancelled trip, so trips planned today go round them.
+    mutating func close(_ cancelled: CancelledTrains.List) {
+        for (index, trip) in trips.enumerated() {
+            guard let status = cancelled.status(of: trip.number, serviceDays: trip.day.isEmpty ? [] : [trip.day])
+            else { continue }
+            let stops = status.all ? Set(trip.stops.indices)
+                : Set(trip.stops.indices.filter { status.skips.contains(trip.stops[$0]) })
+            if !stops.isEmpty { closed[index] = stops }
+        }
+    }
+}
