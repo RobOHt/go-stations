@@ -160,9 +160,19 @@ final class TripAlerts: NSObject {
         // Changing, and getting off: unless the worker sends them.
         if !workerSends.contains(trip.activityID) {
             for (index, leg) in trip.legsFromHere().prefix(Self.legIDs.count).enumerated() {
+                // A train cancelled for you (the next one, found before you get there): none for it, or after it.
+                if leg.cancelled != nil { break }
                 guard let arrival = leg.arrival, arrival.addingTimeInterval(-Self.lead) > now else { continue }
                 let stop = name(leg.destinationCode)
-                if let change = TripActivityController.change(after: leg) {
+                if let change = TripActivityController.change(after: leg), change.cancelled == true {
+                    alerts.append(Alert(
+                        id: Self.legIDs[index],
+                        date: arrival.addingTimeInterval(-Self.lead),
+                        title: "\(stop) in 5 min",
+                        body: "Your \(TorontoTime.hourMinute(change.departure)) connection there is cancelled. "
+                            + "Open GO Stations to plan another way."
+                    ))
+                } else if let change = TripActivityController.change(after: leg) {
                     let line = change.lineName.map { "\($0) line" } ?? "\(change.lineCode) line"
                     alerts.append(Alert(
                         id: Self.legIDs[index],

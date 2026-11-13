@@ -362,6 +362,15 @@ export function alertFor(job, state, now) {
   if (change && typeof change === "object") {
     const line = change.lineName ? `${change.lineName} line` : String(change.lineCode ?? "next");
     const at = Number.isFinite(change.departure) ? `${torontoClock(change.departure)} ` : "";
+    // The train you'd change to cancelled (as the worker last looked, or the app had it).
+    const cancelled = job.connectionCheckedAt != null ? Boolean(job.connectionCancelled) : change.cancelled === true;
+    if (cancelled) {
+      return {
+        key,
+        title: `${name} in ${minutes} min`,
+        body: `Your ${at}connection there is cancelled. Open GO Stations to plan another way.`,
+      };
+    }
     return {
       key,
       title: `Change at ${name} in ${minutes} min`,

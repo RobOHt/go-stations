@@ -76,6 +76,28 @@ test("the change alert comes 5 minutes before Union, once, on the train", () => 
   assert.equal(alertFor({ ...trip, alerts: false }, riding, due - 200), null);
 });
 
+test("the change alert, when the train you'd change to is cancelled", () => {
+  const trip = job();
+  const due = arrivalAt(trip.state.stops, 3);
+  const riding = { ...trip.state, hasDeparted: true };
+  const said = {
+    title: "Union in 5 min",
+    body: "Your 07:39 connection there is cancelled. Open GO Stations to plan another way.",
+  };
+  // As the worker last looked...
+  const looked = alertFor({ ...trip, connectionCheckedAt: at("07:20"), connectionCancelled: { all: true } }, riding,
+                          due - ALERT_BEFORE + 5);
+  assert.deepEqual({ title: looked.title, body: looked.body }, said);
+  // ...or before it has, as the app had it.
+  const claimed = { ...riding, change: { ...riding.change, cancelled: true } };
+  const told = alertFor(trip, claimed, due - ALERT_BEFORE + 5);
+  assert.deepEqual({ title: told.title, body: told.body }, said);
+  // Looked, and it's running (whatever the app thought).
+  const running = alertFor({ ...trip, connectionCheckedAt: at("07:20"), connectionCancelled: null }, claimed,
+                           due - ALERT_BEFORE + 5);
+  assert.equal(running.title, "Change at Union in 5 min");
+});
+
 test("the get-off alert on the last train", () => {
   const trip = nextLeg(job(), at("07:35"));
   const riding = { ...trip.state, hasDeparted: true };
