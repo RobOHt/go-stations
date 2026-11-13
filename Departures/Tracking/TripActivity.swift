@@ -1133,23 +1133,37 @@ struct TripCancelledDetail: View {
 }
 
 /// In place of the countdown: "Cancelled" in red, under the time it was due to
-/// leave your station, struck through.
+/// leave your station, struck through. In the island, where the title under the
+/// camera leaves less room, the other way round: "Cancelled" small over the time
+/// struck through, as "Arrives in" is over the countdown.
 struct TripCancelledBadge: View {
     let time: Date?
     let fontSize: CGFloat
+    var inIsland = false
 
     var body: some View {
         VStack(alignment: .trailing, spacing: 0) {
-            if let time {
-                Text(TripActivityFormat.time(time))
+            if inIsland, let time {
+                Text("Cancelled")
                     .font(.caption.weight(.semibold))
+                    .foregroundStyle(.red)
+                Text(TripActivityFormat.time(time))
+                    .font(.system(size: fontSize, weight: .semibold))
                     .monospacedDigit()
                     .strikethrough()
                     .foregroundStyle(.secondary)
+            } else {
+                if let time {
+                    Text(TripActivityFormat.time(time))
+                        .font(.caption.weight(.semibold))
+                        .monospacedDigit()
+                        .strikethrough()
+                        .foregroundStyle(.secondary)
+                }
+                Text("Cancelled")
+                    .font(.system(size: fontSize, weight: .semibold))
+                    .foregroundStyle(.red)
             }
-            Text("Cancelled")
-                .font(.system(size: fontSize, weight: .semibold))
-                .foregroundStyle(.red)
         }
         .lineLimit(1)
         .fixedSize()
@@ -1342,7 +1356,7 @@ struct TripExpandedTrailing: View {
         let trip = TripActivityTrip(attributes, state)
         let moment = trip.moment(at: Date(), isStale: isStale)
         if state.cancelled != nil {
-            TripCancelledBadge(time: TripCancelledBadge.time(attributes, trip), fontSize: 22)
+            TripCancelledBadge(time: TripCancelledBadge.time(attributes, trip), fontSize: 24, inIsland: true)
         } else if moment.kind != .approaching {
             TripTimeBlock(trip: trip, moment: moment, fontSize: 24)
         } else if let target = moment.target {

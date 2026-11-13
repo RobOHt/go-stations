@@ -309,11 +309,12 @@ jobs:
           shoot 5g-station-get-here 16 station -debugStation OA
           shoot 5h-get-here-trip 22 station -debugStation OA -getHere YES
           # Cancelled at the station (made up: every train, here).
-          shoot 5i-station-cancelled 12 station -debugSkips OA
+          shoot 5i-station-cancelled 12 stationLarge -debugSkips UN
           shoot 6-station-large 10 stationLarge
           shoot 7-trip 15 trip
-          # A train not stopping at two of its stations (made up: every train, here).
-          shoot 7b-trip-skipping 15 trip -debugSkips CL,PO
+          # A train not stopping at two of its stations (made up: every train skips
+          # these, two on each line out of Union).
+          shoot 7b-trip-skipping 15 trip -debugSkips BL,WE,MI,LO,DA,SC,KE,AG,DW,RU,OR,OL,KP
           # Control: a board scrolled under its pinned header (does the simulator draw edge effects?).
           shoot 8-station-scrolled 16 stationScrolled
           # The home and work buttons ask first: replace home (set to Oakville), remove work (Union).
