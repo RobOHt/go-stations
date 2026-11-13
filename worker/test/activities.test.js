@@ -15,7 +15,7 @@ register("data:text/javascript," + encodeURIComponent(`
     }
     return next(specifier, context);
   }`));
-const { LiveActivities } = await import("../src/index.js");
+const { default: worker, LiveActivities } = await import("../src/index.js");
 
 // 2026-11-13 in Toronto (EST, UTC-5).
 const at = (clock) => {
@@ -239,4 +239,34 @@ test("no answer from the feeds: the next look after the usual wait", async () =>
   } finally {
     feeds.failing = false;
   }
+});
+
+test("the app's request: what it asks for the trip, and the list it reads", async () => {
+  now = at("06:50");
+  feeds.skips = ["OA"];
+  const target = activities();
+  const routed = { ...env, LIVE_ACTIVITIES: { idFromName: () => "all", get: () => target.object } };
+  const body = { ...job({ quiet: true, told: true }), missedCheck: false };
+  const response = await worker.fetch(new Request("https://worker.test/v1/activity", {
+    method: "POST", body: JSON.stringify(body),
+  }), routed);
+  assert.equal(response.status, 204);
+  const kept = stored(target);
+  assert.equal(kept.quiet, true);
+  assert.equal(kept.device, DEVICE);
+  assert.equal(kept.missedCheck, undefined);
+  // Told by the app already: no alert from the worker, just the activity.
+  assert.equal(kept.cancelAlerted, true);
+  const sent = await runAlarm(target);
+  assert.equal(live(sent).length, 1);
+  assert.equal(live(sent)[0].body.aps.alert, undefined);
+
+  // GET /v1/live/cancelled: the trains the feeds have, cached half a minute.
+  now += 60;
+  const list = await worker.fetch(new Request("https://worker.test/v1/live/cancelled"), routed);
+  assert.equal(list.status, 200);
+  assert.equal(list.headers.get("Cache-Control"), "public, max-age=30");
+  const listed = await list.json();
+  assert.deepEqual(listed.trips, [{ trip: "1925", day: "20261113", skips: ["OA"] }]);
+  assert.deepEqual(listed.from, ["exceptions", "updates"]);
 });
