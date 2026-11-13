@@ -13,6 +13,10 @@ final class TripPlanModel: Identifiable {
     let backTo: String?
     /// The station picked to start from; nil for the fastest from where you are.
     private(set) var origin: String?
+    /// Trains from `origin` after this time only: where you change, once you get
+    /// there, for a connection that's cancelled (see `planAnotherWay(around:)`).
+    /// Gone once you pick another station or day.
+    private(set) var after: Date?
     /// A later day picked on the week strip; nil for today.
     private(set) var day: Date?
     private(set) var plan: TripPlan?
@@ -35,12 +39,22 @@ final class TripPlanModel: Identifiable {
     @ObservationIgnored private var planning: Task<Void, Never>?
 
     /// `plan`: one already made (by a board's Get here), shown while it's made afresh.
-    init(destination: PlanDestination, home: String?, work: String?, plan: TripPlan? = nil, backTo: String? = nil) {
+    init(destination: PlanDestination, home: String?, work: String?, plan: TripPlan? = nil, backTo: String? = nil,
+         origin: String? = nil, after: Date? = nil) {
         self.destination = destination
         self.home = home
         self.work = work
         self.plan = plan
         self.backTo = backTo
+        self.origin = origin
+        self.after = origin == nil ? nil : after
+    }
+
+    /// The tracked trip's next train is cancelled: the trip card to where it's
+    /// going, from where you change, for trains after you get there.
+    static func planAnotherWay(around trip: TrackedTrip) {
+        guard let next = trip.onward?.first else { return }
+        AppRoute.shared.plan(to: trip.finalDestinationCode, from: next.boardingCode, after: trip.arrival)
     }
 
     func start() {
@@ -50,6 +64,7 @@ final class TripPlanModel: Identifiable {
     func pickOrigin(_ code: String?) {
         guard code != origin else { return }
         origin = code
+        after = nil
         openID = nil
         replan()
     }
@@ -57,6 +72,7 @@ final class TripPlanModel: Identifiable {
     func pickDay(_ newDay: Date?) {
         guard newDay != day else { return }
         day = newDay
+        after = nil
         openID = nil
         replan()
     }
@@ -65,10 +81,11 @@ final class TripPlanModel: Identifiable {
         planning?.cancel()
         isPlanning = true
         let destination = self.destination, origin = self.origin, day = self.day, home = self.home, work = self.work
+        let after = self.after
         planning = Task { [weak self] in
             let location = await LocationProvider.shared.currentLocation(maxAge: 120)
             let plan = await TripPlanner.plan(to: destination, from: origin, on: day, location: location,
-                                              home: home, work: work, now: AppClock.now)
+                                              home: home, work: work, now: AppClock.now, after: after)
             guard let self, !Task.isCancelled else { return }
             withAnimation(.snappy) {
                 self.plan = plan
@@ -262,7 +279,13 @@ struct TripPlanSheet: View {
         guard let origin = plan.origin, let station = network.station(origin) else {
             return plan.isThere ? "Start from another station" : "Pick a station to start from"
         }
-        guard let start = plan.start else { return "From \(station.name)" }
+        guard let start = plan.start else {
+            // From where you change, once you get there.
+            if let after = model.after, after > AppClock.now {
+                return "From \(station.name) · after \(TorontoTime.hourMinute(after))"
+            }
+            return "From \(station.name)"
+        }
         let getting = start.onFoot ? "\(DurationText.text(minutes: start.minutes)) walk"
                                    : "\(DurationText.text(minutes: start.minutes)) drive"
         return "From \(station.name) · \(getting)"

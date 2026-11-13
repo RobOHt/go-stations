@@ -195,6 +195,9 @@ struct TripActivityAttributes: ActivityAttributes {
         /// Where it goes, and where you get off it.
         var terminusName: String
         var destinationName: String
+        /// GO says it won't come for you: cancelled, or not stopping where you
+        /// change to it or get off it (nil: it runs).
+        var cancelled: Bool? = nil
     }
 
     /// One of the train's stops.
@@ -353,7 +356,7 @@ extension TripActivityAttributes.Leg {
 
 extension TripActivityAttributes.Change {
     private enum CodingKeys: String, CodingKey {
-        case station, lineCode, lineColorHex, lineName, departure, terminusName, destinationName
+        case station, lineCode, lineColorHex, lineName, departure, terminusName, destinationName, cancelled
     }
 
     init(from decoder: Decoder) throws {
@@ -365,6 +368,7 @@ extension TripActivityAttributes.Change {
         departure = try TripActivityTime.decode(values, .departure)
         terminusName = try values.decode(String.self, forKey: .terminusName)
         destinationName = try values.decode(String.self, forKey: .destinationName)
+        cancelled = try values.decodeIfPresent(Bool.self, forKey: .cancelled)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -376,6 +380,7 @@ extension TripActivityAttributes.Change {
         try values.encode(TripActivityTime.number(departure), forKey: .departure)
         try values.encode(terminusName, forKey: .terminusName)
         try values.encode(destinationName, forKey: .destinationName)
+        try values.encodeIfPresent(cancelled == true ? true : nil, forKey: .cancelled)
     }
 }
 
@@ -716,7 +721,8 @@ struct TripNextLine: View {
         case .waiting:
             return plain("Waiting at ") + bold(name(0))
         case .riding:
-            if change != nil, moment.next == trip.destination {
+            // (Not to the next train, when it's cancelled.)
+            if let change, change.cancelled != true, moment.next == trip.destination {
                 return plain("Change at ") + bold(name(moment.next))
             }
             return plain("Next stop: ") + bold(name(moment.next))
@@ -811,6 +817,8 @@ struct TripApproachSentence: View {
 
 /// On a trip with changes, under the stops: "Change at Union for the 17:30 to
 /// Lincolnville", one line, after the next train's pill (which says its line).
+/// That train cancelled: "Your 17:30 from Union is cancelled", the time struck
+/// through as on the cancelled badge.
 struct TripChangeLine: View {
     let change: TripActivityAttributes.Change
     let onDark: Bool
@@ -837,16 +845,27 @@ struct TripChangeLine: View {
     }
 
     private var sentence: Text {
-        Text("Change at ").foregroundStyle(.secondary)
+        let time = Text(TripActivityFormat.time(change.departure)).fontWeight(.semibold).monospacedDigit()
+        if change.cancelled == true {
+            return Text("Your ").foregroundStyle(.secondary)
+                + time.strikethrough().foregroundStyle(.secondary)
+                + Text(" from ").foregroundStyle(.secondary)
+                + Text(change.station).fontWeight(.semibold)
+                + Text(" is ").foregroundStyle(.secondary)
+                + Text("cancelled").fontWeight(.semibold).foregroundStyle(.red)
+        }
+        return Text("Change at ").foregroundStyle(.secondary)
             + Text(change.station).fontWeight(.semibold)
             + Text(" for the ").foregroundStyle(.secondary)
-            + Text(TripActivityFormat.time(change.departure)).fontWeight(.semibold).monospacedDigit()
+            + time
             + Text(" to \(change.terminusName)").foregroundStyle(.secondary)
     }
 
     private var spoken: String {
         let line = change.lineName.map { "\($0) line" } ?? "line \(change.lineCode)"
-        return "Change at \(change.station) for the \(TripActivityFormat.time(change.departure)) \(line) train to \(change.terminusName)"
+        let time = TripActivityFormat.time(change.departure)
+        if change.cancelled == true { return "Your \(time) \(line) train from \(change.station) is cancelled" }
+        return "Change at \(change.station) for the \(time) \(line) train to \(change.terminusName)"
     }
 }
 

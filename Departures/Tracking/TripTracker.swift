@@ -283,7 +283,15 @@ struct TrackedTrip: Codable, Equatable, Sendable {
         trip.legStartedAt = now
         trip.alerts = alerts
         trip.route = route
+        // Found cancelled before you got there: it says so, from the start.
+        trip.cancelled = next.cancelled
         return trip
+    }
+
+    /// The next train, on a trip with changes, when it's cancelled for you.
+    var cancelledConnection: OnwardLeg? {
+        guard let next = onward?.first, next.cancelled != nil else { return nil }
+        return next
     }
 
     /// Each train of the trip from this one on, as it would be tracked: this one,
@@ -373,6 +381,33 @@ struct OnwardLeg: Codable, Equatable, Sendable {
     /// Its stops and times: the timetable's, until it's the train followed.
     let stops: [TripDetail.Stop]
     let source: BoardSnapshot.Source?
+    /// GO says it won't come for you: cancelled, or not stopping where you change
+    /// to it or get off it (see `cancellation(in:now:)`). Only the next train's is
+    /// looked up. Nil while it runs.
+    var cancelled: TripCancellation? = nil
+
+    /// When it leaves where you change to it.
+    var departure: Date {
+        stops.first { $0.code == boardingCode }.flatMap { $0.expected ?? $0.time } ?? row.scheduled
+    }
+
+    /// Whether GO's feeds say this train won't come for you: the whole trip
+    /// cancelled, or not stopping where you change to it or where you get off it.
+    /// Nil when it comes.
+    func cancellation(in list: CancelledTrains.List, now: Date) -> TripCancellation? {
+        #if DEBUG
+        // `-debugSkipsOnward CODE`: for screenshots of a trip whose next train won't
+        // stop there (the trip itself planned as if it would).
+        if let skips = DebugScene.onwardSkips {
+            return [boardingCode, destinationCode].first(where: skips.contains).map { TripCancellation(code: $0, since: now) }
+        }
+        #endif
+        guard let status = list.status(of: row) else { return nil }
+        if status.all { return TripCancellation(code: nil, since: now) }
+        return [boardingCode, destinationCode].first(where: status.skips.contains).map {
+            TripCancellation(code: $0, since: now)
+        }
+    }
 }
 
 /// The one trip being tracked, if any. Kept across launches until a while after
@@ -415,6 +450,7 @@ final class TripTracker {
                                startedAt: Date(), startsAtStop: selection.fromBoard)
         set(trip)
         TripActivityController.shared.start(trip)
+        Task { await checkCancelled() }
     }
 
     /// Starts following a trip planned from search: its first train from where you
@@ -456,6 +492,8 @@ final class TripTracker {
         }
         set(trip)
         TripActivityController.shared.start(trip)
+        // (Planned round the trains cancelled then; any since, it says so now.)
+        Task { await checkCancelled() }
     }
 
     /// Alerts for the tracked trip on or off (the trip card asks once it's tracked).
@@ -589,13 +627,16 @@ final class TripTracker {
 
     /// Looks since the tracked train was found cancelled that didn't list it.
     @ObservationIgnored private var clearedLooks = 0
+    /// The same for the next train, on a trip with changes.
+    @ObservationIgnored private var connectionClearedLooks = 0
 
     /// Looks the tracked train up among the cancelled ones (see
     /// `TrackedTrip.cancellation(in:now:)`). Found cancelled: its Live Activity
     /// says so, then the next train from your station too once it's found, and
     /// you're told (by the worker, when it follows the trip; otherwise here). No
-    /// longer listed two looks in a row: it's running after all. True when the
-    /// train is (still) cancelled.
+    /// longer listed two looks in a row: it's running after all. Running, on a trip
+    /// with changes, the next train too (see `checkConnection(in:now:)`). True when
+    /// the train is (still) cancelled.
     @discardableResult
     func checkCancelled(now: Date = Date()) async -> Bool {
         guard let trip, let list = await CancelledTrains.shared.list() else { return self.trip?.cancelled != nil }
@@ -620,7 +661,10 @@ final class TripTracker {
             if !toldByWorker { await tellCancelled() }
             return true
         }
-        guard let cancelled = current.cancelled else { return false }
+        guard let cancelled = current.cancelled else {
+            await checkConnection(in: list, now: now)
+            return false
+        }
         clearedLooks += 1
         guard clearedLooks >= 2 else { return true }
         clearedLooks = 0
@@ -630,6 +674,49 @@ final class TripTracker {
         TripActivityController.shared.sync(updated)
         if cancelled.told { await TripAlerts.shared.cancelled(updated, back: true) }
         return false
+    }
+
+    /// On a trip with changes, the next train looked up among the cancelled ones
+    /// (see `OnwardLeg.cancellation(in:now:)`): found cancelled, the Live
+    /// Activity's change line says so, the trip card shows it with a way to plan
+    /// another, and you're told (by the worker, when it follows the trip;
+    /// otherwise here). No longer listed two looks in a row: running after all.
+    private func checkConnection(in list: CancelledTrains.List, now: Date) async {
+        guard let current = trip, let next = current.onward?.first else { return }
+        if var found = next.cancellation(in: list, now: now) {
+            connectionClearedLooks = 0
+            if let before = next.cancelled, before.code == found.code { return }
+            found.since = next.cancelled?.since ?? now
+            found.told = next.cancelled?.told ?? false
+            // Its Live Activity already says so: the worker found out first, and told you.
+            let toldByWorker = next.cancelled == nil && TripActivityController.shared.showsCancelledConnection(current)
+            var updated = current
+            updated.onward?[0].cancelled = found
+            set(updated)
+            TripActivityController.shared.sync(updated)
+            if !toldByWorker { await tellConnectionCancelled() }
+            return
+        }
+        guard let cancelled = next.cancelled else { return }
+        connectionClearedLooks += 1
+        guard connectionClearedLooks >= 2 else { return }
+        connectionClearedLooks = 0
+        var updated = current
+        updated.onward?[0].cancelled = nil
+        set(updated)
+        TripActivityController.shared.sync(updated)
+        if cancelled.told { await TripAlerts.shared.connectionCancelled(current, back: true) }
+    }
+
+    /// Tells you the next train is cancelled, unless the worker does (it follows
+    /// the trip's Live Activity) or you have been told already.
+    private func tellConnectionCancelled() async {
+        guard let trip, let cancelled = trip.onward?.first?.cancelled, !cancelled.told,
+              !TripActivityController.shared.workerFollows(trip) else { return }
+        var updated = trip
+        updated.onward?[0].cancelled?.told = true
+        set(updated)
+        await TripAlerts.shared.connectionCancelled(updated)
     }
 
     /// After a cancelled train from a board: the next one from your station to

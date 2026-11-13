@@ -24,6 +24,7 @@ enum SelfCheck {
         getHere()
         cancelledTrain()
         plannedRoundCancelled()
+        cancelledConnection()
         lines.append("done")
         write()
         NSLog("SelfCheck: done")
@@ -361,6 +362,86 @@ enum SelfCheck {
         check("planned: not the one that won't stop where you get on", taken(skipping: ["AL", "BU", "OA"], to: "UN") == "1927")
         check("planned: through where it won't stop", taken(skipping: ["PO"], to: "UN") == "1925")
         check("planned: not the one that won't stop where you get off", taken(skipping: ["PO"], to: "PO") == "1927")
+    }
+
+    /// #21: on a trip with changes, the train you change to is looked up too:
+    /// cancelled where you change to it or get off it, the Live Activity's change
+    /// line says so, you're told, and once you're there it's the train followed,
+    /// cancelled from the start.
+    private static func cancelledConnection() {
+        // Oakville (11:36) to Union (12:00), then the 12:08 Lakeshore East to Danforth.
+        var trip = lakeshore(boarding: 4, destination: 10)
+        let stops = ["UN", "DA", "SC", "EG", "GU", "RO", "PIN"].enumerated().map { index, code in
+            TripDetail.Stop(index: index, code: code, time: date("12:08").addingTimeInterval(TimeInterval(index * 4 * 60)),
+                            expected: nil, platform: nil)
+        }
+        let row = BoardRow(tripNumber: "LE7", lineCode: "LE", lineName: "Lakeshore East", destination: "Pickering",
+                           stops: [], scheduled: date("12:08"), expected: date("12:08"), platform: nil,
+                           isExpress: false, isCancelled: false)
+        trip.onward = [OnwardLeg(row: row, boardingCode: "UN", destinationCode: "DA", stops: stops, source: .schedule)]
+        trip.journeyKey = "journey"
+        trip.legIndex = 0
+        trip.legCount = 2
+        let day = TorontoTime.dateWire(date("11:00"))
+        let now = date("11:30")
+        func feeds(_ entries: CancelledTrains.Entry...) -> CancelledTrains.List {
+            CancelledTrains.List(entries: entries, fetchedAt: now)
+        }
+        let next = trip.onward?[0]
+        check("connection: not stopping where you get off it",
+              next?.cancellation(in: feeds(.init(trip: "LE7", day: day, skips: ["DA"])), now: now)?.code == "DA")
+        check("connection: not stopping where you change to it",
+              next?.cancellation(in: feeds(.init(trip: "LE7", day: day, skips: ["UN"])), now: now)?.code == "UN")
+        let whole = next?.cancellation(in: feeds(.init(trip: "LE7", all: true)), now: now)
+        check("connection: the whole trip", whole != nil && whole?.code == nil)
+        check("connection: not stopping further on still takes you",
+              next?.cancellation(in: feeds(.init(trip: "LE7", day: day, skips: ["SC", "EG"])), now: now) == nil)
+        check("connection: not the train you're on",
+              trip.cancellation(in: feeds(.init(trip: "LE7", day: day, all: true)), now: now) == nil)
+
+        // The change line, and what you're told.
+        var cancelled = trip
+        cancelled.onward?[0].cancelled = TripCancellation(code: "DA", since: now)
+        check("connection: the change line says so",
+              TripActivityController.change(after: cancelled)?.cancelled == true
+                  && TripActivityController.change(after: trip)?.cancelled == nil)
+        check("connection: the trip says so", cancelled.cancelledConnection?.row.tripNumber == "LE7"
+                  && trip.cancelledConnection == nil)
+        let network = RailNetwork.shared
+        let text = TripAlerts.connectionText(cancelled, back: false, network: network)
+        check("connection: the alert", text.title == "Your 12:08 connection at Union is cancelled"
+                  && text.body == "It won't stop at Danforth. Open GO Stations to plan another way there.", "\(text)")
+        var elsewhere = cancelled
+        elsewhere.onward?[0].cancelled = TripCancellation(code: nil, since: now)
+        check("connection: the alert, the whole trip",
+              TripAlerts.connectionText(elsewhere, back: false, network: network).body
+                  == "Open GO Stations to plan another way to Danforth.")
+        check("connection: running after all",
+              TripAlerts.connectionText(cancelled, back: true, network: network).title
+                  == "Your 12:08 connection at Union is running after all")
+
+        // Kept across launches, and once in at Union, the train followed: cancelled.
+        let kept = (try? JSONEncoder().encode(cancelled)).flatMap { try? JSONDecoder().decode(TrackedTrip.self, from: $0) }
+        check("connection: kept across launches", kept?.onward?[0].cancelled?.code == "DA")
+        let changed = cancelled.changingTrains(at: date("12:00"))
+        check("connection: changed to, it's cancelled from the start",
+              changed?.tripNumber == "LE7" && changed?.cancelled?.code == "DA" && changed?.cancelledIndex == 1,
+              "\(String(describing: changed?.cancelled))")
+
+        // The worker's push, as the widget reads it.
+        let push = #"{"departure": 1794573600, "arrival": 1794574800, "hasDeparted": false, "#
+            + #""change": {"station": "Union", "lineCode": "LE", "lineColorHex": "EE3124", "departure": 1794575280, "#
+            + #""terminusName": "Pickering", "destinationName": "Danforth""#
+        let said = try? JSONDecoder().decode(TripActivityAttributes.ContentState.self,
+                                             from: Data((push + #", "cancelled": true}}"#).utf8))
+        check("connection: the worker's push reads", said?.change?.cancelled == true && said?.cancelled == nil)
+        let running = try? JSONDecoder().decode(TripActivityAttributes.ContentState.self,
+                                                from: Data((push + "}}").utf8))
+        check("connection: running, the push has none", running?.change != nil && running?.change?.cancelled == nil)
+        let again = (try? JSONEncoder().encode(said)).flatMap {
+            try? JSONDecoder().decode(TripActivityAttributes.ContentState.self, from: $0)
+        }
+        check("connection: kept by the activity", again?.change?.cancelled == true)
     }
 
     // MARK: Made-up trips

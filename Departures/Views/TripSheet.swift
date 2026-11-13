@@ -299,6 +299,12 @@ struct TripSheet: View {
             VStack(alignment: .leading, spacing: 12) {
                 if tracker.isTracking(row) || (canTrack(detail, at: context.date) && !isCancelledHere) {
                     trackButton
+                    // On a trip with changes, its next train cancelled: a way round it.
+                    if let trip, let next = trip.cancelledConnection {
+                        ConnectionCancelledCard(trip: trip, next: next) {
+                            TripPlanModel.planAnotherWay(around: trip)
+                        }
+                    }
                 } else if detail.source != nil, row.expected.timeIntervalSince(context.date) > Self.trackAhead {
                     Label("You can track it from 4 hours before it leaves", systemImage: "clock")
                         .font(.footnote)
@@ -388,7 +394,7 @@ struct TripSheet: View {
                 let leaves = part.stops.first.flatMap { $0.expected ?? $0.time }
                 ChangeRow(station: network.station(leg.boardingCode)?.name ?? leg.boardingCode,
                           wait: inAt.flatMap { inAt in leaves.map { $0.timeIntervalSince(inAt) } },
-                          platform: part.stops.first?.platform)
+                          platform: part.stops.first?.platform, isCancelled: leg.cancelled != nil)
                 if !part.stops.isEmpty {
                     OnwardLegCard(leg: leg, stops: part.stops, isLive: part.isLive,
                                   isLast: index == legs.count - 1, role: role(for:)) { code in
@@ -722,8 +728,11 @@ private struct ChangeRow: View {
     /// From getting in to the next train leaving (negative: it leaves first).
     let wait: TimeInterval?
     let platform: String?
+    /// GO says the next train won't come for you: no change to make.
+    var isCancelled = false
 
     private var waitText: (text: String, color: Color)? {
+        if isCancelled { return ("Its train is cancelled", .red) }
         guard let wait else { return nil }
         if wait < 0 { return ("It leaves before you get in", .red) }
         let minutes = Int((wait / 60).rounded(.down))
@@ -747,10 +756,10 @@ private struct ChangeRow: View {
                         Text(waitText.text)
                             .foregroundStyle(waitText.color)
                     }
-                    if waitText != nil, platform != nil {
+                    if waitText != nil, platform != nil, !isCancelled {
                         Text("·").foregroundStyle(.tertiary)
                     }
-                    if let platform {
+                    if let platform, !isCancelled {
                         Text("Platform \(platform)")
                             .foregroundStyle(.secondary)
                     }
@@ -790,8 +799,12 @@ private struct OnwardLegCard: View {
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                     Spacer(minLength: 4)
-                    // Its times as planned, until Metrolinx has it live.
-                    if !isLive {
+                    if leg.cancelled != nil {
+                        Label("Cancelled", systemImage: "xmark.circle.fill")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(.red)
+                    } else if !isLive {
+                        // Its times as planned, until Metrolinx has it live.
                         Label("Timetable", systemImage: "calendar")
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -826,15 +839,69 @@ private struct OnwardLegCard: View {
                             role: role(stop.code),
                             isOrigin: position == 0,
                             isEnd: position == stops.count - 1,
-                            isDimmed: false,
+                            // Cancelled for you: all of it dimmed, struck through where it won't stop.
+                            isDimmed: leg.cancelled != nil,
                             lineColor: color,
-                            tag: position == stops.count - 1 ? (isLast ? "Your stop" : "Change") : nil
+                            tag: position == stops.count - 1 ? (isLast ? "Your stop" : "Change") : nil,
+                            isSkipped: leg.cancelled.map { $0.code == nil || $0.code == stop.code } ?? false
                         )
                     }
                     .buttonStyle(StopRowButtonStyle())
                 }
             }
         }
+    }
+}
+
+/// On a trip with changes, under the Tracking button once its next train is
+/// cancelled: "Your 08:10 connection at Union is cancelled", why, and a way round
+/// it (the trip card from where you change, for trains after you get there). The
+/// card's corners run concentric with the button's round ends, as the trip
+/// card's do.
+private struct ConnectionCancelledCard: View {
+    let trip: TrackedTrip
+    let next: OnwardLeg
+    let plan: () -> Void
+
+    private let network = RailNetwork.shared
+
+    var body: some View {
+        let text = TripAlerts.connectionText(trip, back: false, network: network)
+        let station = TripActivityController.shortName(network.station(next.boardingCode)?.name ?? next.boardingCode)
+        VStack(alignment: .leading, spacing: 12) {
+            Label {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(text.title)
+                        .font(.subheadline.weight(.semibold))
+                    if let code = next.cancelled?.code {
+                        Text("It won't stop at \(network.station(code)?.name ?? code).")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .fixedSize(horizontal: false, vertical: true)
+            } icon: {
+                Image(systemName: "xmark.circle.fill")
+                    .foregroundStyle(.red)
+            }
+            .padding(.horizontal, TripPlanSheet.textInset)
+            Button(action: plan) {
+                Label("Plan another way from \(station)", systemImage: "arrow.triangle.branch")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: TripPlanSheet.buttonHeight)
+                    .contentShape(Capsule())
+            }
+            .buttonStyle(.plain)
+            .glass(.tinted(.accentColor), in: Capsule())
+            .accessibilityHint("Shows trains from \(station) after you get there")
+        }
+        .padding(TripPlanSheet.cardPadding)
+        .background(.background.secondary,
+                    in: RoundedRectangle(cornerRadius: TripPlanSheet.cardRadius, style: .continuous))
     }
 }
 

@@ -170,14 +170,22 @@ enum TripPlanner {
 
     /// Plans a trip to `destination`: from `origin`, or with none the station you'd
     /// get there soonest from where you are (`location`); on `day` (midnight), or
-    /// with none today from `now`.
+    /// with none today from `now`. `after`: today, you get to `origin` on another
+    /// train then (one whose connection is cancelled), so its trains from then on,
+    /// with time to change.
     static func plan(to destination: PlanDestination, from origin: String?, on day: Date?,
-                     location: CLLocation?, home: String?, work: String?, now: Date) async -> TripPlan {
+                     location: CLLocation?, home: String?, work: String?, now: Date,
+                     after: Date? = nil) async -> TripPlan {
         let targets = Self.targets(for: destination)
         let targetCodes = Set(targets.map(\.station))
         let todayKey = CommutePlanner.Clock.at(now)?.day ?? TorontoTime.dateWire(now)
         let dayKey = day.map(TorontoTime.dateWire).flatMap { $0 > todayKey ? $0 : nil } ?? todayKey
         let isToday = dayKey == todayKey
+        // From where you change (`after`: once you get there, on the train before):
+        // trains leaving once there's time to change, and no getting there from here.
+        let arriving: Int? = isToday && origin != nil ? after.flatMap { after in
+            CommutePlanner.Clock.start(of: dayKey).map { Int((after.timeIntervalSince($0) / 60).rounded(.up)) }
+        } : nil
         let user: CommutePlanner.Point? = location.flatMap { location in
             guard RailNetwork.isInServiceArea(location.coordinate) else { return nil }
             return CommutePlanner.Point(latitude: location.coordinate.latitude,
@@ -221,7 +229,7 @@ enum TripPlanner {
             var picked = origin
             var kind = TripPlan.Origin.chosen
             if let origin {
-                start = user.flatMap { planner.access(from: $0, to: origin) }
+                start = arriving == nil ? user.flatMap { planner.access(from: $0, to: origin) } : nil
             } else if let user {
                 kind = .fastest
                 let options = planner.accessOptions(from: user, avoiding: targetCodes)
@@ -238,7 +246,8 @@ enum TripPlanner {
             guard let first = picked, !targetCodes.contains(first) else {
                 return (picked, kind, start, [], view, clock.now)
             }
-            let itineraries = planner.trips(from: first, to: targets, leaving: isToday ? clock.now : 4 * 60,
+            let leaving = max(clock.now, arriving.map { $0 + CommutePlanner.minTransfer } ?? clock.now)
+            let itineraries = planner.trips(from: first, to: targets, leaving: isToday ? leaving : 4 * 60,
                                             until: 28 * 60, in: view)
             return (first, kind, start, itineraries, view, clock.now)
         }.value

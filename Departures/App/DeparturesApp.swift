@@ -34,10 +34,21 @@ struct DeparturesApp: App {
 @Observable
 final class AppRoute {
     static let shared = AppRoute()
-    /// Open the trip card to this station (a missed train's notification).
+    /// Open the trip card to this station (a missed train's notification)...
     var planTo: String?
+    /// ...from this one, for trains leaving after this time (a cancelled
+    /// connection's: where you change, once you get there).
+    var planFrom: String?
+    var planAfter: Date?
     /// Open this station's board (a cancelled train's notification).
     var board: String?
+
+    /// The trip card to `code` (set last: it's what the map watches).
+    func plan(to code: String, from origin: String? = nil, after: Date? = nil) {
+        planFrom = origin
+        planAfter = after
+        planTo = code
+    }
 }
 
 /// Portrait only, like the boards themselves.

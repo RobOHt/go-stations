@@ -1,9 +1,10 @@
 import SwiftUI
 
 /// Bottom left of the map while a trip is tracked: the line's pill and
-/// "Tracking" ("Cancelled", in red, once its train is). Opens the trip and goes
-/// to the train on the map. (VoiceOver also hears when the train leaves your
-/// station or reaches your stop.)
+/// "Tracking" ("Cancelled", in red, once its train is; "Connection cancelled",
+/// once the next one is on a trip with changes). Opens the trip and goes to the
+/// train on the map. (VoiceOver also hears when the train leaves your station or
+/// reaches your stop.)
 struct TrackedTripButton: View {
     let trip: TrackedTrip
     let action: () -> Void
@@ -14,9 +15,10 @@ struct TrackedTripButton: View {
         Button(action: action) {
             HStack(spacing: 8) {
                 LinePill(code: trip.lineCode)
-                Text(trip.cancelled != nil ? "Cancelled" : "Tracking")
+                Text(trip.cancelled != nil ? "Cancelled" : trip.cancelledConnection != nil ? "Connection cancelled" : "Tracking")
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(trip.cancelled != nil ? AnyShapeStyle(.red) : AnyShapeStyle(.primary))
+                    .foregroundStyle(trip.cancelled != nil || trip.cancelledConnection != nil ? AnyShapeStyle(.red)
+                                                                                             : AnyShapeStyle(.primary))
                     .lineLimit(1)
             }
             .padding(.leading, LinePill.inset)
@@ -40,6 +42,13 @@ struct TrackedTripButton: View {
         if trip.cancelled != nil {
             return "Cancelled" + (trip.cancelledIndex.map { ". It won't stop at \(name(trip.stops[$0].code))" } ?? "")
         }
+        // (The next train cancelled, then how this one's getting on.)
+        let connection = trip.cancelledConnection != nil
+            ? TripAlerts.connectionText(trip, back: false, network: network).title + ". " : ""
+        return connection + phaseStatus(at: now)
+    }
+
+    private func phaseStatus(at now: Date) -> String {
         switch trip.phase(at: now) {
         case .departs(let time):
             return "Leaves \(name(trip.boardingCode)) \(Self.remaining(until: time, from: now))"

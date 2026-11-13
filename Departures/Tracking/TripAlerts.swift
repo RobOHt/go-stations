@@ -31,6 +31,7 @@ final class TripAlerts: NSObject {
     private static let leaveID = "trip.leave"
     private static let missedID = "trip.missed"
     private static let cancelledID = "trip.cancelled"
+    private static let connectionID = "trip.connection"
     private static let legIDs = ["trip.leg.0", "trip.leg.1", "trip.leg.2"]
 
     private let center = UNUserNotificationCenter.current()
@@ -265,6 +266,41 @@ final class TripAlerts: NSObject {
         return (title, body.joined(separator: " "))
     }
 
+    /// On a trip with changes, the next train is cancelled, or not stopping where
+    /// you change to it or get off it (`back`: running after all): "Your 08:10
+    /// connection at Union is cancelled. Open GO Stations to plan another way to
+    /// Danforth." Tapping it opens the trip card from where you change, for trains
+    /// after you get there. Not when you asked not to be notified about the trip.
+    func connectionCancelled(_ trip: TrackedTrip, back: Bool = false) async {
+        guard trip.alerts != false, let next = trip.onward?.first else { return }
+        let text = Self.connectionText(trip, back: back, network: RailNetwork.shared)
+        let content = UNMutableNotificationContent()
+        content.title = text.title
+        content.body = text.body
+        content.sound = .default
+        var info: [AnyHashable: Any] = [planToKey: trip.finalDestinationCode, planFromKey: next.boardingCode]
+        if let arrival = trip.arrival { info[planAfterKey] = arrival.timeIntervalSince1970 }
+        content.userInfo = info
+        let request = UNNotificationRequest(identifier: Self.connectionID, content: content, trigger: nil)
+        await withCheckedContinuation { (done: CheckedContinuation<Void, Never>) in
+            Self.change(removing: [], adding: [request]) { done.resume() }
+        }
+    }
+
+    /// What `connectionCancelled(_:back:)` says (as the worker's alert does).
+    static func connectionText(_ trip: TrackedTrip, back: Bool, network: RailNetwork) -> (title: String, body: String) {
+        guard let next = trip.onward?.first else { return ("", "") }
+        func name(_ code: String) -> String { network.station(code)?.name ?? code }
+        let train = "Your \(TorontoTime.hourMinute(next.departure)) connection at "
+            + TripActivityController.shortName(name(next.boardingCode))
+        if back { return ("\(train) is running after all", "It's no longer listed as cancelled.") }
+        var body: [String] = []
+        if let code = next.cancelled?.code { body.append("It won't stop at \(name(code)).") }
+        body.append(next.cancelled?.code == trip.finalDestinationCode ? "Open GO Stations to plan another way there."
+                        : "Open GO Stations to plan another way to \(name(trip.finalDestinationCode)).")
+        return ("\(train) is cancelled", body.joined(separator: " "))
+    }
+
     /// "You missed the 12:06 to Union Station", or without where it goes.
     static func missedTitle(time: Date, terminus: String?) -> String {
         let train = "You missed the \(TorontoTime.hourMinute(time))"
@@ -314,6 +350,10 @@ private let boardingRegionID = "trip.boarding"
 private let planToKey = "planTo"
 /// In a notification: the station whose board to open, when it's tapped.
 private let boardKey = "board"
+/// In a notification: the station to plan from (and the time to plan from, in
+/// seconds since 1970), when it's tapped: where you change, for a cancelled connection.
+private let planFromKey = "planFrom"
+private let planAfterKey = "planAfter"
 
 extension TripAlerts: CLLocationManagerDelegate {
     nonisolated func locationManager(_ manager: CLLocationManager, didEnterRegion region: CLRegion) {
@@ -344,7 +384,8 @@ extension TripAlerts: UNUserNotificationCenterDelegate {
     }
 
     /// Tapped: a missed train's opens the trip card, to plan another trip; a
-    /// cancelled train's, your station's board (or the trip card).
+    /// cancelled train's, your station's board (or the trip card); a cancelled
+    /// connection's, the trip card from where you change.
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter,
                                             didReceive response: UNNotificationResponse) async {
         let info = response.notification.request.content.userInfo
@@ -353,6 +394,8 @@ extension TripAlerts: UNUserNotificationCenterDelegate {
             return
         }
         guard let code = info[planToKey] as? String else { return }
-        await MainActor.run { AppRoute.shared.planTo = code }
+        let from = info[planFromKey] as? String
+        let after = (info[planAfterKey] as? NSNumber).map { Date(timeIntervalSince1970: $0.doubleValue) }
+        await MainActor.run { AppRoute.shared.plan(to: code, from: from, after: after) }
     }
 }

@@ -102,6 +102,11 @@ final class TripActivityController {
         activities.contains { $0.attributes.tripID == trip.activityID && $0.content.state.cancelled != nil }
     }
 
+    /// The same for the next train, on a trip with changes: its change line says so.
+    func showsCancelledConnection(_ trip: TrackedTrip) -> Bool {
+        activities.contains { $0.attributes.tripID == trip.activityID && $0.content.state.change?.cancelled == true }
+    }
+
     /// Ends every one at once (you stopped tracking, or tracked another train).
     func endAll() {
         for activity in activities {
@@ -180,6 +185,7 @@ final class TripActivityController {
             alerts: alerts,
             quiet: trip.alerts == false,
             told: trip.cancelled?.told == true,
+            toldConnection: trip.onward?.first?.cancelled?.told == true,
             legs: schedules.dropFirst().map { $0.leg },
             device: device,
             missedCheck: missedCheck
@@ -191,7 +197,10 @@ final class TripActivityController {
             let next = shown.next.map { minute($0.timeIntervalSince1970) } ?? 0
             return "\(shown.index ?? -1)@\(next)"
         }
-        let key = ([job.token, "\(alerts)", "\(job.quiet)", "\(job.told)", job.device ?? "-", cancelled ?? "-"]
+        // (And the next train's, on a trip with changes.)
+        let connection = first.leg.state.change?.cancelled == true ? "\(job.toldConnection)" : "-"
+        let key = ([job.token, "\(alerts)", "\(job.quiet)", "\(job.told)", job.device ?? "-", cancelled ?? "-",
+                    connection]
                    + schedules.flatMap { schedule -> [String] in
             let leg = schedule.leg
             return [schedule.trip.tripNumber, "\(schedule.trip.boardingIndex)-\(schedule.trip.destinationIndex)",
@@ -354,7 +363,8 @@ final class TripActivityController {
             lineName: line?.name,
             departure: departure ?? next.row.scheduled,
             terminusName: name(codes.last ?? next.destinationCode),
-            destinationName: name(next.destinationCode)
+            destinationName: name(next.destinationCode),
+            cancelled: next.cancelled != nil ? true : nil
         )
     }
 
@@ -450,6 +460,8 @@ enum TripActivityPush {
         let quiet: Bool
         /// The app has told you the train is cancelled: the worker needn't.
         let told: Bool
+        /// The same for the next train, on a trip with changes.
+        let toldConnection: Bool
         /// On a trip with changes, the trains after this one: the same for each.
         let legs: [Leg]
         /// The app's own push token: on the first train of a trip from search

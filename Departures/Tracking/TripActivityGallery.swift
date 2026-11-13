@@ -8,7 +8,7 @@ import SwiftUI
 /// With `-galleryLockScreen YES` the Lock Screen comes first, for a second screenshot;
 /// with `-gallerySection journey` (or `journeyIsland`), a trip with a change at each
 /// point of it, on the Lock Screen (or in the expanded island); with `cancelled`,
-/// cancelled trains. Each Lock Screen card says how tall it is: the system gives
+/// cancelled trains (`connectionCancelled`: the next train of a trip with changes). Each Lock Screen card says how tall it is: the system gives
 /// it at most 160 points.
 struct TripActivityGallery: View {
     private typealias Snapshot = TripActivityAttributes.ContentState
@@ -33,6 +33,8 @@ struct TripActivityGallery: View {
                     journeyLockScreens
                 } else if section == "cancelled" {
                     cancelledCards
+                } else if section == "connectionCancelled" {
+                    connectionCancelledCards
                 } else if section == "journeyIsland" {
                     journeyIslands
                 } else if lockScreenFirst {
@@ -118,6 +120,19 @@ struct TripActivityGallery: View {
         }
         expanded(cancelledHere)
         expanded(cancelledWhole)
+    }
+
+    /// On a trip with changes, the train you'd change to cancelled: on the first
+    /// train, then nearly where you change.
+    @ViewBuilder private var connectionCancelledCards: some View {
+        heading("The next train cancelled, on the Lock Screen")
+        lockScreen(connectionCancelled)
+            .environment(\.colorScheme, .light)
+        lockScreen(connectionCancelledRiding)
+            .environment(\.colorScheme, .dark)
+        heading("In the island")
+        expanded(connectionCancelled)
+        expanded(connectionCancelledRiding)
     }
 
     @ViewBuilder private var lockScreens: some View {
@@ -277,6 +292,21 @@ struct TripActivityGallery: View {
     private var cancelledStop: Sample {
         var trip = riding
         trip.state.cancelled = TripActivityAttributes.Cancellation(index: 10, station: "Union")
+        return trip
+    }
+
+    /// A trip with a change, on its first train, and GO says the Lakeshore East
+    /// train you'd change to at Union won't stop at Danforth.
+    private var connectionCancelled: Sample {
+        var trip = changing
+        trip.state.change?.cancelled = true
+        return trip
+    }
+
+    /// The same, nearly at Union.
+    private var connectionCancelledRiding: Sample {
+        var trip = changingRiding
+        trip.state.change?.cancelled = true
         return trip
     }
 

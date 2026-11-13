@@ -134,7 +134,8 @@ struct RootView: View {
             }
         }
         .onChange(of: AppRoute.shared.planTo) { _, code in
-            // A missed train's notification, tapped: plan another trip.
+            // A missed train's notification, tapped: plan another trip. (Or a cancelled
+            // connection's, or the trip card's way round one: from where you change.)
             if code != nil { followRoute() }
         }
         .onChange(of: AppRoute.shared.board) { _, code in
@@ -547,9 +548,13 @@ struct RootView: View {
             return
         }
         guard let code = AppRoute.shared.planTo else { return }
+        let origin = AppRoute.shared.planFrom
+        let after = AppRoute.shared.planAfter
         AppRoute.shared.planTo = nil
+        AppRoute.shared.planFrom = nil
+        AppRoute.shared.planAfter = nil
         guard let station = network.station(code) else { return }
-        planTrip(to: PlanDestination(station: station))
+        planTrip(to: PlanDestination(station: station), from: origin, after: after)
     }
 
     /// Opens a station's board at half height (closing a train's stops or
@@ -570,12 +575,15 @@ struct RootView: View {
 
     /// Opens the trip card to `destination` (closing any other sheet first), and
     /// keeps it in the search history. `plan`: one already made, shown while it's
-    /// made afresh; `backTo`: the board it was opened from, to go back to.
-    private func planTrip(to destination: PlanDestination, plan: TripPlan? = nil, backTo: String? = nil) {
+    /// made afresh; `backTo`: the board it was opened from, to go back to;
+    /// `origin` and `after`: from that station, for trains leaving after then
+    /// (where you change, for a cancelled connection).
+    private func planTrip(to destination: PlanDestination, plan: TripPlan? = nil, backTo: String? = nil,
+                          from origin: String? = nil, after: Date? = nil) {
         searchFocused = false
         SearchHistory.shared.add(destination)
         let model = TripPlanModel(destination: destination, home: settings.homeCode, work: settings.workCode,
-                                  plan: plan, backTo: backTo)
+                                  plan: plan, backTo: backTo, origin: origin, after: after)
         model.start()
         mapController.frame([destination.coordinate], minWidth: 6_000, coveredFraction: 0.5, asked: true)
         guard selected != nil || showSettings || trackedSelection != nil else {
@@ -893,6 +901,13 @@ struct RootView: View {
         if wait > 0 {
             try? await Task.sleep(for: .seconds(wait))
             openTrackedTrip()
+        }
+        // `-planAnotherWayAfter <seconds>`: then, its next train cancelled, the trip
+        // card from where you change, as the trip's "Plan another way" opens it.
+        let another = defaults.double(forKey: "planAnotherWayAfter")
+        if another > 0 {
+            try? await Task.sleep(for: .seconds(another))
+            if let trip = TripTracker.shared.trip { TripPlanModel.planAnotherWay(around: trip) }
         }
     }
 

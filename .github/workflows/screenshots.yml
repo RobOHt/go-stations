@@ -349,6 +349,15 @@ jobs:
             -openTripAfter 6 -tripLarge YES
           shoot 15i-tracked-journey-rest 24 trackedJourney -debugNow "$MORNING" -debugLocation 43.5560,-79.5869 \
             -openTripAfter 6 -tripLarge YES -tripScrollToEnd YES
+          # Its next train cancelled (as if GO said so once it was tracked): the
+          # trip card says so under Tracking, the rest of the trip shows it, and
+          # "Plan another way" plans from where you change, once you get there.
+          shoot 15j-tracked-journey-cancelled 24 trackedJourney -debugNow "$MORNING" \
+            -debugLocation 43.5560,-79.5869 -debugSkipsOnward UI -openTripAfter 6
+          shoot 15k-tracked-journey-cancelled-rest 24 trackedJourney -debugNow "$MORNING" \
+            -debugLocation 43.5560,-79.5869 -debugSkipsOnward UI -openTripAfter 6 -tripLarge YES -tripScrollToEnd YES
+          shoot 15l-tracked-journey-another-way 26 trackedJourney -debugNow "$MORNING" \
+            -debugLocation 43.5560,-79.5869 -debugSkipsOnward UI -planAnotherWayAfter 8
 
           # The tracked train's Live Activity: track one, then switch to Settings. The
           # simulator's screenshots only caught the island while the app's alert
@@ -374,8 +383,9 @@ jobs:
           # A trip with a change at each point of it: Lock Screen, then the island.
           shoot 13c-activity-journey 8 activityGallery -gallerySection journey
           shoot 13d-activity-journey-island 8 activityGallery -gallerySection journeyIsland
-          # Cancelled trains.
+          # Cancelled trains, and the next train of a trip with changes cancelled.
           shoot 13e-activity-cancelled 8 activityGallery -gallerySection cancelled
+          shoot 13f-activity-connection-cancelled 8 activityGallery -gallerySection connectionCancelled
 
       - name: Trace the tracked train's motion
         if: always() && steps.sim.outputs.udid != '' && inputs.checks_only != 'true' && inputs.only == ''

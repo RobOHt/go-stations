@@ -79,6 +79,12 @@ enum DebugScene: String {
     static let skips: Set<String>? = UserDefaults.standard.string(forKey: "debugSkips")
         .map { Set($0.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }) }
 
+    /// `-debugSkipsOnward DA`: on a trip with changes, the next train is taken not
+    /// to stop there (the trip planned as if it would), for screenshots of a
+    /// cancelled connection.
+    static let onwardSkips: Set<String>? = UserDefaults.standard.string(forKey: "debugSkipsOnward")
+        .map { Set($0.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }) }
+
     /// `-debugNow 2026-11-10T07:30:00-05:00`: the time the app goes by.
     static let fixedNow: Date? = UserDefaults.standard.string(forKey: "debugNow")
         .flatMap { ISO8601DateFormatter().date(from: $0) }
