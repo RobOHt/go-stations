@@ -4,8 +4,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
-  CANCELLED_FOR, cancelAlert, cancellationFor, cancellations, cancelledContent, cancelledUntil, serviceDay,
-  shownState, torontoDay,
+  CANCELLED_FOR, cancelAlert, cancellationFor, cancellations, cancelledContent, cancelledUntil, connectionAlert,
+  connectionFor, nextLeg, serviceDay, shownState, torontoDay,
 } from "../src/live.js";
 
 // 2026-11-13 in Toronto (EST, UTC-5).
@@ -27,6 +27,34 @@ function job(extra = {}) {
       boardingIndex: 2, destinationIndex: 5, awaitsTrain: true,
     },
     live: { trip: "1925", codes, scheduled: planned },
+    ...extra,
+  };
+}
+
+// Then at Union, a change to Lakeshore East 9512 (made up): Union 08:10 to Rouge
+// Hill, getting off at Danforth (08:16).
+const onCodes = ["UN", "DA", "SC", "GU", "RO"];
+const onNames = ["Union", "Danforth", "Scarborough", "Guildwood", "Rouge Hill"];
+const onPlanned = ["08:10", "08:16", "08:22", "08:27", "08:31"].map((t) => at(t));
+const change = {
+  station: "Union", lineCode: "LE", lineColorHex: "EE3124", lineName: "Lakeshore East",
+  departure: onPlanned[0], terminusName: "Rouge Hill", destinationName: "Danforth",
+};
+
+function journey(extra = {}) {
+  const first = job();
+  return {
+    ...first,
+    state: { ...first.state, change },
+    legs: [{
+      state: {
+        departure: onPlanned[0], arrival: onPlanned[1], hasDeparted: false,
+        stops: onNames.map((name, i) => ({ name, time: onPlanned[i] })),
+        boardingIndex: 0, destinationIndex: 1, awaitsTrain: false,
+      },
+      times: [], end: onPlanned[1], dismissal: onPlanned[1] + 900,
+      live: { trip: "9512", codes: onCodes, scheduled: onPlanned },
+    }],
     ...extra,
   };
 }
@@ -153,4 +181,60 @@ test("the pushed content says it's cancelled as the worker last looked", () => {
   assert.deepEqual(shownState(job({ cancelled: { all: true } }), job().state).cancelled, {});
   assert.deepEqual(cancelledContent({ all: true }), {});
   assert.equal(cancelledContent(null), null);
+});
+
+test("on a trip with changes, the next train is cancelled for you where you change to it or get off it", () => {
+  const listed = (entry) => [{ trip: "9512", day: "20261113", ...entry }];
+  assert.deepEqual(connectionFor(journey(), listed({ all: true })), { all: true });
+  assert.deepEqual(connectionFor(journey(), listed({ skips: ["DA"] })), { index: 1, code: "DA", name: "Danforth" });
+  assert.deepEqual(connectionFor(journey(), listed({ skips: ["UN"] })), { index: 0, code: "UN", name: "Union" });
+  // Not stopping further on, past where you get off: it still takes you.
+  assert.equal(connectionFor(journey(), listed({ skips: ["SC", "GU"] })), null);
+  // The first train cancelled is a matter for that one (see cancellationFor).
+  assert.equal(connectionFor(journey(), [{ trip: "1925", all: true }]), null);
+  // No change, or nothing to look it up by.
+  assert.equal(connectionFor(job(), listed({ all: true })), null);
+  const blind = journey();
+  blind.legs[0].live = null;
+  assert.equal(connectionFor(blind, listed({ all: true })), null);
+});
+
+test("what you're told when the next train is cancelled, and when it's running after all", () => {
+  assert.deepEqual(connectionAlert(journey()), {
+    title: "Your 08:10 connection at Union is cancelled",
+    body: "Open GO Stations to plan another way there.",
+  });
+  assert.deepEqual(connectionAlert(journey(), { back: true }), {
+    title: "Your 08:10 connection at Union is running after all",
+    body: "It's no longer listed as cancelled.",
+  });
+});
+
+test("the pushed change line says the next train's cancelled as the worker last looked", () => {
+  const claimed = { ...journey().state, change: { ...change, cancelled: true } };
+  // Not looked yet: as the app had it.
+  assert.equal(shownState(journey(), claimed), claimed);
+  // Looked: cancelled, or not (whatever the app thought).
+  const cancelled = shownState(journey({ connectionCheckedAt: at("07:30"), connectionCancelled: { all: true } }),
+                               journey().state);
+  assert.deepEqual(cancelled.change, { ...change, cancelled: true });
+  const running = shownState(journey({ connectionCheckedAt: at("07:30"), connectionCancelled: null }), claimed);
+  assert.deepEqual(running.change, change);
+  // Without a change, nothing to say.
+  assert.equal("change" in shownState(job({ connectionCheckedAt: at("07:30") }), job().state), false);
+  // The first train's cancellation as before, with the change line as it is.
+  const both = shownState(journey({ cancelCheckedAt: at("07:30"), cancelled: { all: true },
+                                    connectionCheckedAt: at("07:30"), connectionCancelled: null }), claimed);
+  assert.deepEqual(both.cancelled, {});
+  assert.deepEqual(both.change, change);
+});
+
+test("changing to a next train you were told is cancelled: no second alert for it", () => {
+  const told = nextLeg(journey({ connectionAlerted: true, connectionCancelled: { all: true } }), at("08:01"));
+  assert.equal(told.live.trip, "9512");
+  assert.equal(told.cancelAlerted, true);
+  // Told, but it was running again after all: told again, if it's cancelled again.
+  assert.equal(nextLeg(journey({ connectionAlerted: true, connectionCancelled: null }), at("08:01")).cancelAlerted,
+               undefined);
+  assert.equal(nextLeg(journey(), at("08:01")).cancelAlerted, undefined);
 });

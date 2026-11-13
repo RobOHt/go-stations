@@ -17,7 +17,8 @@ register("data:text/javascript," + encodeURIComponent(`
   }`));
 const { default: worker, LiveActivities } = await import("../src/index.js");
 
-// 2026-11-13 in Toronto (EST, UTC-5).
+// 2026-11-13 in Toronto (EST, UTC-5). (On a trip with changes, the next train:
+// Lakeshore East 9512, Union 08:10 to Danforth, also made up.)
 const at = (clock) => {
   const [h, m, s = 0] = clock.split(":").map(Number);
   return Date.UTC(2026, 10, 13, h + 5, m, s) / 1000;
@@ -30,6 +31,14 @@ const names = ["Aldershot", "Burlington", "Oakville", "Clarkson", "Port Credit",
 const planned = ["07:10", "07:22", "07:40", "07:45", "07:51", "08:00"].map(at);
 const LIVE_TOKEN = "ab".repeat(32);
 const DEVICE = "cd".repeat(32);
+
+const onCodes = ["UN", "DA", "SC", "GU", "RO"];
+const onNames = ["Union", "Danforth", "Scarborough", "Guildwood", "Rouge Hill"];
+const onPlanned = ["08:10", "08:16", "08:22", "08:27", "08:31"].map(at);
+const change = {
+  station: "Union", lineCode: "LE", lineColorHex: "EE3124", lineName: "Lakeshore East",
+  departure: onPlanned[0], terminusName: "Rouge Hill", destinationName: "Danforth",
+};
 
 function job(extra = {}) {
   return {
@@ -52,12 +61,33 @@ function job(extra = {}) {
   };
 }
 
+/** Oakville to Union, then at Union a change to the 08:10 to Danforth. */
+function journey(extra = {}) {
+  const first = job();
+  return {
+    ...first,
+    state: { ...first.state, change },
+    legs: [{
+      state: {
+        departure: onPlanned[0], arrival: onPlanned[1], hasDeparted: false,
+        stops: onNames.map((name, i) => ({ name, time: onPlanned[i] })),
+        boardingIndex: 0, destinationIndex: 1, awaitsTrain: false,
+      },
+      times: [], end: onPlanned[1], dismissal: onPlanned[1] + 900,
+      live: { trip: "9512", codes: onCodes, scheduled: onPlanned },
+    }],
+    ...extra,
+  };
+}
+
 // --- Stand-ins ---------------------------------------------------------------
 
 let now = at("06:50");
 Date.now = () => now * 1000;
 
-const feeds = { failing: false, skips: [] };
+// What GO's feeds say: where 1925 won't stop, the trains cancelled outright, and
+// the trains' positions ([trip, status, stop]: reported as of now).
+const feeds = { failing: false, skips: [], cancelledTrips: [], vehicles: [] };
 let pushes = [];
 
 const json = (body) => new Response(JSON.stringify(body), { headers: { "Content-Type": "application/json" } });
@@ -74,9 +104,16 @@ globalThis.fetch = async (url, init = {}) => {
         stop_time_update: codes.map((code) => ({
           stop_id: code, schedule_relationship: feeds.skips.includes(code) ? "SKIPPED" : "SCHEDULED",
         })),
-      } }] });
+      } }, ...feeds.cancelledTrips.map((trip) => ({ trip_update: {
+        trip: { trip_id: `20261113-LE-${trip}`, schedule_relationship: "CANCELED" }, stop_time_update: [],
+      } }))] });
     }
-    if (path === "/Gtfs/Feed/VehiclePosition") return json({ entity: [] });
+    if (path === "/Gtfs/Feed/VehiclePosition") {
+      return json({ entity: feeds.vehicles.map(([trip, status, stop]) => ({ vehicle: {
+        trip: { trip_id: `20261113-LW-${trip}` }, position: { latitude: 43.45, longitude: -79.68 },
+        timestamp: Math.floor(now), current_status: status, stop_id: stop,
+      } })) });
+    }
     if (path === "/ServiceataGlance/Trains/All") return json({ Metadata: { ErrorCode: "200" }, Trips: { Trip: [] } });
   }
   if (target.hostname.endsWith("push.apple.com")) {
@@ -269,4 +306,144 @@ test("the app's request: what it asks for the trip, and the list it reads", asyn
   const listed = await list.json();
   assert.deepEqual(listed.trips, [{ trip: "1925", day: "20261113", skips: ["OA"] }]);
   assert.deepEqual(listed.from, ["exceptions", "updates"]);
+});
+
+test("on a trip with changes, the next train found cancelled says so on the change line, then running after all", async () => {
+  now = at("06:40");
+  feeds.skips = [];
+  feeds.cancelledTrips = [];
+  const target = activities();
+  await target.object.track(journey());
+  assert.deepEqual(await runAlarm(target), []);
+
+  // GO cancels the 08:10 from Union: the change line says so, with an alert. (No
+  // wake for the app: there's no next train for it to find, you plan another way.)
+  feeds.cancelledTrips = ["9512"];
+  const sent = await runAlarm(target);
+  assert.equal(sent.length, 1);
+  const state = sent[0].body.aps["content-state"];
+  assert.deepEqual(state.change, { ...change, cancelled: true });
+  assert.equal(state.cancelled, undefined);
+  assert.deepEqual(sent[0].body.aps.alert, {
+    title: "Your 08:10 connection at Union is cancelled",
+    body: "Open GO Stations to plan another way there.",
+    sound: "default",
+  });
+
+  // Still cancelled: nothing more, even when the app tells the worker the trip again.
+  assert.deepEqual(await runAlarm(target), []);
+  await target.object.track(journey());
+  assert.ok(stored(target).connectionCancelled);
+  assert.deepEqual(await runAlarm(target), []);
+
+  // Gone from the feeds: one look isn't enough, two are.
+  feeds.cancelledTrips = [];
+  assert.deepEqual(await runAlarm(target), []);
+  const back = await runAlarm(target);
+  assert.equal(back.length, 1);
+  assert.deepEqual(back[0].body.aps["content-state"].change, change);
+  assert.equal(back[0].body.aps.alert.title, "Your 08:10 connection at Union is running after all");
+
+  // Cancelled again: the change line says so, with no second alert for the same train.
+  feeds.cancelledTrips = ["9512"];
+  const again = await runAlarm(target);
+  assert.equal(again.length, 1);
+  assert.equal(again[0].body.aps["content-state"].change.cancelled, true);
+  assert.equal(again[0].body.aps.alert, undefined);
+
+  // Another next train (the app planned another way): what was said of the last one goes.
+  const other = journey();
+  other.legs[0].live = { ...other.legs[0].live, trip: "9514" };
+  await target.object.track(other);
+  assert.equal(stored(target).connectionCancelled, undefined);
+  assert.equal(stored(target).connectionAlerted, undefined);
+});
+
+test("followed, the change line waits for the train's next report, alert and all", async () => {
+  now = at("07:30");
+  feeds.skips = [];
+  feeds.cancelledTrips = [];
+  feeds.vehicles = [["1925", "IN_TRANSIT_TO", "OA"]];
+  try {
+    const target = activities();
+    await target.object.track(journey());
+    // Followed from the first report.
+    const first = await runAlarm(target);
+    assert.equal(live(first).length, 1);
+    assert.equal(stored(target).followed, true);
+
+    // The 08:10 cancelled: one push, the train's own, with the alert.
+    feeds.cancelledTrips = ["9512"];
+    now += 40;
+    const sent = await runAlarm(target);
+    assert.equal(sent.length, 1);
+    assert.deepEqual(sent[0].body.aps["content-state"].change, { ...change, cancelled: true });
+    assert.equal(sent[0].body.aps.alert.title, "Your 08:10 connection at Union is cancelled");
+    assert.equal(stored(target).connectionAlerted, true);
+    assert.equal(stored(target).connectionAlertDue, undefined);
+    // Nothing new after that.
+    now += 40;
+    assert.deepEqual(await runAlarm(target), []);
+
+    // No report for a while: the alert waits for the next one.
+    const quiet = activities();
+    feeds.cancelledTrips = [];
+    now = at("07:32");
+    await quiet.object.track(journey());
+    await runAlarm(quiet);
+    feeds.vehicles = [];
+    feeds.cancelledTrips = ["9512"];
+    now += 40;
+    assert.deepEqual(await runAlarm(quiet), []);
+    assert.ok(stored(quiet).connectionAlertDue);
+    feeds.vehicles = [["1925", "STOPPED_AT", "OA"]];
+    now += 40;
+    const late = await runAlarm(quiet);
+    assert.equal(late.length, 1);
+    assert.equal(late[0].body.aps.alert.title, "Your 08:10 connection at Union is cancelled");
+  } finally {
+    feeds.vehicles = [];
+    feeds.cancelledTrips = [];
+  }
+});
+
+test("no answer from the feeds: what the app said of its train stands meanwhile", async () => {
+  now = at("06:50");
+  feeds.failing = true;
+  try {
+    const target = activities();
+    const claimed = job({ times: [at("06:55")] });
+    claimed.state = { ...claimed.state, cancelled: { index: 2, station: "Oakville" } };
+    await target.object.track(claimed);
+    let sent = [];
+    for (let i = 0; i < 6 && sent.length === 0; i++) sent = live(await runAlarm(target));
+    assert.equal(clock(sent[0].body.aps.timestamp), "06:55:00");
+    assert.deepEqual(sent[0].body.aps["content-state"].cancelled, { index: 2, station: "Oakville" });
+  } finally {
+    feeds.failing = false;
+  }
+});
+
+test("the app's request for a trip with changes: told of the next train already", async () => {
+  now = at("06:30");
+  feeds.skips = [];
+  feeds.cancelledTrips = ["9512"];
+  try {
+    const target = activities();
+    const routed = { ...env, LIVE_ACTIVITIES: { idFromName: () => "all", get: () => target.object } };
+    const body = { ...journey({ toldConnection: true }), state: { ...journey().state, change: { ...change, cancelled: true } } };
+    const response = await worker.fetch(new Request("https://worker.test/v1/activity", {
+      method: "POST", body: JSON.stringify(body),
+    }), routed);
+    assert.equal(response.status, 204);
+    assert.equal(stored(target).connectionAlerted, true);
+    assert.equal(stored(target).legs[0].live.trip, "9512");
+    // Found cancelled by the worker too: the change line says so, with no alert.
+    const sent = await runAlarm(target);
+    assert.equal(sent.length, 1);
+    assert.deepEqual(sent[0].body.aps["content-state"].change, { ...change, cancelled: true });
+    assert.equal(sent[0].body.aps.alert, undefined);
+  } finally {
+    feeds.cancelledTrips = [];
+  }
 });

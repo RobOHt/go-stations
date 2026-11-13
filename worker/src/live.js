@@ -404,6 +404,8 @@ export function nextLeg(job, now) {
     // (Asked not to be notified, and the app's own token to wake it, for this train too.)
     ...(job.quiet ? { quiet: true } : {}),
     ...(job.device ? { device: job.device } : {}),
+    // Told it's cancelled already, as the connection.
+    ...(job.connectionAlerted && job.connectionCancelled ? { cancelAlerted: true } : {}),
     state: leg.state,
     times: (leg.times ?? []).filter((t) => t > now && t < leg.end),
     end: leg.end,
@@ -589,12 +591,44 @@ export function cancelledContent(verdict) {
  * then, as the app had it). The next train the app found stays on it.
  */
 export function shownState(job, state) {
-  if (!state || typeof state !== "object" || (job.cancelCheckedAt == null && !job.cancelled)) return state;
-  const { cancelled: claimed, ...rest } = state;
+  if (!state || typeof state !== "object") return state;
+  let shown = state;
+  // On a trip with changes, the train you change to: cancelled or not as the
+  // worker last looked (as the app had it, until then).
+  if (job.connectionCheckedAt != null && state.change && typeof state.change === "object") {
+    const { cancelled: _, ...change } = state.change;
+    shown = { ...state, change: job.connectionCancelled ? { ...change, cancelled: true } : change };
+  }
+  if (job.cancelCheckedAt == null && !job.cancelled) return shown;
+  const { cancelled: claimed, ...rest } = shown;
   if (!job.cancelled) return rest;
   const content = cancelledContent(job.cancelled);
   if (Number.isFinite(claimed?.next)) content.next = claimed.next;
   return { ...rest, cancelled: content };
+}
+
+/**
+ * On a trip with changes, whether the next train (`job.legs[0]`) still comes for
+ * you, by `cancellations()`: as `cancellationFor` has it for that train, where
+ * you change to it and get off it. Null when it does, or there's none.
+ */
+export function connectionFor(job, cancelled) {
+  const leg = Array.isArray(job?.legs) ? job.legs[0] : null;
+  if (!leg?.live) return null;
+  return cancellationFor({ live: leg.live, state: leg.state }, cancelled);
+}
+
+/**
+ * The alert for the next train of a trip found cancelled ("Your 17:30
+ * connection at Union is cancelled"), or running after all.
+ */
+export function connectionAlert(job, { back = false } = {}) {
+  const change = job.state?.change;
+  const time = Number.isFinite(change?.departure) ? `${torontoClock(change.departure)} ` : "";
+  const station = typeof change?.station === "string" && change.station ? change.station : null;
+  const train = `Your ${time}connection${station ? ` at ${station}` : ""}`;
+  if (back) return { title: `${train} is running after all`, body: "It's no longer listed as cancelled." };
+  return { title: `${train} is cancelled`, body: "Open GO Stations to plan another way there." };
 }
 
 /** How long after it was due to leave your station a cancelled train's Live Activity stays up. */

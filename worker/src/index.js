@@ -35,8 +35,8 @@
 
 import { DurableObject } from "cloudflare:workers";
 import {
-  alertFor, alertTime, cancelAlert, cancellationFor, cancellations, cancelledContent, cancelledUntil, follow,
-  mergeTrains, missedCheck, nextLeg, shownState, watchWindow,
+  alertFor, alertTime, cancelAlert, cancellationFor, cancellations, cancelledContent, cancelledUntil, connectionAlert,
+  connectionFor, follow, mergeTrains, missedCheck, nextLeg, shownState, watchWindow,
 } from "./live.js";
 
 const UPSTREAM = "https://api.openmetrolinx.com/OpenDataAPI/api/V1";
@@ -366,8 +366,9 @@ async function activity(request, env, ending) {
     alerts: body.alerts === true,
     // Asked not to be notified about this trip: not even when its train is cancelled.
     quiet: body.quiet === true,
-    // The app has told you its train is cancelled.
+    // The app has told you its train (or the next one) is cancelled.
     ...(body.told === true ? { cancelAlerted: true } : {}),
+    ...(body.toldConnection === true ? { connectionAlerted: true } : {}),
     legs,
     // The app's own token: to wake it once the first train has left (did you catch
     // it?), and when its train is cancelled (to find the next one).
@@ -401,7 +402,12 @@ function followable(live, state, now) {
 // What a followed trip keeps between looks at its train (and at whether it's cancelled).
 const FOLLOWED = [
   "obs", "arr", "dep", "delay", "leave", "eta", "followed", "seen", "pushed", "missedSent",
-  "cancelled", "cancelledUntil", "cancelAlerted", "backAlerted", "cleared", "cancelCheckedAt",
+  "cancelled", "cancelledUntil", "cancelAlerted", "backAlerted", "cleared", "cancelCheckedAt", "cancelRetryAt",
+];
+// On a trip with changes, what's kept of the next train's while it's the same one.
+const CONNECTION = [
+  "connectionCancelled", "connectionCheckedAt", "connectionCleared", "connectionAlerted", "connectionBackAlerted",
+  "connectionAlertDue",
 ];
 // How often a tracked train not followed yet is looked up among the cancelled ones.
 const CANCEL_EVERY = 120;
@@ -421,6 +427,10 @@ export class LiveActivities extends DurableObject {
     // The same train again (new times from the app): what's been seen of it stays.
     if (before?.live && job.live && before.live.trip === job.live.trip) {
       for (const field of FOLLOWED) if (before[field] !== undefined) kept[field] = before[field];
+    }
+    const connection = (each) => each?.legs?.[0]?.live?.trip;
+    if (connection(before) && connection(before) === connection(job)) {
+      for (const field of CONNECTION) if (before[field] !== undefined) kept[field] = before[field];
     }
     // An alert sent stays sent (it names its train and stop).
     if (before?.alerted !== undefined) kept.alerted = before.alerted;
@@ -448,13 +458,15 @@ export class LiveActivities extends DurableObject {
       // Is its train cancelled (or running after all)? Looked up every couple of
       // minutes until it's followed, then with every look at it.
       if (job.live && now < (job.watchUntil ?? 0) &&
-          (watching(job, now) || now >= (job.cancelCheckedAt ?? 0) + CANCEL_EVERY - 1)) {
+          (watching(job, now) || now >= lastLook(job) + CANCEL_EVERY - 1)) {
         if (cancelled === undefined) cancelled = await cancelledTrains(this.env).catch(() => null);
         if (cancelled) {
           if (await this.checkCancelled(key, job, cancelled.trips, now)) continue;
+          if (!job.cancelled && (await this.checkConnection(key, job, cancelled.trips, now))) continue;
         } else if (!watching(job, now) || job.cancelled) {
-          // No answer from the feeds: the next look after the usual wait.
-          job.cancelCheckedAt = now;
+          // No answer from the feeds: the next look after the usual wait. (Not a
+          // look: what the app said of it stands meanwhile, see shownState.)
+          job.cancelRetryAt = now;
           await this.ctx.storage.put(key, job);
         }
       }
@@ -490,9 +502,17 @@ export class LiveActivities extends DurableObject {
             next = nextLeg(next, now);
             push = { event: "update", state: next.state, stale: next.times[0] ?? next.end };
           } else if (push?.event !== "end") {
-            const alert = alertFor(next, result.state, now);
+            // The next train found cancelled meanwhile (see checkConnection): that
+            // first, then the alert before where you change.
+            const connection = next.connectionAlertDue;
+            const alert = connection ?? alertFor(next, result.state, now);
             if (alert) {
-              next.alerted = alert.key;
+              if (connection) {
+                next.connectionAlerted = true;
+                delete next.connectionAlertDue;
+              } else {
+                next.alerted = alert.key;
+              }
               push = { ...(push ?? { event: "update", state: result.state, stale: result.stale }), alert };
             }
           }
@@ -632,6 +652,63 @@ export class LiveActivities extends DurableObject {
     return false;
   }
 
+  /**
+   * On a trip with changes, the next train looked up among the cancelled ones
+   * (see connectionFor). Newly cancelled, the activity's change line says so,
+   * with an alert (unless you asked not to be notified, or the app told you); no
+   * longer listed two looks in a row, it says so no more (with an alert, when the
+   * cancellation had one). Followed, that goes with the train's next report (the
+   * activity shows its times as they stand, not as planned); otherwise it's
+   * pushed now. True when that's all for the job this time round.
+   */
+  async checkConnection(key, job, trips, now) {
+    if (!job.legs?.[0]?.live) return false;
+    const verdict = connectionFor(job, trips);
+    const first = job.connectionCheckedAt == null;
+    job.connectionCheckedAt = now;
+    const before = Boolean(job.connectionCancelled);
+    if (verdict) job.connectionCleared = 0;
+    if (Boolean(verdict) === before) {
+      if (first && !watching(job, now)) await this.ctx.storage.put(key, job);
+      return false;
+    }
+    if (!verdict) {
+      // Gone from the feeds: one look isn't enough (each has had what the other hadn't).
+      job.connectionCleared = (job.connectionCleared ?? 0) + 1;
+      if (job.connectionCleared < CLEARED_AFTER) {
+        await this.ctx.storage.put(key, job);
+        return false;
+      }
+    }
+    job.connectionCancelled = verdict ?? null;
+    let alert = null;
+    if (verdict && !job.quiet && !job.connectionAlerted) {
+      alert = connectionAlert(job);
+    } else if (!verdict && !job.quiet && job.connectionAlerted && !job.connectionBackAlerted) {
+      alert = connectionAlert(job, { back: true });
+      job.connectionBackAlerted = true;
+    }
+    if (job.followed && watching(job, now)) {
+      // With the train's next report.
+      job.pushed = null;
+      if (alert) job.connectionAlertDue = alert;
+      else delete job.connectionAlertDue;
+      await this.ctx.storage.put(key, job);
+      return false;
+    }
+    delete job.connectionAlertDue;
+    if (alert && verdict) job.connectionAlerted = true;
+    job.revision = (job.revision ?? 0) + 1;
+    const stale = job.times.find((t) => t > now) ?? job.end;
+    const { gone, result } = await sendPush(this.env, job, {
+      event: "update", state: { ...job.state, revision: job.revision }, stale, alert,
+    });
+    await this.note(alert ? "alert connection" : "connection", result);
+    if (gone) await this.ctx.storage.delete(key);
+    else await this.ctx.storage.put(key, job);
+    return true;
+  }
+
   /** Keeps what Apple said to the last few pushes (no tokens), for the health check. */
   async note(what, result) {
     const log = (await this.ctx.storage.get("log")) ?? [];
@@ -646,14 +723,14 @@ export class LiveActivities extends DurableObject {
     for (const job of jobs.values()) {
       if (job.cancelled) {
         // Cancelled: its end, and the next look (is it running after all?).
-        const look = now < job.watchFrom ? Math.max((job.cancelCheckedAt ?? 0) + CANCEL_EVERY, now + 1) : now + FOLLOW_EVERY;
+        const look = now < job.watchFrom ? Math.max(lastLook(job) + CANCEL_EVERY, now + 1) : now + FOLLOW_EVERY;
         next = Math.min(next, job.cancelledUntil ?? now + 60, look);
         continue;
       }
       if (!job.followed) next = Math.min(next, due(job, now));
       if (job.live) {
         if (now < job.watchFrom) {
-          next = Math.min(next, job.watchFrom, Math.max((job.cancelCheckedAt ?? 0) + CANCEL_EVERY, now + 1));
+          next = Math.min(next, job.watchFrom, Math.max(lastLook(job) + CANCEL_EVERY, now + 1));
         } else if (now < job.watchUntil) {
           next = Math.min(next, now + FOLLOW_EVERY);
         } else if (job.followed) {
@@ -672,6 +749,11 @@ export class LiveActivities extends DurableObject {
 /** The next time a trip that isn't followed needs a push: an update, its alert, or the end. */
 function due(job, now) {
   return Math.min(job.times[0] ?? Infinity, job.end, alertTime(job, now) ?? Infinity);
+}
+
+/** When the feeds were last looked at (or asked, without an answer) for whether its trains are cancelled. */
+function lastLook(job) {
+  return Math.max(job.cancelCheckedAt ?? 0, job.cancelRetryAt ?? 0);
 }
 
 function watching(job, now) {
