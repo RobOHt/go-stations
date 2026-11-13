@@ -44,10 +44,16 @@ jobs:
       STATION: ${{ inputs.station }}
     steps:
       - uses: actions/checkout@v5
+      # (For tools/cancelled_cost.mjs, which reads the Worker's own code.)
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
       - name: Probe
         run: |
           if [ "$CANCELLATIONS" = true ]; then
             python3 tools/probe_live.py --cancellations ${STATION:+--station "$STATION"}
+            # And what reading them costs the Worker.
+            node tools/cancelled_cost.mjs
             exit 0
           fi
           if [ -n "$TRIP" ]; then

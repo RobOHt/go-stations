@@ -150,6 +150,21 @@ struct TripActivityAttributes: ActivityAttributes {
         var leg: Leg? = nil
         /// Where you change next, and to which train.
         var change: Change? = nil
+        /// GO says the train won't come for you: cancelled, or not stopping where
+        /// you get on or off (nil: it runs). The views say so in place of the
+        /// countdown and the stops.
+        var cancelled: Cancellation? = nil
+    }
+
+    /// A cancelled train, as the activity shows it.
+    struct Cancellation: Codable, Hashable {
+        /// The stop of yours it won't stop at, in `ContentState.stops`, and its
+        /// name; nil: the whole trip is cancelled.
+        var index: Int? = nil
+        var station: String? = nil
+        /// When the next train from your station to your stop leaves, when the app
+        /// has found one.
+        var next: Date? = nil
     }
 
     /// A train changed to, on a trip with changes: what the activity shows for it
@@ -243,7 +258,7 @@ enum TripActivityTime {
 extension TripActivityAttributes.ContentState {
     private enum CodingKeys: String, CodingKey {
         case departure, arrival, hasDeparted, minutesLate, platform, stops, boardingIndex, destinationIndex,
-             awaitsTrain, revision, leg, change
+             awaitsTrain, revision, leg, change, cancelled
     }
 
     init(from decoder: Decoder) throws {
@@ -260,6 +275,7 @@ extension TripActivityAttributes.ContentState {
         revision = try values.decodeIfPresent(Int.self, forKey: .revision)
         leg = try values.decodeIfPresent(TripActivityAttributes.Leg.self, forKey: .leg)
         change = try values.decodeIfPresent(TripActivityAttributes.Change.self, forKey: .change)
+        cancelled = try values.decodeIfPresent(TripActivityAttributes.Cancellation.self, forKey: .cancelled)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -276,6 +292,27 @@ extension TripActivityAttributes.ContentState {
         try values.encodeIfPresent(revision, forKey: .revision)
         try values.encodeIfPresent(leg, forKey: .leg)
         try values.encodeIfPresent(change, forKey: .change)
+        try values.encodeIfPresent(cancelled, forKey: .cancelled)
+    }
+}
+
+extension TripActivityAttributes.Cancellation {
+    private enum CodingKeys: String, CodingKey {
+        case index, station, next
+    }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        index = try values.decodeIfPresent(Int.self, forKey: .index)
+        station = try values.decodeIfPresent(String.self, forKey: .station)
+        next = try TripActivityTime.decodeIfPresent(values, .next)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var values = encoder.container(keyedBy: CodingKeys.self)
+        try values.encodeIfPresent(index, forKey: .index)
+        try values.encodeIfPresent(station, forKey: .station)
+        try values.encodeIfPresent(next.map(TripActivityTime.number), forKey: .next)
     }
 }
 
@@ -984,7 +1021,8 @@ private struct TripStripTrack: View {
 /// The Lock Screen (and the banner on iPhones without the Dynamic Island): the
 /// line, where the train's going, the countdown to its next stop, and the stops
 /// around it. Tracked from your station's board, until the train gets there: when
-/// your train will arrive, in a sentence. The background is the system's own.
+/// your train will arrive, in a sentence. Cancelled: that, and the next train.
+/// The background is the system's own.
 struct TripLockScreen: View {
     let attributes: TripActivityAttributes
     let state: TripActivityAttributes.ContentState
@@ -996,6 +1034,38 @@ struct TripLockScreen: View {
         let trip = TripActivityTrip(attributes, state)
         let moment = trip.moment(at: Date(), isStale: isStale)
         let onDark = colorScheme == .dark
+        if let cancelled = state.cancelled {
+            cancelledBody(cancelled, trip: trip)
+        } else {
+            running(trip: trip, moment: moment, onDark: onDark)
+        }
+    }
+
+    /// Cancelled: the line, where it was going and what it won't do, "Cancelled"
+    /// where the countdown was, and the next train (or where to find one) where
+    /// the stops were.
+    private func cancelledBody(_ cancelled: TripActivityAttributes.Cancellation, trip: TripActivityTrip) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .center, spacing: 10) {
+                TripLinePill(code: attributes.lineCode, color: attributes.lineColor, fontSize: 15, shape: Capsule())
+                    .frame(height: 32)
+                VStack(alignment: .leading, spacing: 2) {
+                    TripTitle(attributes: attributes, trip: trip)
+                    TripCancelledDetail(trip: trip, cancellation: cancelled)
+                        .font(.subheadline)
+                }
+                Spacer(minLength: 8)
+                TripCancelledBadge(time: TripCancelledBadge.time(attributes, trip), fontSize: 22)
+            }
+            TripCancelledNext(trip: trip, cancellation: cancelled)
+                .padding(.top, 10)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 15)
+    }
+
+    @ViewBuilder
+    private func running(trip: TripActivityTrip, moment: TripMoment, onDark: Bool) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             if moment.kind == .approaching {
                 HStack(alignment: .center, spacing: 10) {
@@ -1035,6 +1105,86 @@ struct TripLockScreen: View {
         // gallery's journey cards, which show each card's height).
         .padding(.horizontal, 16)
         .padding(.vertical, 15)
+    }
+}
+
+// MARK: - Cancelled
+
+/// Under the title of a cancelled train: "Won't stop at Oakville" (your station,
+/// or your stop), or "The whole trip is cancelled".
+struct TripCancelledDetail: View {
+    let trip: TripActivityTrip
+    let cancellation: TripActivityAttributes.Cancellation
+
+    var body: some View {
+        Text(Self.text(cancellation, trip: trip))
+            .fontWeight(.semibold)
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+            .minimumScaleFactor(0.8)
+    }
+
+    static func text(_ cancellation: TripActivityAttributes.Cancellation, trip: TripActivityTrip) -> String {
+        guard let index = cancellation.index, trip.stops.indices.contains(index) else {
+            return "The whole trip is cancelled"
+        }
+        return "Won't stop at \(cancellation.station ?? trip.stops[index].name)"
+    }
+}
+
+/// In place of the countdown: "Cancelled" in red, under the time it was due to
+/// leave your station, struck through.
+struct TripCancelledBadge: View {
+    let time: Date?
+    let fontSize: CGFloat
+
+    var body: some View {
+        VStack(alignment: .trailing, spacing: 0) {
+            if let time {
+                Text(TripActivityFormat.time(time))
+                    .font(.caption.weight(.semibold))
+                    .monospacedDigit()
+                    .strikethrough()
+                    .foregroundStyle(.secondary)
+            }
+            Text("Cancelled")
+                .font(.system(size: fontSize, weight: .semibold))
+                .foregroundStyle(.red)
+        }
+        .lineLimit(1)
+        .fixedSize()
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(time.map { "\(TripActivityFormat.time($0)) train cancelled" } ?? "Cancelled")
+    }
+
+    /// When it was due to leave your station, as on its board.
+    static func time(_ attributes: TripActivityAttributes, _ trip: TripActivityTrip) -> Date? {
+        attributes.boardingTime ?? trip.stops[trip.boarding].time
+    }
+}
+
+/// Where the stops were, for a cancelled train: "Next train to Union at 12:18,
+/// in 30 minutes" (once the app has found it), or where to find one.
+struct TripCancelledNext: View {
+    let trip: TripActivityTrip
+    let cancellation: TripActivityAttributes.Cancellation
+    var fontSize: CGFloat = 14
+
+    var body: some View {
+        line
+            .font(.system(size: fontSize))
+            .lineLimit(2)
+            .minimumScaleFactor(0.85)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var line: Text {
+        let plain: (String) -> Text = { Text($0).foregroundStyle(.secondary) }
+        guard let next = cancellation.next else { return plain("Open GO Stations to find another train.") }
+        return plain("Next train to ") + Text(trip.stops[trip.destination].name).fontWeight(.semibold)
+            + plain(" at ") + Text(TripActivityFormat.time(next)).fontWeight(.semibold).monospacedDigit()
+            + plain(", ")
+            + Text(.currentDate, format: .reference(to: next, allowedFields: [.hour, .minute])).fontWeight(.semibold)
     }
 }
 
@@ -1087,7 +1237,13 @@ struct TripCompactTrailing: View {
     @ViewBuilder private var countdown: some View {
         let now = Date()
         let moment = TripActivityTrip(attributes, state).moment(at: now, isStale: isStale)
-        if moment.kind == .arrived {
+        if state.cancelled != nil {
+            Text("Cancelled")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.red)
+                .lineLimit(1)
+                .fixedSize()
+        } else if moment.kind == .arrived {
             Image(systemName: "checkmark")
                 .font(.system(size: 14, weight: .bold))
                 .foregroundStyle(.white)
@@ -1119,13 +1275,19 @@ struct TripMinimal: View {
         let trip = TripActivityTrip(attributes, state)
         let moment = trip.moment(at: now, isStale: isStale)
         ZStack {
-            ProgressView(timerInterval: interval(trip, moment, now: now), countsDown: false) {
-                EmptyView()
-            } currentValueLabel: {
-                EmptyView()
+            if state.cancelled != nil {
+                // Cancelled: the whole ring in red.
+                Circle()
+                    .strokeBorder(Color.red, lineWidth: 3)
+            } else {
+                ProgressView(timerInterval: interval(trip, moment, now: now), countsDown: false) {
+                    EmptyView()
+                } currentValueLabel: {
+                    EmptyView()
+                }
+                .progressViewStyle(.circular)
+                .tint(attributes.lineColorOnDark)
             }
-            .progressViewStyle(.circular)
-            .tint(attributes.lineColorOnDark)
             Text(attributes.lineCode)
                 .font(.system(size: 9.5, weight: .heavy))
                 .foregroundStyle(.white)
@@ -1134,7 +1296,7 @@ struct TripMinimal: View {
         }
         .frame(width: 28, height: 28)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Line \(attributes.lineCode)")
+        .accessibilityLabel("Line \(attributes.lineCode)\(state.cancelled != nil ? ", cancelled" : "")")
     }
 
     /// From when the wait (or the run to the next stop) began to when it ends.
@@ -1179,7 +1341,9 @@ struct TripExpandedTrailing: View {
     var body: some View {
         let trip = TripActivityTrip(attributes, state)
         let moment = trip.moment(at: Date(), isStale: isStale)
-        if moment.kind != .approaching {
+        if state.cancelled != nil {
+            TripCancelledBadge(time: TripCancelledBadge.time(attributes, trip), fontSize: 22)
+        } else if moment.kind != .approaching {
             TripTimeBlock(trip: trip, moment: moment, fontSize: 24)
         } else if let target = moment.target {
             // The sentence along the bottom leads into it, as on the Lock Screen.
@@ -1199,7 +1363,14 @@ struct TripExpandedCenter: View {
     var body: some View {
         let trip = TripActivityTrip(attributes, state)
         let moment = trip.moment(at: Date(), isStale: isStale)
-        if moment.kind != .approaching {
+        if let cancelled = state.cancelled {
+            VStack(spacing: 2) {
+                TripTitle(attributes: attributes, trip: trip)
+                TripCancelledDetail(trip: trip, cancellation: cancelled)
+                    .font(.subheadline)
+            }
+            .minimumScaleFactor(0.8)
+        } else if moment.kind != .approaching {
             VStack(spacing: 2) {
                 TripTitle(attributes: attributes, trip: trip)
                 TripNextLine(attributes: attributes, trip: trip, moment: moment, change: state.change)
@@ -1220,6 +1391,18 @@ struct TripExpandedBottom: View {
     var body: some View {
         let trip = TripActivityTrip(attributes, state)
         let moment = trip.moment(at: Date(), isStale: isStale)
+        if let cancelled = state.cancelled {
+            // Cancelled: the next train, or where to find one, in place of the stops.
+            TripCancelledNext(trip: trip, cancellation: cancelled, fontSize: 13)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 10)
+        } else {
+            running(trip: trip, moment: moment)
+        }
+    }
+
+    @ViewBuilder
+    private func running(trip: TripActivityTrip, moment: TripMoment) -> some View {
         // (All within the island's 160 pt: on the way to your station with a change,
         // the sentence, the stops and the change line only fit with the stops
         // without their times, which the Lock Screen has.)

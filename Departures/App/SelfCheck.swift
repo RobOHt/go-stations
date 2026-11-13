@@ -22,6 +22,7 @@ enum SelfCheck {
         missedTrain()
         progressiveBlur()
         getHere()
+        cancelledTrain()
         lines.append("done")
         write()
         NSLog("SelfCheck: done")
@@ -253,6 +254,87 @@ enum SelfCheck {
               !GetHereButton.shows(isThere: false, isNearest: true, noTimetable: false))
         check("get here: not without a timetable",
               !GetHereButton.shows(isThere: false, isNearest: false, noTimetable: true))
+    }
+
+    /// A tracked train GO says won't stop where you get on (or off), or isn't
+    /// running at all: what tracking makes of it, what you're told, and what its
+    /// Live Activity shows (from the app, and from the worker's push).
+    private static func cancelledTrain() {
+        // Oakville (11:36) to Union (12:00).
+        let trip = lakeshore(boarding: 4, destination: 10)
+        let day = TorontoTime.dateWire(date("11:00"))
+        let now = date("11:30")
+        func feeds(_ entries: CancelledTrains.Entry...) -> CancelledTrains.List {
+            CancelledTrains.List(entries: entries, fetchedAt: now)
+        }
+        let skipsHere = trip.cancellation(in: feeds(.init(trip: "LW42", day: day, skips: ["AL", "BU", "OA"])), now: now)
+        check("cancelled: not stopping where you get on", skipsHere?.code == "OA", "\(String(describing: skipsHere))")
+        check("cancelled: not stopping somewhere in between still takes you",
+              trip.cancellation(in: feeds(.init(trip: "LW42", day: day, skips: ["CL", "PO"])), now: now) == nil)
+        check("cancelled: another day's train with the same number",
+              trip.cancellation(in: feeds(.init(trip: "LW42", day: "20261109", all: true)), now: now) == nil)
+        let whole = trip.cancellation(in: feeds(.init(trip: "LW42", all: true)), now: now)
+        check("cancelled: the whole trip, from the exceptions feed", whole != nil && whole?.code == nil)
+        var riding = trip
+        riding.stops[4].departed = date("11:37")
+        check("cancelled: on it, where you got on doesn't matter",
+              riding.cancellation(in: feeds(.init(trip: "LW42", day: day, skips: ["OA"])), now: now) == nil)
+        check("cancelled: on it, not stopping where you get off",
+              riding.cancellation(in: feeds(.init(trip: "LW42", day: day, skips: ["UN"])), now: now)?.code == "UN")
+
+        // Tracked (and its Live Activity up) until 10 minutes after it was due,
+        // and at least 10 minutes after it was found out.
+        var cancelled = trip
+        cancelled.cancelled = TripCancellation(code: "OA", since: date("11:20"))
+        check("cancelled: tracked until a while after it was due", cancelled.endsAt == date("11:46"),
+              "\(String(describing: cancelled.endsAt))")
+        cancelled.cancelled?.since = date("11:40")
+        check("cancelled: and a while after it was found out", cancelled.endsAt == date("11:50"))
+
+        // What you're told.
+        let network = RailNetwork.shared
+        let noNext = TripAlerts.cancelledText(cancelled, back: false, network: network)
+        check("cancelled: the alert", noNext.title == "Your 11:36 train is cancelled"
+              && noNext.body == "It won't stop at Oakville. Open GO Stations to find another train.", "\(noNext)")
+        let later = date("12:06")
+        cancelled.cancelled?.next = BoardRow(tripNumber: "LW44", lineCode: "LW", lineName: "Lakeshore West",
+                                             destination: "Union Station", stops: [], scheduled: later,
+                                             expected: later, platform: nil, isExpress: false, isCancelled: false)
+        let withNext = TripAlerts.cancelledText(cancelled, back: false, network: network)
+        check("cancelled: the alert, with the next train",
+              withNext.body == "It won't stop at Oakville. The next train to Union Station leaves at 12:06.",
+              withNext.body)
+        var notThere = riding
+        notThere.cancelled = TripCancellation(code: "UN", since: now)
+        check("cancelled: the alert, not stopping where you get off",
+              TripAlerts.cancelledText(notThere, back: false, network: network).title
+                  == "Your 11:36 train won't stop at Union Station")
+        check("cancelled: running after all",
+              TripAlerts.cancelledText(cancelled, back: true, network: network).title
+                  == "Your 11:36 train is running after all")
+
+        // Its Live Activity: where it won't stop, and the next train.
+        let content = TripActivityController.content(for: cancelled, now: now)
+        check("cancelled: the activity says where, and the next train",
+              content?.state.cancelled?.index == 4 && content?.state.cancelled?.station == "Oakville"
+                  && content?.state.cancelled?.next == later,
+              "\(String(describing: content?.state.cancelled))")
+
+        // The worker's push, as the widget reads it.
+        let push = #"{"departure": 1794573600, "arrival": 1794574800, "hasDeparted": false, "#
+            + #""stops": [{"name": "Oakville", "time": 1794573600}, {"name": "Union", "time": 1794574800}], "#
+            + #""boardingIndex": 0, "destinationIndex": 1, "revision": 3, "#
+        let skipped = try? JSONDecoder().decode(TripActivityAttributes.ContentState.self, from: Data(
+            (push + #""cancelled": {"index": 0, "station": "Oakville", "next": 1794575400}}"#).utf8))
+        check("cancelled: the worker's push reads",
+              skipped?.cancelled?.index == 0 && skipped?.cancelled?.station == "Oakville"
+                  && skipped?.cancelled?.next == Date(timeIntervalSince1970: 1794575400))
+        let all = try? JSONDecoder().decode(TripActivityAttributes.ContentState.self,
+                                            from: Data((push + #""cancelled": {}}"#).utf8))
+        check("cancelled: the whole trip, from the worker", all?.cancelled != nil && all?.cancelled?.index == nil)
+        let running = try? JSONDecoder().decode(TripActivityAttributes.ContentState.self,
+                                                from: Data((push + #""platform": "2"}"#).utf8))
+        check("cancelled: a running train's push has none", running != nil && running?.cancelled == nil)
     }
 
     // MARK: Made-up trips

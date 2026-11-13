@@ -39,6 +39,7 @@
 		CE70EDC808067237D9D9A7F2 /* TrainReplay.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB7643620730E0C36B367EB0 /* TrainReplay.swift */; };
 		BF4FAF1018F15829F06FF536 /* ScheduleStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEECCC300CF5D0431410FAAE /* ScheduleStore.swift */; };
 		BA527F6CC1BB40CAD6C5B5BC /* LiveTrains.swift in Sources */ = {isa = PBXBuildFile; fileRef = C781E6E6E97C95A48D30EA53 /* LiveTrains.swift */; };
+		9C41D2A07B3E4F5A8D6E1F41 /* CancelledTrains.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C41D2A07B3E4F5A8D6E1F42 /* CancelledTrains.swift */; };
 		C72CEF65C6D4FA826441D360 /* LocationProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9948AB743F7973496F01FC60 /* LocationProvider.swift */; };
 		CC907A8260921EE1A4252FB4 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 420AD3DBFC5C7096B0B3CA0A /* SettingsView.swift */; };
 		CDD86E97CC4F4EC78F656661 /* DeparturesWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9EA12E069E84BA3CCEA1F5AF /* DeparturesWidgets.swift */; };
@@ -119,6 +120,7 @@
 		FD88BB566A609617693A474D /* DeparturesWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = DeparturesWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		FEECCC300CF5D0431410FAAE /* ScheduleStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ScheduleStore.swift; sourceTree = "<group>"; };
 		C781E6E6E97C95A48D30EA53 /* LiveTrains.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LiveTrains.swift; sourceTree = "<group>"; };
+		9C41D2A07B3E4F5A8D6E1F42 /* CancelledTrains.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CancelledTrains.swift; sourceTree = "<group>"; };
 		C2E15CB1F3D4880F761F13AC /* TripPlanner.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TripPlanner.swift; sourceTree = "<group>"; };
 		EBB587A54B5B6A160F048A39 /* TripPlanSheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TripPlanSheet.swift; sourceTree = "<group>"; };
 		E023D9E548548964A88EF91D /* TripAlerts.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TripAlerts.swift; sourceTree = "<group>"; };
@@ -192,6 +194,7 @@
 				DFE6B35F3135D0FF6BF810DA /* MetrolinxClient.swift */,
 				FEECCC300CF5D0431410FAAE /* ScheduleStore.swift */,
 				C781E6E6E97C95A48D30EA53 /* LiveTrains.swift */,
+				9C41D2A07B3E4F5A8D6E1F42 /* CancelledTrains.swift */,
 			);
 			name = API;
 			path = API;
@@ -463,6 +466,7 @@
 				5FB905A092DA55E4EC67121C /* StationSheet.swift in Sources */,
 				BF4FAF1018F15829F06FF536 /* ScheduleStore.swift in Sources */,
 				BA527F6CC1BB40CAD6C5B5BC /* LiveTrains.swift in Sources */,
+				9C41D2A07B3E4F5A8D6E1F41 /* CancelledTrains.swift in Sources */,
 				F84F4DE9239838E432A25741 /* TripSheet.swift in Sources */,
 				8FCB966F59164CF7F1FF5522 /* SearchPanel.swift in Sources */,
 				A29E9D60A166B42FD5174F50 /* GlassControls.swift in Sources */,

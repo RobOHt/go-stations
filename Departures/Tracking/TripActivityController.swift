@@ -27,6 +27,9 @@ final class TripActivityController {
     private var tokenWatchers: [String: Task<Void, Never>] = [:]
     /// What the worker was last told for each activity, so it's told only what's new.
     private var registered: [String: String] = [:]
+    /// The activities the worker took on: it follows their trains (and says when
+    /// one is cancelled).
+    private var followed: Set<String> = []
 
     private init() {}
 
@@ -82,6 +85,21 @@ final class TripActivityController {
             // After a relaunch: pick its push token up again.
             watchPushToken(of: activity)
         }
+    }
+
+    /// Whether the worker follows the trip's Live Activity: it then says when the
+    /// train is cancelled, with the activity.
+    func workerFollows(_ trip: TrackedTrip) -> Bool {
+        activities.contains { activity in
+            activity.attributes.tripID == trip.activityID && followed.contains(activity.id)
+                && (activity.activityState == .active || activity.activityState == .stale)
+        }
+    }
+
+    /// Whether the trip's Live Activity says its train is cancelled (as the worker
+    /// pushed it, when the app didn't know).
+    func showsCancelled(_ trip: TrackedTrip) -> Bool {
+        activities.contains { $0.attributes.tripID == trip.activityID && $0.content.state.cancelled != nil }
     }
 
     /// Ends every one at once (you stopped tracking, or tracked another train).
@@ -147,7 +165,8 @@ final class TripActivityController {
         let schedules = trip.legsFromHere().compactMap { Self.schedule(for: $0, attributes: attributes, now: now) }
         guard let first = schedules.first, first.trip.tripNumber == trip.tripNumber else { return }
         let alerts = TripAlerts.shared.isOn(for: trip)
-        // On the first train of a trip from search: woken to check you're on it.
+        // The app's own token, to wake it: on the first train of a trip from search,
+        // to check you're on it; and when the train is cancelled, to find the next.
         let device = TripActivityPush.deviceToken
         let missedCheck = trip.journeyKey != nil && (trip.legIndex ?? 0) == 0 && device != nil
         let job = TripActivityPush.Job(
@@ -159,13 +178,21 @@ final class TripActivityController {
             dismissal: first.leg.dismissal,
             live: first.leg.live,
             alerts: alerts,
+            quiet: trip.alerts == false,
+            told: trip.cancelled?.told == true,
             legs: schedules.dropFirst().map { $0.leg },
-            device: missedCheck ? device : nil,
+            device: device,
             missedCheck: missedCheck
         )
-        // To the minute: the worker follows the train itself in between.
+        // To the minute: the worker follows the train itself in between. (With
+        // whether it's cancelled, and the next train, as the activity shows them.)
         func minute(_ number: Double) -> Int { Int(number / 60) }
-        let key = ([job.token, "\(alerts)", job.device ?? "-"] + schedules.flatMap { schedule -> [String] in
+        let cancelled = first.leg.state.cancelled.map { shown -> String in
+            let next = shown.next.map { minute($0.timeIntervalSince1970) } ?? 0
+            return "\(shown.index ?? -1)@\(next)"
+        }
+        let key = ([job.token, "\(alerts)", "\(job.quiet)", "\(job.told)", job.device ?? "-", cancelled ?? "-"]
+                   + schedules.flatMap { schedule -> [String] in
             let leg = schedule.leg
             return [schedule.trip.tripNumber, "\(schedule.trip.boardingIndex)-\(schedule.trip.destinationIndex)",
                     schedule.trip.stopCodes.joined()]
@@ -176,6 +203,7 @@ final class TripActivityController {
         let journey = trip.activityID
         Task {
             let accepted = await TripActivityPush.send(job)
+            if accepted { followed.insert(activityID) }
             // The worker sends the change and arrival alerts with the Live Activity.
             if accepted, alerts { TripAlerts.shared.workerSendsAlerts(for: journey) }
         }
@@ -210,6 +238,7 @@ final class TripActivityController {
 
     private func stopPushes(to activity: Activity<TripActivityAttributes>) {
         registered[activity.id] = nil
+        followed.remove(activity.id)
         tokenWatchers.removeValue(forKey: activity.id)?.cancel()
         if let token = pushTokens.removeValue(forKey: activity.id) {
             Task { await TripActivityPush.forget(token) }
@@ -281,10 +310,23 @@ final class TripActivityController {
             destinationIndex: trip.destinationIndex,
             awaitsTrain: trip.hasStartingStop,
             leg: trip.journeyID == nil ? nil : leg(for: attributes, since: trip.legStartedAt),
-            change: change(after: trip)
+            change: change(after: trip),
+            cancelled: cancellation(of: trip)
         )
+        // (Cancelled, it doesn't change until it ends.)
+        if state.cancelled != nil { return ActivityContent(state: state, staleDate: trip.endsAt) }
         let target = TripActivityTrip(attributes, state).moment(at: now).target
         return ActivityContent(state: state, staleDate: target.flatMap { $0 > now ? $0 : nil })
+    }
+
+    /// A cancelled train, as its activity shows it: where it won't stop, and the
+    /// next train from your station once the app has found it.
+    static func cancellation(of trip: TrackedTrip) -> TripActivityAttributes.Cancellation? {
+        guard let cancelled = trip.cancelled else { return nil }
+        let index = trip.cancelledIndex
+        let station = index.flatMap { RailNetwork.shared.station(trip.stops[$0].code)?.name }
+        return TripActivityAttributes.Cancellation(index: index, station: station.map(shortName),
+                                                   next: cancelled.next?.scheduled)
     }
 
     /// A train changed to, on a trip with changes: what the activity (started for
@@ -403,11 +445,17 @@ enum TripActivityPush {
         let live: Live?
         /// Alert 5 minutes before the train gets to where you change or get off.
         let alerts: Bool
+        /// You asked not to be notified about this trip: not even when its train
+        /// is cancelled (the Live Activity still says so).
+        let quiet: Bool
+        /// The app has told you the train is cancelled: the worker needn't.
+        let told: Bool
         /// On a trip with changes, the trains after this one: the same for each.
         let legs: [Leg]
         /// The app's own push token: on the first train of a trip from search
         /// (`missedCheck`), the worker wakes the app with it a couple of minutes
-        /// after the train leaves where you get on, to check you're on it (#16).
+        /// after the train leaves where you get on, to check you're on it (#16);
+        /// and when the train is found cancelled, for the app to find the next one.
         let device: String?
         let missedCheck: Bool
     }

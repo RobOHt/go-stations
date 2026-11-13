@@ -74,6 +74,11 @@ enum DebugScene: String {
             || defaults.string(forKey: "debugLocation") != nil
     }
 
+    /// `-debugSkips CL,PO`: every train is taken not to stop at those stations (so
+    /// it's cancelled there), for screenshots of how that shows.
+    static let skips: Set<String>? = UserDefaults.standard.string(forKey: "debugSkips")
+        .map { Set($0.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }) }
+
     /// `-debugNow 2026-11-10T07:30:00-05:00`: the time the app goes by.
     static let fixedNow: Date? = UserDefaults.standard.string(forKey: "debugNow")
         .flatMap { ISO8601DateFormatter().date(from: $0) }

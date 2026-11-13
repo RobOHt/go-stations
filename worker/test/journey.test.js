@@ -172,8 +172,10 @@ test("a couple of minutes after the first train leaves, the app is woken to chec
   assert.equal(missedCheck({ ...away, missedCheck: false }, train, at("07:28:00")), null);
   // Not before it has left.
   assert.equal(missedCheck(atMimico, train, at("07:28:00")), null);
-  // The next train of the trip (after the change) doesn't carry it.
+  // The next train of the trip (after the change) doesn't carry it (only the
+  // app's token, to wake it should that train be cancelled).
   const next = nextLeg({ ...job(), missedCheck: true, device }, at("07:35"));
   assert.equal(next.missedCheck, undefined);
-  assert.equal(next.device, undefined);
+  assert.equal(next.device, device);
+  assert.equal(missedCheck({ ...next, dep: { 0: at("07:39") } }, train, at("07:45")), null);
 });

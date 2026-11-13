@@ -10,6 +10,10 @@
 // GET /v1/live/trains: where every GO train is right now, and whether it's
 // standing at a station (src/live.js), cached a few seconds.
 //
+// GET /v1/live/cancelled: which trains aren't running, or won't stop somewhere
+// they were due to, from GO's train exceptions and its GTFS trip updates
+// together (src/live.js), cached half a minute.
+//
 // POST /v1/activity takes a Live Activity's push token, what it shows, and when
 // the train reaches each stop; at each of those times the LiveActivities Durable
 // Object has Apple's push service hand the activity an update (so iOS draws it
@@ -22,12 +26,18 @@
 // an alert (sound, screen on). On the first train of a trip from search
 // (`missedCheck`, with the app's own push token, `device`), a couple of minutes
 // after it leaves where you get on, a silent push wakes the app to check you're
-// on it. POST /v1/activity/end forgets one early. Nothing is kept once the trip
+// on it. A tracked train found cancelled (or not stopping where you get on or
+// off) shows so in its Live Activity, with an alert (none for a trip you asked
+// not to be notified about), until a while after it was due; the app is woken
+// to find the next train. POST /v1/activity/end forgets one early. Nothing is kept once the trip
 // is over. The Apple push key is a Worker secret too (APNS_KEY_P8, APNS_KEY_ID,
 // APPLE_TEAM_ID).
 
 import { DurableObject } from "cloudflare:workers";
-import { alertFor, alertTime, follow, mergeTrains, missedCheck, nextLeg, watchWindow } from "./live.js";
+import {
+  alertFor, alertTime, cancelAlert, cancellationFor, cancellations, cancelledContent, cancelledUntil, follow,
+  mergeTrains, missedCheck, nextLeg, shownState, watchWindow,
+} from "./live.js";
 
 const UPSTREAM = "https://api.openmetrolinx.com/OpenDataAPI/api/V1";
 
@@ -57,6 +67,7 @@ export default {
     }
 
     if (url.pathname === "/v1/live/trains") return trainsNow(request, env);
+    if (url.pathname === "/v1/live/cancelled") return cancelledNow(request, env);
 
     if (url.pathname === "/health") {
       const body = { ok: true, configured: Boolean(env.METROLINX_API_KEY), push: pushConfigured(env) };
@@ -73,6 +84,7 @@ export default {
         }
         if (checks.includes("metrolinx") && body.configured) body.metrolinx = await checkMetrolinx(env);
         if (checks.includes("live") && body.configured) body.live = await checkLive(env);
+        if (checks.includes("cancelled") && body.configured) body.cancelled = await checkCancelled(env);
       }
       return new Response(JSON.stringify(body), {
         headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
@@ -196,6 +208,74 @@ async function checkLive(env) {
   }
 }
 
+// --- Cancelled trains ---------------------------------------------------------
+
+// How long one look at GO's cancellations is reused (the trip updates are big:
+// about 700 KB to read through).
+const CANCELLED_TTL = 30;
+
+let cancelledMemo = null;
+
+/**
+ * Which trains aren't running, or won't stop somewhere they were due to (see
+ * cancellations in src/live.js), at most CANCELLED_TTL seconds old:
+ * { at, trips, from } (`from`: the feeds that answered).
+ */
+async function cancelledTrains(env) {
+  const now = Date.now();
+  if (cancelledMemo && now >= cancelledMemo.fetched && now - cancelledMemo.fetched < CANCELLED_TTL * 1000) {
+    return cancelledMemo.value;
+  }
+  const value = Promise.all([
+    upstreamJSON(env, "/ServiceUpdate/Exceptions/Train"),
+    upstreamJSON(env, "/Gtfs/Feed/TripUpdates"),
+  ]).then(([exceptions, updates]) => {
+    if (!exceptions && !updates) throw new Error("No cancellation data");
+    return {
+      at: Math.floor(Date.now() / 1000),
+      trips: cancellations(exceptions, updates),
+      from: [exceptions && "exceptions", updates && "updates"].filter(Boolean),
+    };
+  });
+  cancelledMemo = { fetched: now, value };
+  value.catch(() => {
+    if (cancelledMemo?.value === value) cancelledMemo = null;
+  });
+  return value;
+}
+
+async function cancelledNow(request, env) {
+  if (request.method !== "GET" && request.method !== "HEAD") {
+    return error(405, "Method not allowed", { Allow: "GET, HEAD" });
+  }
+  if (!env.METROLINX_API_KEY) return error(503, "Live data isn't set up yet");
+  if (env.LIMITER) {
+    const ip = request.headers.get("CF-Connecting-IP") ?? "unknown";
+    const { success } = await env.LIMITER.limit({ key: ip });
+    if (!success) return error(429, "Too many requests", { "Retry-After": "30" });
+  }
+  try {
+    const body = await cancelledTrains(env);
+    return new Response(JSON.stringify(body), {
+      headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": `public, max-age=${CANCELLED_TTL}` },
+    });
+  } catch {
+    return error(502, "Cancellations are unavailable right now");
+  }
+}
+
+/** How many trains the feeds say aren't running, or skip stations, and which feeds answered. */
+async function checkCancelled(env) {
+  try {
+    const { trips, from } = await cancelledTrains(env);
+    const all = trips.filter((trip) => trip.all).length;
+    const skipping = trips.filter((trip) => !trip.all && trip.skips?.length).length;
+    return `${all} cancelled, ${skipping} skipping stations (from ${from.join(" and ")})`;
+  } catch (e) {
+    return `failed: ${e?.message ?? e}`;
+  }
+}
+
 /** Errors use the same envelope as Metrolinx, so the app handles them the same way. */
 function error(status, message, extraHeaders = {}) {
   return new Response(
@@ -274,6 +354,7 @@ async function activity(request, env, ending) {
     });
   }
   const device = typeof body.device === "string" ? body.device.toLowerCase() : "";
+  const hasDevice = /^[0-9a-f]{64,200}$/.test(device);
   const accepted = await pusher.track({
     token,
     environment: body.environment,
@@ -283,9 +364,15 @@ async function activity(request, env, ending) {
     dismissal: Math.max(body.dismissal, body.end),
     live: followable(body.live, state, now),
     alerts: body.alerts === true,
+    // Asked not to be notified about this trip: not even when its train is cancelled.
+    quiet: body.quiet === true,
+    // The app has told you its train is cancelled.
+    ...(body.told === true ? { cancelAlerted: true } : {}),
     legs,
-    // The app's own token, to wake it once the first train has left (did you catch it?).
-    ...(body.missedCheck === true && /^[0-9a-f]{64,200}$/.test(device) ? { missedCheck: true, device } : {}),
+    // The app's own token: to wake it once the first train has left (did you catch
+    // it?), and when its train is cancelled (to find the next one).
+    ...(hasDevice ? { device } : {}),
+    ...(body.missedCheck === true && hasDevice ? { missedCheck: true } : {}),
   });
   return accepted ? new Response(null, { status: 204 }) : error(503, "Too many trips tracked");
 }
@@ -311,8 +398,15 @@ function followable(live, state, now) {
   return { trip, codes, scheduled };
 }
 
-// What a followed trip keeps between looks at its train.
-const FOLLOWED = ["obs", "arr", "dep", "delay", "leave", "eta", "followed", "seen", "pushed", "missedSent"];
+// What a followed trip keeps between looks at its train (and at whether it's cancelled).
+const FOLLOWED = [
+  "obs", "arr", "dep", "delay", "leave", "eta", "followed", "seen", "pushed", "missedSent",
+  "cancelled", "cancelledUntil", "cancelAlerted", "backAlerted", "cleared", "cancelCheckedAt",
+];
+// How often a tracked train not followed yet is looked up among the cancelled ones.
+const CANCEL_EVERY = 120;
+// Looks in a row without it among them before a cancelled train is taken to be running again.
+const CLEARED_AFTER = 2;
 
 // One object holds every tracked trip's schedule (there are only ever a few) and
 // wakes at the next time any of them is due, or every FOLLOW_EVERY seconds while
@@ -349,7 +443,33 @@ export class LiveActivities extends DurableObject {
     const now = Date.now() / 1000;
     const jobs = await this.ctx.storage.list({ prefix: "job:" });
     let live;
+    let cancelled;
     for (const [key, job] of jobs) {
+      // Is its train cancelled (or running after all)? Looked up every couple of
+      // minutes until it's followed, then with every look at it.
+      if (job.live && now < (job.watchUntil ?? 0) &&
+          (watching(job, now) || now >= (job.cancelCheckedAt ?? 0) + CANCEL_EVERY - 1)) {
+        if (cancelled === undefined) cancelled = await cancelledTrains(this.env).catch(() => null);
+        if (cancelled) {
+          if (await this.checkCancelled(key, job, cancelled.trips, now)) continue;
+        } else if (!watching(job, now) || job.cancelled) {
+          // No answer from the feeds: the next look after the usual wait.
+          job.cancelCheckedAt = now;
+          await this.ctx.storage.put(key, job);
+        }
+      }
+      if (job.cancelled) {
+        // Cancelled: it says so until a while after it was due, then it ends.
+        if (now >= (job.cancelledUntil ?? 0)) {
+          job.revision = (job.revision ?? 0) + 1;
+          const { result } = await sendPush(this.env, job, {
+            event: "end", state: { ...job.state, revision: job.revision }, dismissal: now + 120,
+          });
+          await this.note("end cancelled", result);
+          await this.ctx.storage.delete(key);
+        }
+        continue;
+      }
       if (watching(job, now)) {
         // Where its train is (one look at the feeds for every trip followed).
         if (live === undefined) live = await liveTrains(this.env).catch(() => null);
@@ -446,6 +566,72 @@ export class LiveActivities extends DurableObject {
     await this.wake();
   }
 
+  /**
+   * Looks the job's train up among the cancelled ones (`trips`, from
+   * cancelledTrains): newly cancelled, its Live Activity says so, with an alert
+   * (unless you asked not to be notified), and the app's woken to find the next
+   * train; no longer cancelled two looks in a row, it's running after all (said
+   * with an alert, when the cancellation was). True when that's all for the job
+   * this time round.
+   */
+  async checkCancelled(key, job, trips, now) {
+    const verdict = cancellationFor(job, trips);
+    const watched = watching(job, now);
+    const before = job.cancelled ?? null;
+    job.cancelCheckedAt = now;
+    if (verdict) {
+      job.cleared = 0;
+      if (before && JSON.stringify(cancelledContent(before)) === JSON.stringify(cancelledContent(verdict))) {
+        // Still cancelled, as it says.
+        if (!watched) await this.ctx.storage.put(key, job);
+        return false;
+      }
+      job.cancelled = verdict;
+      job.cancelledUntil = cancelledUntil(job, verdict, now);
+      const alert = job.quiet || job.cancelAlerted ? null : cancelAlert(job, verdict);
+      if (alert) job.cancelAlerted = true;
+      job.revision = (job.revision ?? 0) + 1;
+      const { gone, result } = await sendPush(this.env, job, {
+        event: "update", state: { ...job.state, revision: job.revision }, stale: job.cancelledUntil, alert,
+      });
+      await this.note(alert ? "alert cancelled" : "cancelled", result);
+      if (gone) {
+        await this.ctx.storage.delete(key);
+        return true;
+      }
+      // The app, woken, finds the next train (it knows the boards; the worker doesn't).
+      if (!before && job.device) {
+        await this.note("wake cancelled", await sendWake(this.env, job, { cancelled: { trip: job.live.trip } }));
+      }
+      await this.ctx.storage.put(key, job);
+      return true;
+    }
+    if (before) {
+      job.cleared = (job.cleared ?? 0) + 1;
+      if (job.cleared < CLEARED_AFTER) {
+        await this.ctx.storage.put(key, job);
+        return true;
+      }
+      // Running after all: as it was, followed again from the next look.
+      job.cancelled = null;
+      delete job.cancelledUntil;
+      job.pushed = null;
+      const alert = !job.quiet && job.cancelAlerted && !job.backAlerted ? cancelAlert(job, null, { back: true }) : null;
+      if (alert) job.backAlerted = true;
+      job.revision = (job.revision ?? 0) + 1;
+      const stale = job.times.find((t) => t > now) ?? job.end;
+      const { gone, result } = await sendPush(this.env, job, {
+        event: "update", state: { ...job.state, revision: job.revision }, stale, alert,
+      });
+      await this.note(alert ? "alert running" : "running", result);
+      if (gone) await this.ctx.storage.delete(key);
+      else await this.ctx.storage.put(key, job);
+      return true;
+    }
+    if (!watched) await this.ctx.storage.put(key, job);
+    return false;
+  }
+
   /** Keeps what Apple said to the last few pushes (no tokens), for the health check. */
   async note(what, result) {
     const log = (await this.ctx.storage.get("log")) ?? [];
@@ -458,11 +644,21 @@ export class LiveActivities extends DurableObject {
     const jobs = await this.ctx.storage.list({ prefix: "job:" });
     let next = Infinity;
     for (const job of jobs.values()) {
+      if (job.cancelled) {
+        // Cancelled: its end, and the next look (is it running after all?).
+        const look = now < job.watchFrom ? Math.max((job.cancelCheckedAt ?? 0) + CANCEL_EVERY, now + 1) : now + FOLLOW_EVERY;
+        next = Math.min(next, job.cancelledUntil ?? now + 60, look);
+        continue;
+      }
       if (!job.followed) next = Math.min(next, due(job, now));
       if (job.live) {
-        if (now < job.watchFrom) next = Math.min(next, job.watchFrom);
-        else if (now < job.watchUntil) next = Math.min(next, now + FOLLOW_EVERY);
-        else if (job.followed) next = Math.min(next, now + 1);
+        if (now < job.watchFrom) {
+          next = Math.min(next, job.watchFrom, Math.max((job.cancelCheckedAt ?? 0) + CANCEL_EVERY, now + 1));
+        } else if (now < job.watchUntil) {
+          next = Math.min(next, now + FOLLOW_EVERY);
+        } else if (job.followed) {
+          next = Math.min(next, now + 1);
+        }
       }
     }
     if (next === Infinity) {
@@ -482,10 +678,12 @@ function watching(job, now) {
   return Boolean(job.live) && now >= job.watchFrom && now < job.watchUntil;
 }
 
-// Sends one update (or the end) to a Live Activity through Apple's push service.
+// Sends one update (or the end) to a Live Activity through Apple's push service,
+// with whether its train is cancelled as the worker last looked (see shownState).
 // `gone` when Apple no longer knows the token (the activity ended).
 async function sendPush(env, job, { event, state, stale, dismissal, alert }) {
-  const aps = { timestamp: Math.floor(Date.now() / 1000), event, "content-state": state };
+  // Cancelled or not, as the worker last looked (see shownState).
+  const aps = { timestamp: Math.floor(Date.now() / 1000), event, "content-state": shownState(job, state) };
   if (stale) aps["stale-date"] = Math.floor(stale);
   if (dismissal) aps["dismissal-date"] = Math.floor(dismissal);
   // Lights the screen with the Live Activity (and shows on a watch), with a sound.

@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// The train a board row was tapped on, and the station whose board it came from.
 struct TripSelection: Identifiable {
@@ -70,6 +71,9 @@ struct TripSheet: View {
     @State private var openStation: Station?
     /// The trains after this one on the tracked trip, live when Metrolinx has them.
     @State private var onwardDetails: [String: TripDetail] = [:]
+    /// What GO's feeds say about this train: cancelled, or where it won't stop
+    /// (nil: it runs as planned).
+    @State private var cancellation: CancelledTrains.Status?
 
     private let network = RailNetwork.shared
 
@@ -120,9 +124,11 @@ struct TripSheet: View {
             }
         }
         .task {
-            // Where the train really is, while its stops are open.
+            // Where the train really is, while its stops are open, and whether it's cancelled.
             while !Task.isCancelled {
                 await LiveTrains.shared.refresh()
+                let status = await CancelledTrains.shared.list()?.status(of: row)
+                if status != cancellation { withAnimation(.snappy) { cancellation = status } }
                 try? await Task.sleep(for: .seconds(15))
             }
         }
@@ -207,7 +213,7 @@ struct TripSheet: View {
                         TrainSpeedLabel(number: row.tripNumber)
                     }
                 }
-                if row.isCancelled {
+                if isCancelledHere {
                     Label("Cancelled | Annulé", systemImage: "xmark.circle.fill")
                         .font(.footnote.weight(.bold))
                         .foregroundStyle(.red)
@@ -219,6 +225,11 @@ struct TripSheet: View {
 
             GlassCloseButton { dismiss() }
         }
+    }
+
+    /// Cancelled at the station it was opened from (as its board said, or GO's feeds now say).
+    private var isCancelledHere: Bool {
+        row.isCancelled || cancellation?.isCancelled(at: selection.station.code) == true
     }
 
     // MARK: Tracking
@@ -286,7 +297,7 @@ struct TripSheet: View {
         return TimelineView(.periodic(from: .now, by: 10)) { context in
             let state = trainState(detail, at: context.date)
             VStack(alignment: .leading, spacing: 12) {
-                if tracker.isTracking(row) || canTrack(detail, at: context.date) {
+                if tracker.isTracking(row) || (canTrack(detail, at: context.date) && !isCancelledHere) {
                     trackButton
                 } else if detail.source != nil, row.expected.timeIntervalSince(context.date) > Self.trackAhead {
                     Label("You can track it from 4 hours before it leaves", systemImage: "clock")
@@ -309,10 +320,12 @@ struct TripSheet: View {
                                     role: role(for: stop.code),
                                     isOrigin: stop.index == originIndex,
                                     isEnd: stop.index == 0 || stop.index == detail.stops.count - 1,
-                                    // Dimmed once the train has left it.
-                                    isDimmed: state.hasPassed(stop.index, stopCount: detail.stops.count),
+                                    // Dimmed once the train has left it (all of them, the whole trip cancelled).
+                                    isDimmed: state.hasPassed(stop.index, stopCount: detail.stops.count)
+                                        || cancellation?.all == true,
                                     lineColor: lineColor,
-                                    tag: stop.index == offIndex ? offTag : nil
+                                    tag: stop.index == offIndex ? offTag : nil,
+                                    isSkipped: cancellation?.skips.contains(stop.code) == true
                                 )
                             }
                             .buttonStyle(StopRowButtonStyle())
@@ -607,9 +620,11 @@ private struct StopRow: View {
     let lineColor: Color
     /// A word beside the name: "Change" where you change trains, "Your stop".
     var tag: String? = nil
+    /// GO says the train won't stop here.
+    var isSkipped = false
 
     private var isDelayed: Bool {
-        guard let time = stop.time, let expected = stop.expected else { return false }
+        guard !isSkipped, let time = stop.time, let expected = stop.expected else { return false }
         return expected.timeIntervalSince(time) >= 120
     }
 
@@ -618,7 +633,10 @@ private struct StopRow: View {
             VStack(alignment: .trailing, spacing: 1) {
                 Text(stop.time.map(TorontoTime.hourMinute) ?? "")
                     .font(.subheadline.weight(.semibold).monospacedDigit())
-                    .strikethrough(isDelayed)
+                    .strikethrough(isDelayed || isSkipped)
+                    // (Greyed where it won't stop, as on the rest of a row the train has left.)
+                    .foregroundStyle(isDimmed ? HierarchicalShapeStyle.tertiary
+                                              : isSkipped ? .secondary : .primary)
                 if isDelayed, let expected = stop.expected {
                     Text(TorontoTime.hourMinute(expected))
                         .font(.caption.weight(.bold).monospacedDigit())
@@ -656,7 +674,11 @@ private struct StopRow: View {
                                 .fixedSize()
                         }
                     }
-                    if let platform = stop.platform {
+                    if isSkipped {
+                        Text("Not stopping | Ne s'arrête pas")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(.red)
+                    } else if let platform = stop.platform {
                         Text("Platform \(platform)")
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -677,12 +699,15 @@ private struct StopRow: View {
         .contentShape(Rectangle())
     }
 
-    /// The line itself is drawn once behind all rows (TripLine); rows add the dots.
+    /// The line itself is drawn once behind all rows (TripLine); rows add the dots
+    /// (a grey ring where the train won't stop).
     private var dot: some View {
         let size: CGFloat = isOrigin || isEnd ? 18 : 14
+        let fill = isSkipped ? Color(uiColor: .systemBackground) : isOrigin ? lineColor : Color.white
+        let ring = isSkipped ? Color.gray : isOrigin ? Color.white : lineColor
         return Circle()
-            .fill(isOrigin ? lineColor : Color.white)
-            .overlay(Circle().strokeBorder(isOrigin ? Color.white : lineColor, lineWidth: isOrigin ? 3 : 3.5))
+            .fill(fill)
+            .overlay(Circle().strokeBorder(ring, lineWidth: isOrigin && !isSkipped ? 3 : 3.5))
             .frame(width: size, height: size)
             .opacity(isDimmed && !isOrigin ? 0.55 : 1)
     }

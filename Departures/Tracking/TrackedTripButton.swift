@@ -1,8 +1,9 @@
 import SwiftUI
 
 /// Bottom left of the map while a trip is tracked: the line's pill and
-/// "Tracking". Opens the trip and goes to the train on the map. (VoiceOver also
-/// hears when the train leaves your station or reaches your stop.)
+/// "Tracking" ("Cancelled", in red, once its train is). Opens the trip and goes
+/// to the train on the map. (VoiceOver also hears when the train leaves your
+/// station or reaches your stop.)
 struct TrackedTripButton: View {
     let trip: TrackedTrip
     let action: () -> Void
@@ -13,9 +14,9 @@ struct TrackedTripButton: View {
         Button(action: action) {
             HStack(spacing: 8) {
                 LinePill(code: trip.lineCode)
-                Text("Tracking")
+                Text(trip.cancelled != nil ? "Cancelled" : "Tracking")
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(trip.cancelled != nil ? AnyShapeStyle(.red) : AnyShapeStyle(.primary))
                     .lineLimit(1)
             }
             .padding(.leading, LinePill.inset)
@@ -27,7 +28,8 @@ struct TrackedTripButton: View {
         .glass(in: Capsule())
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Tracking line \(trip.lineCode). \(status(at: Date()))")
-        .accessibilityHint("Shows the train's stops and where it is")
+        .accessibilityHint(trip.cancelled != nil && !trip.hasLeftBoarding ? "Shows where to find another train"
+                                                                           : "Shows the train's stops and where it is")
     }
 
     private func name(_ code: String) -> String {
@@ -35,6 +37,9 @@ struct TrackedTripButton: View {
     }
 
     private func status(at now: Date) -> String {
+        if trip.cancelled != nil {
+            return "Cancelled" + (trip.cancelledIndex.map { ". It won't stop at \(name(trip.stops[$0].code))" } ?? "")
+        }
         switch trip.phase(at: now) {
         case .departs(let time):
             return "Leaves \(name(trip.boardingCode)) \(Self.remaining(until: time, from: now))"

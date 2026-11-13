@@ -505,6 +505,20 @@ def cancellations(station):
             refs = [t.get("TripNumber") for t in trips if isinstance(t, dict)]
             print(message.get("SubjectEnglish"), "|", refs[:8])
 
+    section("Worker /v1/live/cancelled (what the app and the Live Activity go by)")
+    request = Request(WORKER.replace("/live/trains", "/live/cancelled"),
+                      headers={"Accept": "application/json", "User-Agent": "go-stations-probe"})
+    try:
+        with urlopen(request, timeout=20) as response:
+            headers = {k.lower(): v for k, v in response.headers.items()}
+            body = json.loads(response.read())
+        print(f"from {body.get('from')}, {len(body.get('trips', []))} trains,",
+              f"cache {headers.get('cache-control')}, {headers.get('cf-cache-status', '-')}")
+        for trip in body.get("trips", []):
+            print(json.dumps(trip))
+    except Exception as e:  # noqa: BLE001 - report and carry on
+        print(f"failed: {e}")
+
     if station:
         section(f"Stop/NextService/{station}: every field of each line")
         status, seconds, body, size = get(f"/Stop/NextService/{station}")

@@ -401,6 +401,9 @@ export function nextLeg(job, now) {
     revision: job.revision ?? 0,
     alerts: job.alerts,
     alerted: job.alerted,
+    // (Asked not to be notified, and the app's own token to wake it, for this train too.)
+    ...(job.quiet ? { quiet: true } : {}),
+    ...(job.device ? { device: job.device } : {}),
     state: leg.state,
     times: (leg.times ?? []).filter((t) => t > now && t < leg.end),
     end: leg.end,
@@ -457,4 +460,179 @@ export function missedCheck(job, train, now) {
     Object.assign(check, { lat: train.lat, lon: train.lon, time: train.time });
   }
   return check;
+}
+
+// --- Cancelled trains -------------------------------------------------------
+
+/**
+ * Which trains aren't running, or won't stop somewhere they were due to, by GO's
+ * train exceptions feed and its GTFS trip updates together: each has had a
+ * cancellation the other hadn't (a train not stopping at the first three of its
+ * stations was in the trip updates, with only the third of them in the
+ * exceptions). One entry per train per feed, by trip number:
+ *
+ *   [{ trip, day?, all?: true, skips?: [codes] }]
+ *
+ * `all`: the whole trip is cancelled. `skips`: the stations it won't stop at.
+ * `day`: its service day ("20261113"), when the trip updates say (the
+ * exceptions are today's).
+ */
+export function cancellations(exceptions, updates) {
+  const found = new Map();
+  const entry = (trip, day) => {
+    const key = `${trip}|${day ?? ""}`;
+    if (!found.has(key)) found.set(key, { trip, day, all: false, skips: new Set() });
+    return found.get(key);
+  };
+  for (const trip of list(exceptions?.Trip)) {
+    const number = String(trip?.TripNumber ?? "").trim();
+    if (!/^[A-Za-z0-9]{1,12}$/.test(number)) continue;
+    if (truthy(trip.IsCancelled)) entry(number).all = true;
+    const stops = Array.isArray(trip.Stop) ? trip.Stop : trip.Stop ? [trip.Stop] : [];
+    for (const stop of stops) {
+      const code = String(stop?.Code ?? "").trim();
+      if (code && truthy(stop.IsCancelled)) entry(number).skips.add(code);
+    }
+  }
+  for (const entity of list(updates?.entity)) {
+    const update = entity?.trip_update;
+    const id = TRIP_ID.exec(String(update?.trip?.trip_id ?? ""));
+    if (!id) continue;
+    const relation = update.trip.schedule_relationship;
+    const cancelled = relation === "CANCELED" || relation === "CANCELLED" || relation === 3;
+    const skipped = [];
+    for (const stop of list(update.stop_time_update)) {
+      const code = String(stop?.stop_id ?? "").trim();
+      if (code && (stop.schedule_relationship === "SKIPPED" || stop.schedule_relationship === 1)) skipped.push(code);
+    }
+    if (!cancelled && !skipped.length) continue;
+    const train = entry(id[3], id[1]);
+    if (cancelled) train.all = true;
+    for (const code of skipped) train.skips.add(code);
+  }
+  return [...found.values()]
+    .map(({ trip, day, all, skips }) => ({
+      trip,
+      ...(day ? { day } : {}),
+      ...(all ? { all: true } : {}),
+      ...(skips.size ? { skips: [...skips] } : {}),
+    }))
+    .sort((a, b) => (a.trip < b.trip ? -1 : a.trip > b.trip ? 1 : (a.day ?? "") < (b.day ?? "") ? -1 : 1));
+}
+
+/** "1", 1, true, "true": yes. */
+function truthy(value) {
+  return value === true || value === 1 || value === "1" || String(value ?? "").trim().toLowerCase() === "true";
+}
+
+/**
+ * Whether a tracked trip's train still comes for you, by `cancellations()`: null
+ * when it does; otherwise { index, code, name, left? }, the station of yours it
+ * won't stop at (where you get on, or where you get off) with the name the Live
+ * Activity shows (`left`: it has left where you get on, with you on it), or
+ * { all: true } when the whole trip is cancelled. Only the entries for its service day count (trip numbers come round
+ * again every day).
+ */
+export function cancellationFor(job, cancelled) {
+  const live = job?.live;
+  if (!live || !Array.isArray(cancelled)) return null;
+  const day = serviceDay(live.scheduled);
+  const entries = cancelled.filter((entry) => entry.trip === live.trip && (!entry.day || !day || entry.day === day));
+  if (!entries.length) return null;
+  if (entries.some((entry) => entry.all)) return { all: true };
+  const skips = new Set(entries.flatMap((entry) => entry.skips ?? []));
+  const last = live.codes.length - 1;
+  const boarding = clamp(job.state?.boardingIndex ?? 0, 0, last);
+  const destination = clamp(job.state?.destinationIndex ?? last, boarding, last);
+  // Seen leaving where you get on: only where you get off matters now.
+  const left = Number.isFinite(job.dep?.[boarding]) || (job.obs?.k ?? -1) > boarding;
+  for (const index of left ? [destination] : [boarding, destination]) {
+    const code = live.codes[index];
+    if (!skips.has(code)) continue;
+    return { index, code, name: String(job.state?.stops?.[index]?.name ?? code), ...(left ? { left: true } : {}) };
+  }
+  return null;
+}
+
+/** A trip's service day ("20261113"): the day its first train time is on, counting the night as the day before. */
+export function serviceDay(scheduled) {
+  const first = list(scheduled).find(Number.isFinite);
+  return first == null ? null : torontoDay(first - 4 * 3600);
+}
+
+/** The Toronto date of a time, as GTFS writes it ("20261113"). */
+export function torontoDay(t) {
+  try {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/Toronto", year: "numeric", month: "2-digit", day: "2-digit",
+    }).formatToParts(new Date(t * 1000));
+    const get = (type) => parts.find((part) => part.type === type)?.value ?? "";
+    return `${get("year")}${get("month")}${get("day")}`;
+  } catch {
+    return new Date((t - torontoOffset(undefined, t)) * 1000).toISOString().slice(0, 10).replaceAll("-", "");
+  }
+}
+
+/**
+ * What a cancelled train's Live Activity shows of it (`cancelled` in its
+ * content): { index, station }, the stop of yours it won't stop at (its place
+ * in the stops, and name), or {} for the whole trip. Null when it's running.
+ */
+export function cancelledContent(verdict) {
+  if (!verdict) return null;
+  return verdict.all ? {} : { index: verdict.index, station: verdict.name };
+}
+
+/**
+ * The Live Activity's content as pushed: the trip's state with whether its train
+ * is cancelled, by the worker's own look at the feeds once it has had one (until
+ * then, as the app had it). The next train the app found stays on it.
+ */
+export function shownState(job, state) {
+  if (!state || typeof state !== "object" || (job.cancelCheckedAt == null && !job.cancelled)) return state;
+  const { cancelled: claimed, ...rest } = state;
+  if (!job.cancelled) return rest;
+  const content = cancelledContent(job.cancelled);
+  if (Number.isFinite(claimed?.next)) content.next = claimed.next;
+  return { ...rest, cancelled: content };
+}
+
+/** How long after it was due to leave your station a cancelled train's Live Activity stays up. */
+export const CANCELLED_FOR = 10 * 60;
+
+/**
+ * When a cancelled train's Live Activity ends: a while after it was due to leave
+ * your station (or get to your stop, once you're on it), and never right after
+ * you're told.
+ */
+export function cancelledUntil(job, verdict, now) {
+  const stops = list(job.state?.stops);
+  const last = stops.length - 1;
+  const boarding = clamp(job.state?.boardingIndex ?? 0, 0, Math.max(last, 0));
+  const destination = clamp(job.state?.destinationIndex ?? last, boarding, Math.max(last, 0));
+  const due = verdict?.left ? arrivalAt(stops, destination) : job.live?.scheduled?.[boarding] ?? stops[boarding]?.time;
+  return Math.max(Number.isFinite(due) ? due + CANCELLED_FOR : now, now + CANCELLED_FOR);
+}
+
+/**
+ * The alert for a tracked train found cancelled: "Your 11:48 train is
+ * cancelled" ("It won't stop at Port Credit."), or once you're on it, that it
+ * won't stop where you get off. `back`: the cancellation was lifted, "Your 11:48
+ * train is running after all".
+ */
+export function cancelAlert(job, verdict, { back = false } = {}) {
+  const stops = list(job.state?.stops);
+  const last = stops.length - 1;
+  const boarding = clamp(job.state?.boardingIndex ?? 0, 0, Math.max(last, 0));
+  const leaves = job.live?.scheduled?.[boarding] ?? stops[boarding]?.time;
+  const train = Number.isFinite(leaves) ? `Your ${torontoClock(leaves)} train` : "Your train";
+  if (back) {
+    return { title: `${train} is running after all`, body: "It's no longer listed as cancelled." };
+  }
+  const find = "Open GO Stations to find another train.";
+  if (!verdict || verdict.all) return { title: `${train} is cancelled`, body: find };
+  if (verdict.index !== boarding) {
+    return { title: `${train} won't stop at ${verdict.name}`, body: find };
+  }
+  return { title: `${train} is cancelled`, body: `It won't stop at ${verdict.name}. ${find}` };
 }

@@ -7,7 +7,8 @@ import Foundation
 ///   for live delays.
 /// * Other stations use NextService plus each trip's stop list (cached per day)
 ///   for the Stops column, express detection and platform fallback.
-/// * Cancellations come from the train exceptions feed; reasons from service alerts.
+/// * Cancellations come from the train exceptions feed and GO's GTFS trip updates
+///   (see CancelledTrains), and from a station's own board; reasons from service alerts.
 actor BoardService {
     static let shared = BoardService()
 
@@ -40,6 +41,7 @@ actor BoardService {
         async let nextTask: Result<NextServiceResponse, Error> = client.result("/Stop/NextService/\(station.code)")
         async let exceptionsTask: Result<ExceptionsResponse, Error> = client.result("/ServiceUpdate/Exceptions/Train")
         async let alertsTask: Result<AlertsResponse, Error> = client.result("/ServiceUpdate/ServiceAlert/All")
+        async let cancelledTask = CancelledTrains.shared.list()
 
         var unionTrips: [UnionDeparturesResponse.Trip] = []
         if station.isUnion {
@@ -52,6 +54,7 @@ actor BoardService {
         let nextResult = await nextTask
         let exceptions = try? (await exceptionsTask).get()
         let alerts = try? (await alertsTask).get()
+        let cancelledTrains = await cancelledTask
 
         var rows: [BoardRow]
         if !unionTrips.isEmpty {
@@ -64,7 +67,8 @@ actor BoardService {
         let cancelled = Self.cancelledTrips(exceptions, stationCode: station.code)
         let reasons = Self.tripReasons(alerts)
         for index in rows.indices {
-            if cancelled.contains(rows[index].tripNumber) {
+            if cancelled.contains(rows[index].tripNumber)
+                || cancelledTrains?.status(of: rows[index])?.isCancelled(at: station.code) == true {
                 rows[index].isCancelled = true
             }
             if rows[index].isCancelled, let reason = reasons[rows[index].tripNumber] {
@@ -100,7 +104,28 @@ actor BoardService {
         let departures = await ScheduleStore.shared.laterDepartures(from: station.code, after: time, atLeast: minimum) {
             direction?.includes(stopCodes: Array($0.pattern[($0.stopIndex + 1)...])) ?? true
         }
-        return departures.map { Self.row(for: $0, at: station) }
+        var rows = departures.map { Self.row(for: $0, at: station) }
+        // Today's, with the cancelled ones marked.
+        let cancelled = await CancelledTrains.shared.list(maxAge: 60)
+        for index in rows.indices where cancelled?.status(of: rows[index])?.isCancelled(at: station.code) == true {
+            rows[index].isCancelled = true
+        }
+        return rows
+    }
+
+    /// After a cancelled train (`trip`, due to leave at `time`): the next one from
+    /// `station` that stops at `code` and isn't cancelled itself, from the live
+    /// board, else the timetable (tomorrow's first, late at night).
+    func nextTrain(from station: Station, to code: String, after time: Date, except trip: String) async -> BoardRow? {
+        func takes(_ row: BoardRow) -> Bool {
+            row.tripNumber != trip && !row.isCancelled && row.scheduled > time && (row.stopCodes ?? []).contains(code)
+        }
+        if let live = try? await liveBoard(for: station),
+           let row = live.rows.filter(takes).min(by: { $0.scheduled < $1.scheduled }) {
+            return row
+        }
+        return await laterRows(for: station, after: time, atLeast: 12, toward: nil)
+            .filter(takes).min { $0.scheduled < $1.scheduled }
     }
 
     /// A whole day's timetable trains from a station going `direction`'s way.
@@ -189,7 +214,8 @@ actor BoardService {
         return TripDetail(stops: stops, source: nil)
     }
 
-    private static func serviceDays(for row: BoardRow) -> [String] {
+    /// The service days a board row's train may belong to (yyyyMMdd).
+    static func serviceDays(for row: BoardRow) -> [String] {
         if let day = row.serviceDay { return [day] }
         let day = TorontoTime.dateWire(row.scheduled)
         // After midnight the trip may belong to yesterday's service day: try that first.

@@ -125,6 +125,8 @@ struct RootView: View {
             // stop tracking a while after it reaches your stop.
             while !Task.isCancelled {
                 await TripTracker.shared.refresh()
+                // Its train cancelled: the Live Activity says so, and you're told.
+                await TripTracker.shared.checkCancelled()
                 TripTracker.shared.dropIfFinished()
                 // Its first train gone without you: you're told, and it stops.
                 await TripTracker.shared.checkMissed()
@@ -133,6 +135,10 @@ struct RootView: View {
         }
         .onChange(of: AppRoute.shared.planTo) { _, code in
             // A missed train's notification, tapped: plan another trip.
+            if code != nil { followRoute() }
+        }
+        .onChange(of: AppRoute.shared.board) { _, code in
+            // A cancelled train's notification, tapped: your station's board.
             if code != nil { followRoute() }
         }
         .onOpenURL { url in
@@ -162,8 +168,9 @@ struct RootView: View {
                 return
             }
             #endif
-            // Opened by tapping a missed train's notification: plan another trip.
-            if AppRoute.shared.planTo != nil {
+            // Opened by tapping a missed (or cancelled) train's notification: plan
+            // another trip, or open your station's board.
+            if AppRoute.shared.planTo != nil || AppRoute.shared.board != nil {
                 followRoute()
                 return
             }
@@ -190,6 +197,7 @@ struct RootView: View {
                 TripTracker.shared.dropIfFinished()
                 Task {
                     await TripTracker.shared.refresh()
+                    await TripTracker.shared.checkCancelled()
                     await TripTracker.shared.checkMissed()
                 }
                 if wantsLiveTrains { Task { await LiveTrains.shared.refresh() } }
@@ -530,12 +538,34 @@ struct RootView: View {
         select(station, detent: .medium)
     }
 
-    /// Where a tapped notification asked to go: the trip card to its station.
+    /// Where a tapped notification asked to go: the trip card to its station, or
+    /// a station's board.
     private func followRoute() {
+        if let code = AppRoute.shared.board {
+            AppRoute.shared.board = nil
+            openBoard(code)
+            return
+        }
         guard let code = AppRoute.shared.planTo else { return }
         AppRoute.shared.planTo = nil
         guard let station = network.station(code) else { return }
         planTrip(to: PlanDestination(station: station))
+    }
+
+    /// Opens a station's board at half height (closing a train's stops or
+    /// Settings first): where to find another train after a cancelled one.
+    private func openBoard(_ code: String) {
+        guard let station = network.station(code) else { return }
+        guard trackedSelection != nil || showSettings else {
+            select(station, detent: .medium)
+            return
+        }
+        trackedSelection = nil
+        showSettings = false
+        Task {
+            try? await Task.sleep(for: .milliseconds(450))
+            select(station, detent: .medium)
+        }
     }
 
     /// Opens the trip card to `destination` (closing any other sheet first), and
@@ -638,6 +668,16 @@ struct RootView: View {
     /// you're on it), else where its times put it.
     private func openTrackedTrip() {
         guard let trip = TripTracker.shared.trip, let station = network.station(trip.boardingCode) else { return }
+        // Cancelled before you got on: where to find another train instead (your
+        // station's board, or for a trip from search the trip card).
+        if trip.cancelled != nil, !trip.hasLeftBoarding {
+            if trip.journeyKey != nil, let destination = network.station(trip.finalDestinationCode) {
+                planTrip(to: PlanDestination(station: destination))
+            } else {
+                openBoard(station.code)
+            }
+            return
+        }
         if let drawn = mapController.trackedTrain {
             center(on: drawn, sheetOpen: true)
         } else if let train = trip.position(at: Date(), on: StartupStation.geometry) {

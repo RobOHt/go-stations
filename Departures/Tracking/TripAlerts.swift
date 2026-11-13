@@ -12,6 +12,10 @@ import UserNotifications
 ///   worker sends these with the Live Activity, timed by where the train really
 ///   is; when it can't (no Live Activity, or no connection to it), they're
 ///   scheduled here by the times the app has.
+///
+/// And once its train is found cancelled (or not stopping where you get on or
+/// off), unless you asked not to be notified about the trip: from the worker
+/// with the Live Activity, or from here when the worker doesn't follow it.
 @MainActor
 final class TripAlerts: NSObject {
     static let shared = TripAlerts()
@@ -26,6 +30,7 @@ final class TripAlerts: NSObject {
     private static let allowedKey = "tripAlertsAllowed"
     private static let leaveID = "trip.leave"
     private static let missedID = "trip.missed"
+    private static let cancelledID = "trip.cancelled"
     private static let legIDs = ["trip.leg.0", "trip.leg.1", "trip.leg.2"]
 
     private let center = UNUserNotificationCenter.current()
@@ -127,6 +132,8 @@ final class TripAlerts: NSObject {
 
     /// The alerts a trip gets from here, and the station to watch for you getting to.
     private func plan(for trip: TrackedTrip, now: Date) -> ([Alert], Station?) {
+        // Cancelled: nothing to set off for, or get off at.
+        guard trip.cancelled == nil else { return ([], nil) }
         let network = RailNetwork.shared
         func name(_ code: String) -> String { network.station(code)?.name ?? code }
         var alerts: [Alert] = []
@@ -209,6 +216,55 @@ final class TripAlerts: NSObject {
         }
     }
 
+    /// The tracked train is cancelled, or not stopping where you get on or off
+    /// (`back`: running after all): "Your 07:40 train is cancelled. It won't stop
+    /// at Oakville. The next train to Union Station leaves at 08:10." Tapping it
+    /// opens your station's board (on a trip from search, the trip card to where
+    /// you're going). Not when you asked not to be notified about the trip.
+    func cancelled(_ trip: TrackedTrip, back: Bool = false) async {
+        guard trip.alerts != false else { return }
+        let network = RailNetwork.shared
+        let content = UNMutableNotificationContent()
+        let text = Self.cancelledText(trip, back: back, network: network)
+        content.title = text.title
+        content.body = text.body
+        content.sound = .default
+        if trip.journeyKey != nil {
+            content.userInfo = [planToKey: trip.finalDestinationCode]
+        } else if !trip.hasLeftBoarding {
+            content.userInfo = [boardKey: trip.boardingCode]
+        }
+        let request = UNNotificationRequest(identifier: Self.cancelledID, content: content, trigger: nil)
+        await withCheckedContinuation { (done: CheckedContinuation<Void, Never>) in
+            Self.change(removing: [], adding: [request]) { done.resume() }
+        }
+    }
+
+    /// What `cancelled(_:back:)` says.
+    static func cancelledText(_ trip: TrackedTrip, back: Bool, network: RailNetwork) -> (title: String, body: String) {
+        func name(_ code: String) -> String { network.station(code)?.name ?? code }
+        let time = trip.stops.indices.contains(trip.boardingIndex) ? trip.stops[trip.boardingIndex].time : nil
+        let train = "Your \(TorontoTime.hourMinute(time ?? trip.row.scheduled)) train"
+        if back { return ("\(train) is running after all", "It's no longer listed as cancelled.") }
+        var title = "\(train) is cancelled"
+        var body: [String] = []
+        if let code = trip.cancelled?.code {
+            if code == trip.boardingCode, !trip.hasLeftBoarding {
+                body.append("It won't stop at \(name(code)).")
+            } else {
+                title = "\(train) won't stop at \(name(code))"
+            }
+        }
+        if let next = trip.cancelled?.next {
+            body.append("The next train to \(name(trip.destinationCode)) leaves at \(TorontoTime.hourMinute(next.scheduled)).")
+        } else if trip.journeyKey != nil {
+            body.append("Open GO Stations to plan another trip to \(name(trip.finalDestinationCode)).")
+        } else {
+            body.append("Open GO Stations to find another train.")
+        }
+        return (title, body.joined(separator: " "))
+    }
+
     /// "You missed the 12:06 to Union Station", or without where it goes.
     static func missedTitle(time: Date, terminus: String?) -> String {
         let train = "You missed the \(TorontoTime.hourMinute(time))"
@@ -256,6 +312,8 @@ final class TripAlerts: NSObject {
 private let boardingRegionID = "trip.boarding"
 /// In a notification: the station to plan another trip to, when it's tapped.
 private let planToKey = "planTo"
+/// In a notification: the station whose board to open, when it's tapped.
+private let boardKey = "board"
 
 extension TripAlerts: CLLocationManagerDelegate {
     nonisolated func locationManager(_ manager: CLLocationManager, didEnterRegion region: CLRegion) {
@@ -285,10 +343,16 @@ extension TripAlerts: UNUserNotificationCenterDelegate {
         [.banner, .sound, .list]
     }
 
-    /// Tapped: a missed train's opens the trip card, to plan another trip.
+    /// Tapped: a missed train's opens the trip card, to plan another trip; a
+    /// cancelled train's, your station's board (or the trip card).
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter,
                                             didReceive response: UNNotificationResponse) async {
-        guard let code = response.notification.request.content.userInfo[planToKey] as? String else { return }
+        let info = response.notification.request.content.userInfo
+        if let code = info[boardKey] as? String {
+            await MainActor.run { AppRoute.shared.board = code }
+            return
+        }
+        guard let code = info[planToKey] as? String else { return }
         await MainActor.run { AppRoute.shared.planTo = code }
     }
 }

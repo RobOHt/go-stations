@@ -308,8 +308,12 @@ jobs:
           # with the way back to the board.
           shoot 5g-station-get-here 16 station -debugStation OA
           shoot 5h-get-here-trip 22 station -debugStation OA -getHere YES
+          # Cancelled at the station (made up: every train, here).
+          shoot 5i-station-cancelled 12 station -debugSkips OA
           shoot 6-station-large 10 stationLarge
           shoot 7-trip 15 trip
+          # A train not stopping at two of its stations (made up: every train, here).
+          shoot 7b-trip-skipping 15 trip -debugSkips CL,PO
           # Control: a board scrolled under its pinned header (does the simulator draw edge effects?).
           shoot 8-station-scrolled 16 stationScrolled
           # The home and work buttons ask first: replace home (set to Oakville), remove work (Union).
@@ -369,6 +373,8 @@ jobs:
           # A trip with a change at each point of it: Lock Screen, then the island.
           shoot 13c-activity-journey 8 activityGallery -gallerySection journey
           shoot 13d-activity-journey-island 8 activityGallery -gallerySection journeyIsland
+          # Cancelled trains.
+          shoot 13e-activity-cancelled 8 activityGallery -gallerySection cancelled
 
       - name: Trace the tracked train's motion
         if: always() && steps.sim.outputs.udid != '' && inputs.checks_only != 'true' && inputs.only == ''

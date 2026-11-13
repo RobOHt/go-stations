@@ -45,6 +45,9 @@ struct TrackedTrip: Codable, Equatable, Sendable {
     /// to where you get off: what the map shows of it (nil: tracked from a board,
     /// which shows the train's whole line).
     var route: [RouteStretch]? = nil
+    /// GO says this train won't come for you: cancelled, or not stopping where you
+    /// get on or off (see `cancellation(in:now:)`). Nil while it runs.
+    var cancelled: TripCancellation? = nil
 
     var hasStartingStop: Bool { startsAtStop ?? false }
 
@@ -97,11 +100,55 @@ struct TrackedTrip: Codable, Equatable, Sendable {
 
     /// When tracking stops and the train leaves the map: a minute after it gets to
     /// the end of its run, or a while after it reaches your stop when it runs on
-    /// well past it.
+    /// well past it. Cancelled, see `cancelledUntil`.
     var endsAt: Date? {
+        if let cancelledUntil { return cancelledUntil }
         let end = stops.last.flatMap { $0.expected ?? $0.time }?.addingTimeInterval(TrainState.lingerAtEnd)
         let yours = arrival?.addingTimeInterval(Self.linger)
         return [end, yours].compactMap { $0 }.min()
+    }
+
+    // MARK: Cancelled
+
+    /// How long a cancelled train stays tracked after it was due (and after
+    /// you're told): its Live Activity says so meanwhile. (The worker's does the same.)
+    static let cancelledFor: TimeInterval = 10 * 60
+
+    /// It has left where you get on (with you on it, as far as tracking goes).
+    var hasLeftBoarding: Bool {
+        (stops.indices.contains(boardingIndex) && stops[boardingIndex].departed != nil)
+            || (live?.index ?? -1) > boardingIndex
+    }
+
+    /// Cancelled: until a while after it was due to leave your station (or, on it,
+    /// to get to your stop), and at least a while after it was found out.
+    var cancelledUntil: Date? {
+        guard let cancelled else { return nil }
+        let onIt = hasLeftBoarding && cancelled.code != nil
+        let due = onIt ? stops[destinationIndex].time : (stops[boardingIndex].time ?? row.scheduled)
+        let found = cancelled.since.addingTimeInterval(Self.cancelledFor)
+        guard let due else { return found }
+        return max(due.addingTimeInterval(Self.cancelledFor), found)
+    }
+
+    /// Whether GO's feeds say its train won't come for you: the whole trip
+    /// cancelled, or not stopping where you get on (until it has left there) or
+    /// where you get off. Nil when it comes.
+    func cancellation(in list: CancelledTrains.List, now: Date) -> TripCancellation? {
+        guard let status = list.status(of: row) else { return nil }
+        if status.all { return TripCancellation(code: nil, since: now) }
+        let yours = hasLeftBoarding ? [destinationIndex] : [boardingIndex, destinationIndex]
+        guard let index = yours.first(where: { stops.indices.contains($0) && status.skips.contains(stops[$0].code) })
+        else { return nil }
+        return TripCancellation(code: stops[index].code, since: now)
+    }
+
+    /// Where in its stops it won't stop (your station or your stop); nil when it's
+    /// the whole trip, or it isn't cancelled.
+    var cancelledIndex: Int? {
+        guard let code = cancelled?.code else { return nil }
+        if stops.indices.contains(boardingIndex), stops[boardingIndex].code == code { return boardingIndex }
+        return stops.indices.contains(destinationIndex) && stops[destinationIndex].code == code ? destinationIndex : nil
     }
 
     /// What's next for you: waiting for it to leave your station, riding to your
@@ -201,6 +248,7 @@ struct TrackedTrip: Codable, Equatable, Sendable {
         next.legStartedAt = seen.legStartedAt
         next.alerts = seen.alerts
         next.route = seen.route
+        next.cancelled = seen.cancelled
         for (index, stop) in next.stops.enumerated() {
             guard let old = seen.stops.first(where: { $0.code == stop.code }) else { continue }
             next.stops[index].arrived = old.arrived
@@ -294,6 +342,19 @@ struct TrackedTrip: Codable, Equatable, Sendable {
             return nil
         }
     }
+}
+
+/// A tracked train GO says won't come for you.
+struct TripCancellation: Codable, Equatable, Sendable {
+    /// The station of yours it won't stop at (where you get on, or get off); nil:
+    /// the whole trip is cancelled.
+    var code: String?
+    /// When the app first found out.
+    var since: Date
+    /// The next train from where you get on that stops where you get off, once found.
+    var next: BoardRow? = nil
+    /// You've been told by the app. (When the worker follows the trip, it tells you itself.)
+    var told = false
 }
 
 /// One train's stretch of a trip planned from search: its stops from where you
@@ -421,6 +482,11 @@ final class TripTracker {
         changeTrainsIfDue(now: now)
         TripActivityController.shared.sync(trip, now: now)
         guard let trip else { return }
+        // Cancelled: over a while after it was due, wherever its train is.
+        if trip.cancelled != nil {
+            if now >= trip.endsAt ?? now { stop() }
+            return
+        }
         // A train with another after it changes over once it's in (above), whatever.
         if trip.hasOnward { return }
         let running = (trip.live?.isFresh(at: now) ?? false) && !trip.isSeenIn
@@ -450,7 +516,8 @@ final class TripTracker {
     /// stopped.
     @discardableResult
     func checkMissed(now: Date = Date(), report: TrackedTrip.TrainReport? = nil, left known: Date? = nil) async -> Bool {
-        guard let trip, trip.journeyKey != nil, (trip.legIndex ?? 0) == 0,
+        // (A cancelled train doesn't leave without you.)
+        guard let trip, trip.journeyKey != nil, (trip.legIndex ?? 0) == 0, trip.cancelled == nil,
               let left = known ?? trip.leftBoarding(at: now),
               now.timeIntervalSince(left) >= TrackedTrip.missedAfter else {
             if known != nil { noteMissedCheck("woken: nothing to check (no first train of a trip from search)") }
@@ -510,12 +577,86 @@ final class TripTracker {
     /// Live Activity. True when it changed.
     @discardableResult
     private func changeTrainsIfDue(now: Date) -> Bool {
-        guard let trip, trip.hasOnward, trip.phase(at: now) == .arrived,
+        guard let trip, trip.hasOnward, trip.cancelled == nil, trip.phase(at: now) == .arrived,
               let next = trip.changingTrains(at: now) else { return false }
         set(next)
         TripActivityController.shared.sync(next, now: now)
         Task { await refresh() }
         return true
+    }
+
+    // MARK: Cancelled
+
+    /// Looks since the tracked train was found cancelled that didn't list it.
+    @ObservationIgnored private var clearedLooks = 0
+
+    /// Looks the tracked train up among the cancelled ones (see
+    /// `TrackedTrip.cancellation(in:now:)`). Found cancelled: its Live Activity
+    /// says so, then the next train from your station too once it's found, and
+    /// you're told (by the worker, when it follows the trip; otherwise here). No
+    /// longer listed two looks in a row: it's running after all. True when the
+    /// train is (still) cancelled.
+    @discardableResult
+    func checkCancelled(now: Date = Date()) async -> Bool {
+        guard let trip, let list = await CancelledTrains.shared.list() else { return self.trip?.cancelled != nil }
+        // (Still the same train.)
+        guard let current = self.trip, current.activityID == trip.activityID, current.tripNumber == trip.tripNumber
+        else { return false }
+        if var found = current.cancellation(in: list, now: now) {
+            clearedLooks = 0
+            if let before = current.cancelled, before.code == found.code {
+                if before.next == nil { await findNextTrain() }
+                return true
+            }
+            found.since = current.cancelled?.since ?? now
+            found.told = current.cancelled?.told ?? false
+            // Its Live Activity already says so: the worker found out first, and told you.
+            let toldByWorker = current.cancelled == nil && TripActivityController.shared.showsCancelled(current)
+            var updated = current
+            updated.cancelled = found
+            set(updated)
+            TripActivityController.shared.sync(updated)
+            await findNextTrain()
+            if !toldByWorker { await tellCancelled() }
+            return true
+        }
+        guard let cancelled = current.cancelled else { return false }
+        clearedLooks += 1
+        guard clearedLooks >= 2 else { return true }
+        clearedLooks = 0
+        var updated = current
+        updated.cancelled = nil
+        set(updated)
+        TripActivityController.shared.sync(updated)
+        if cancelled.told { await TripAlerts.shared.cancelled(updated, back: true) }
+        return false
+    }
+
+    /// After a cancelled train from a board: the next one from your station to
+    /// your stop, for its Live Activity and the alert. (On a trip from search, the
+    /// trip card plans another; on the train already, there's none to give.)
+    private func findNextTrain() async {
+        guard let trip, let cancelled = trip.cancelled, cancelled.next == nil, trip.journeyKey == nil,
+              !trip.hasLeftBoarding, let station = RailNetwork.shared.station(trip.boardingCode) else { return }
+        let leaves = trip.stops[trip.boardingIndex].time ?? trip.row.scheduled
+        guard let next = await BoardService.shared.nextTrain(from: station, to: trip.destinationCode, after: leaves,
+                                                             except: trip.tripNumber),
+              var current = self.trip, current.activityID == trip.activityID, current.cancelled != nil
+        else { return }
+        current.cancelled?.next = next
+        set(current)
+        TripActivityController.shared.sync(current)
+    }
+
+    /// Tells you the tracked train is cancelled, unless the worker does (it
+    /// follows the trip's Live Activity) or you have been told already.
+    private func tellCancelled() async {
+        guard let trip, let cancelled = trip.cancelled, !cancelled.told,
+              !TripActivityController.shared.workerFollows(trip) else { return }
+        var updated = trip
+        updated.cancelled?.told = true
+        set(updated)
+        await TripAlerts.shared.cancelled(updated)
     }
 
     /// Fetches the tracked train's latest times (live ones when there are any),
@@ -554,6 +695,7 @@ final class TripTracker {
     func backgroundRefresh() async {
         guard trip != nil else { return }
         await refresh()
+        await checkCancelled()
         if await checkMissed() {
             // A moment for the Live Activity to end and the worker to hear, before iOS
             // puts the app away again.

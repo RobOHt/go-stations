@@ -36,6 +36,8 @@ final class AppRoute {
     static let shared = AppRoute()
     /// Open the trip card to this station (a missed train's notification).
     var planTo: String?
+    /// Open this station's board (a cancelled train's notification).
+    var board: String?
 }
 
 /// Portrait only, like the boards themselves.
@@ -70,8 +72,15 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
 
     /// Woken by the worker a couple of minutes after your first train left where
     /// you get on (a silent push, with where the train was then): did you catch it?
+    /// Or once your train is found cancelled: the next train, for its Live Activity.
     func application(_ application: UIApplication,
                      didReceiveRemoteNotification userInfo: [AnyHashable: Any]) async -> UIBackgroundFetchResult {
+        if userInfo["cancelled"] != nil {
+            let cancelled = await TripTracker.shared.checkCancelled()
+            // A moment for the Live Activity to take it, before iOS puts the app away again.
+            if cancelled { try? await Task.sleep(for: .seconds(2)) }
+            return cancelled ? .newData : .noData
+        }
         guard let missed = userInfo["missed"] as? [String: Any] else { return .noData }
         var report: TrackedTrip.TrainReport?
         if let lat = (missed["lat"] as? NSNumber)?.doubleValue, let lon = (missed["lon"] as? NSNumber)?.doubleValue,

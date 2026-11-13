@@ -7,8 +7,9 @@ import SwiftUI
 /// card around them are approximations of the system's. The trips are made up.
 /// With `-galleryLockScreen YES` the Lock Screen comes first, for a second screenshot;
 /// with `-gallerySection journey` (or `journeyIsland`), a trip with a change at each
-/// point of it, on the Lock Screen (or in the expanded island). Each Lock Screen
-/// card says how tall it is: the system gives it at most 160 points.
+/// point of it, on the Lock Screen (or in the expanded island); with `cancelled`,
+/// cancelled trains. Each Lock Screen card says how tall it is: the system gives
+/// it at most 160 points.
 struct TripActivityGallery: View {
     private typealias Snapshot = TripActivityAttributes.ContentState
 
@@ -30,6 +31,8 @@ struct TripActivityGallery: View {
             VStack(alignment: .leading, spacing: 10) {
                 if section == "journey" {
                     journeyLockScreens
+                } else if section == "cancelled" {
+                    cancelledCards
                 } else if section == "journeyIsland" {
                     journeyIslands
                 } else if lockScreenFirst {
@@ -92,6 +95,29 @@ struct TripActivityGallery: View {
         expanded(changingRiding)
         expanded(changed)
         expanded(changedRiding)
+    }
+
+    /// Cancelled trains: not stopping where you get on (the next train found), the
+    /// whole trip (no next train yet), and not stopping where you get off.
+    @ViewBuilder private var cancelledCards: some View {
+        heading("Cancelled, on the Lock Screen")
+        lockScreen(cancelledHere)
+            .environment(\.colorScheme, .light)
+        lockScreen(cancelledWhole)
+            .environment(\.colorScheme, .dark)
+        lockScreen(cancelledStop)
+            .environment(\.colorScheme, .light)
+        heading("Cancelled, in the island")
+        compact(cancelledHere)
+        HStack(spacing: 14) {
+            minimal(cancelledHere)
+            minimal(cancelledWhole)
+            Text("Minimal")
+                .font(.caption)
+                .foregroundStyle(.white.opacity(0.8))
+        }
+        expanded(cancelledHere)
+        expanded(cancelledWhole)
     }
 
     @ViewBuilder private var lockScreens: some View {
@@ -227,6 +253,31 @@ struct TripActivityGallery: View {
             destinationName: next.destinationName, terminusName: next.terminusName,
             boardingTime: next.boardingTime, since: now.addingTimeInterval(-60))
         return Sample(attributes: first.attributes, state: state)
+    }
+
+    /// Tracked from Oakville's board, and GO says it won't stop there; the next
+    /// train from Oakville found.
+    private var cancelledHere: Sample {
+        var trip = sample("LW", ["AL", "BU", "AP", "BO", "OA", "CL", "PO", "LO", "MI", "EX", "UN"],
+                          minutes: [-10, -5, 0, 4, 8, 13, 17, 21, 25, 29, 34],
+                          boarding: "OA", destination: "UN", fromBoard: true)
+        trip.state.cancelled = TripActivityAttributes.Cancellation(index: 4, station: "Oakville",
+                                                                   next: now.addingTimeInterval(38 * 60))
+        return trip
+    }
+
+    /// Tracked from Pickering's board, the whole trip cancelled (no next train found yet).
+    private var cancelledWhole: Sample {
+        var trip = approaching
+        trip.state.cancelled = TripActivityAttributes.Cancellation()
+        return trip
+    }
+
+    /// On the way, and it won't go as far as Union, where you get off.
+    private var cancelledStop: Sample {
+        var trip = riding
+        trip.state.cancelled = TripActivityAttributes.Cancellation(index: 10, station: "Union")
+        return trip
     }
 
     /// In at Unionville a minute ago.
