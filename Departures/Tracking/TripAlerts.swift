@@ -288,9 +288,12 @@ final class TripAlerts: NSObject {
         content.title = text.title
         content.body = text.body
         content.sound = .default
-        var info: [AnyHashable: Any] = [planToKey: trip.finalDestinationCode, planFromKey: next.boardingCode]
-        if let arrival = trip.arrival { info[planAfterKey] = arrival.timeIntervalSince1970 }
-        content.userInfo = info
+        // (Running after all: tapped, it just opens the app, on the trip.)
+        if !back {
+            var info: [AnyHashable: Any] = [planToKey: trip.finalDestinationCode, planFromKey: next.boardingCode]
+            if let arrival = trip.arrival { info[planAfterKey] = arrival.timeIntervalSince1970 }
+            content.userInfo = info
+        }
         let request = UNNotificationRequest(identifier: Self.connectionID, content: content, trigger: nil)
         await withCheckedContinuation { (done: CheckedContinuation<Void, Never>) in
             Self.change(removing: [], adding: [request]) { done.resume() }
