@@ -1436,9 +1436,9 @@ struct TripExpandedBottom: View {
 
     @ViewBuilder
     private func running(trip: TripActivityTrip, moment: TripMoment) -> some View {
-        // (All within the island's 160 pt: on the way to your station with a change,
-        // the sentence, the stops and the change line only fit with the stops
-        // without their times, which the Lock Screen has.)
+        // (All within the island's 160 pt: with a change line, the stops go without
+        // their times, which the Lock Screen has; on the way to your station, with
+        // the sentence too, a little tighter still.)
         let changeLine = moment.kind != .arrived ? state.change : nil
         let tight = moment.kind == .approaching && changeLine != nil
         VStack(alignment: .leading, spacing: 0) {
@@ -1448,7 +1448,7 @@ struct TripExpandedBottom: View {
                     .padding(.bottom, tight ? 3 : 6)
             }
             TripStopStrip(trip: trip, moment: moment, color: attributes.lineColorOnDark, compact: true,
-                          showsTimes: !tight)
+                          showsTimes: changeLine == nil)
             if let change = changeLine {
                 TripChangeLine(change: change, onDark: true, fontSize: tight ? 11 : 12)
                     .padding(.top, tight ? 3 : 6)

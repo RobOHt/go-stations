@@ -732,7 +732,7 @@ private struct ChangeRow: View {
     var isCancelled = false
 
     private var waitText: (text: String, color: Color)? {
-        if isCancelled { return ("Its train is cancelled", .red) }
+        if isCancelled { return ("Your next train is cancelled", .red) }
         guard let wait else { return nil }
         if wait < 0 { return ("It leaves before you get in", .red) }
         let minutes = Int((wait / 60).rounded(.down))
