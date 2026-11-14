@@ -41,27 +41,7 @@ struct StationSheet: View {
     #endif
 
     var body: some View {
-        #if DEBUG
-        // `-boardBarStyle bare`: the toolbar without a navigation stack, to compare.
-        if UserDefaults.standard.string(forKey: "boardBarStyle") == "bare" {
-            board
-        } else {
-            stacked
-        }
-        #else
-        stacked
-        #endif
-    }
-
-    private var stacked: some View {
-        // A navigation stack only for the bar at the bottom: from iOS 26 it's the
-        // system's toolbar, which needs one. Its own top bar stays hidden (the
-        // header is ours), and its background clear, so the sheet's glass shows.
-        NavigationStack {
-            board
-                .toolbarVisibility(.hidden, for: .navigationBar)
-                .containerBackground(.clear, for: .navigation)
-        }
+        board
     }
 
     @ViewBuilder
@@ -563,11 +543,12 @@ private struct AlertCard: View {
 
 /// A board's bar at the bottom: the day it shows (on a busy one, the part of it
 /// too) on the leading side; on the trailing side, under your thumb, which way on
-/// your home or work board, and Get here, each a tap away. From iOS 26 it's the
-/// system's bottom toolbar, which floats its glass where iOS puts it, concentric
-/// with the screen's corners, over the board's soft scroll edge; Get here is its
-/// one prominent action, at the trailing end. Before iOS 26, a bar of our own,
-/// frosted.
+/// your home or work board, and Get here, each a tap away. From iOS 26 the buttons
+/// float in their own glass over the board's soft scroll edge, where the system's
+/// bottom toolbar puts its items, and stay put as the sheet goes to full height
+/// and back. (The system's toolbar, laid out for the sheet's new height before the
+/// sheet got there, dropped off the bottom of the screen on the way up and floated
+/// over the board on the way down.) Before iOS 26, a frosted bar.
 private struct BoardBar: ViewModifier {
     let chosen: Date?
     let parts: [DayPeriod]
@@ -581,58 +562,32 @@ private struct BoardBar: ViewModifier {
     let onToggleDirection: () -> Void
     let onGetHere: (TripPlan) -> Void
 
-    #if DEBUG
-    /// `-boardBarStyle own`: the bar of our own on iOS 26 too, to compare.
-    private static let ownBarForced = UserDefaults.standard.string(forKey: "boardBarStyle") == "own"
-    #else
-    private static let ownBarForced = false
-    #endif
-
     func body(content: Content) -> some View {
-        if Self.ownBarForced {
-            content.pinnedBottomBar { ownBar }
-        } else if #available(iOS 26.0, *) {
+        if #available(iOS 26.0, *) {
             content
                 .scrollEdgeEffectStyle(.soft, for: .bottom)
-                .toolbar {
-                    // With all three, the day is just its icon (the board's title names
-                    // a later day), so which way keeps its words.
-                    ToolbarItem(placement: .bottomBar) {
-                        day(compact: toward != nil && plan != nil, chrome: false)
-                    }
-                    ToolbarSpacer(.flexible, placement: .bottomBar)
-                    if let toward {
-                        ToolbarItem(placement: .bottomBar) {
-                            BoardDirectionButton(toward: toward, showsAll: showsAll, chrome: false,
-                                                 toggle: onToggleDirection)
-                        }
-                    }
-                    if let plan {
-                        // (Text buttons each get their own glass.)
-                        if toward != nil {
-                            ToolbarSpacer(.fixed, placement: .bottomBar)
-                        }
-                        ToolbarItem(placement: .bottomBar) {
-                            GetHereToolbarButton(plan: plan) { onGetHere(plan) }
-                        }
-                    }
+                .safeAreaBar(edge: .bottom) {
+                    buttons
+                        // Where the system's bottom toolbar puts its items: 28 points in
+                        // from the sheet's sides, and low, over the home indicator (about
+                        // 35 points up from the bottom of the screen at half height, 32 at
+                        // full height), in from the screen's rounded corners.
+                        .padding(.horizontal, 28)
+                        .padding(.top, 8)
+                        .padding(.bottom, -10)
                 }
         } else {
-            content.pinnedBottomBar { ownBar }
+            content.pinnedBottomBar { buttons }
         }
     }
 
-    private func day(compact: Bool, chrome: Bool) -> some View {
-        BoardDayMenu(selected: chosen, now: Date(), parts: parts, part: part, compact: compact, chrome: chrome,
-                     onSelectDay: onSelectDay, onSelectPart: onSelectPart)
-    }
-
-    /// Before iOS 26: glass-like capsules in a frosted bar. Where they don't all
-    /// fit, the day goes to its icon first, then which way.
-    private var ownBar: some View {
+    /// Each in its own glass: the day leading, which way and Get here trailing.
+    /// Where they don't all fit, the day goes to its icon first, then which way.
+    private var buttons: some View {
         func row(dayCompact: Bool, directionCompact: Bool) -> some View {
-            HStack(spacing: 8) {
-                day(compact: dayCompact, chrome: true)
+            HStack(spacing: 10) {
+                BoardDayMenu(selected: chosen, now: Date(), parts: parts, part: part, compact: dayCompact,
+                             onSelectDay: onSelectDay, onSelectPart: onSelectPart)
                 Spacer(minLength: 0)
                 if let toward {
                     BoardDirectionButton(toward: toward, showsAll: showsAll, compact: directionCompact,
@@ -662,8 +617,6 @@ struct BoardDayMenu: View {
     let parts: [DayPeriod]
     let part: DayPeriod
     var compact = false
-    /// Its own glass capsule; without, the label alone (the system toolbar gives it glass).
-    var chrome = true
     let onSelectDay: (Date?) -> Void
     let onSelectPart: (DayPeriod) -> Void
 
@@ -707,7 +660,7 @@ struct BoardDayMenu: View {
             }
             .font(.subheadline.weight(.semibold))
             .foregroundStyle(.primary)
-            .modifier(BarCapsule(on: chrome, iconOnly: compact && part == .allDay))
+            .modifier(BarCapsule(iconOnly: compact && part == .allDay))
         }
         // (White like the other buttons, not the accent a menu's label takes.)
         .tint(Color.primary)
@@ -749,8 +702,6 @@ struct BoardDirectionButton: View {
     let toward: StationRole
     let showsAll: Bool
     var compact = false
-    /// Its own glass capsule; without, the label alone (the system toolbar gives it glass).
-    var chrome = true
     let toggle: () -> Void
 
     var body: some View {
@@ -766,7 +717,7 @@ struct BoardDirectionButton: View {
                 }
             }
             .font(.subheadline.weight(.semibold))
-            .modifier(BarCapsule(on: chrome, iconOnly: compact))
+            .modifier(BarCapsule(iconOnly: compact))
         }
         .buttonStyle(.plain)
         .fixedSize()
@@ -776,53 +727,16 @@ struct BoardDirectionButton: View {
     }
 }
 
-/// A bar button's own glass capsule, 44 points tall (a circle for an icon alone),
-/// when it isn't in the system toolbar, which gives its items their glass. In
-/// the toolbar, room either side within the glass it gives, which hugs a custom
-/// label: about as much as our own capsule has.
+/// A bar button's own glass capsule, 44 points tall (a circle for an icon alone).
 private struct BarCapsule: ViewModifier {
-    let on: Bool
     var iconOnly = false
 
     func body(content: Content) -> some View {
-        if on {
-            content
-                .padding(.horizontal, iconOnly ? 0 : 14)
-                .frame(minWidth: 44, minHeight: 44)
-                .contentShape(Capsule())
-                .glass(.interactive, in: Capsule())
-        } else {
-            content
-                .padding(.horizontal, iconOnly ? 0 : 8)
-                .contentShape(Capsule())
-        }
-    }
-}
-
-/// Get here in the system's bottom toolbar: its one prominent action, in the
-/// accent's green, on the trailing side (as the guidelines have a key action).
-@available(iOS 26.0, *)
-private struct GetHereToolbarButton: View {
-    let plan: TripPlan
-    let onTap: () -> Void
-
-    var body: some View {
-        let duration = plan.recommended.map { DurationText.text(from: AppClock.now, to: $0.arrivalThere) }
-        let origin = plan.origin.flatMap(RailNetwork.shared.station)?.name
-        Button(action: onTap) {
-            // (Its words too: a toolbar shows a Label's icon alone.)
-            HStack(spacing: 6) {
-                Image(systemName: "arrow.triangle.turn.up.right.diamond.fill")
-                Text("Get here")
-            }
-            .font(.subheadline.weight(.bold))
-            // (As much room inside its glass as the others have.)
-            .padding(.horizontal, 4)
-        }
-        .buttonStyle(.glassProminent)
-        .tint(Color.accentColor)
-        .accessibilityLabel(GetHereButton.detail(duration: duration, from: origin).map { "Get here, \($0)" } ?? "Get here")
-        .accessibilityHint("Shows how to get here by train")
+        content
+            .padding(.horizontal, iconOnly ? 0 : 14)
+            .frame(minWidth: 44, minHeight: 44)
+            .contentShape(Capsule())
+            .glass(.interactive, in: Capsule())
     }
 }
 
@@ -846,23 +760,32 @@ struct GetHereButton: View {
     var body: some View {
         let duration = plan.recommended.map { DurationText.text(from: AppClock.now, to: $0.arrivalThere) }
         let origin = plan.origin.flatMap(network.station)?.name
+        let solid = Self.isSolid
         Button(action: onTap) {
             HStack(spacing: 6) {
                 Image(systemName: "arrow.triangle.turn.up.right.diamond.fill")
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(solid ? Color.white : Color.accentColor)
                 Text("Get here")
-                    .foregroundStyle(Self.labelColor)
+                    .foregroundStyle(solid ? Color.white : Self.labelColor)
                     .lineLimit(1)
             }
             .font(.subheadline.weight(.bold))
-            .padding(.horizontal, 14)
-            .frame(maxWidth: .infinity, minHeight: 44)
+            .padding(.horizontal, 16)
+            .frame(minHeight: 44)
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)
-        .glass(.tinted(Color.accentColor.opacity(0.3)), in: Capsule())
+        .fixedSize()
+        .glass(.tinted(solid ? Color.accentColor : Color.accentColor.opacity(0.3)), in: Capsule())
         .accessibilityLabel(Self.detail(duration: duration, from: origin).map { "Get here, \($0)" } ?? "Get here")
         .accessibilityHint("Shows how to get here by train")
+    }
+
+    /// The bar's one prominent action: from iOS 26 in solid green glass, its words
+    /// white; before, a light green stand-in, its words in the label colour.
+    private static var isSolid: Bool {
+        if #available(iOS 26.0, *) { return true }
+        return false
     }
 
     /// Only when getting there by train makes sense: not when you're there, or it's
