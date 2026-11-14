@@ -41,6 +41,19 @@ struct StationSheet: View {
     #endif
 
     var body: some View {
+        #if DEBUG
+        // `-boardBarStyle bare`: the toolbar without a navigation stack, to compare.
+        if UserDefaults.standard.string(forKey: "boardBarStyle") == "bare" {
+            board
+        } else {
+            stacked
+        }
+        #else
+        stacked
+        #endif
+    }
+
+    private var stacked: some View {
         // A navigation stack only for the bar at the bottom: from iOS 26 it's the
         // system's toolbar, which needs one. Its own top bar stays hidden (the
         // header is ours), and its background clear, so the sheet's glass shows.

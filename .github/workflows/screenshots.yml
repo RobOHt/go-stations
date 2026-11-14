@@ -311,6 +311,11 @@ jobs:
           # Cancelled at the station (made up: every train, here).
           shoot 5i-station-cancelled 12 stationLarge -debugSkips UN
           shoot 6-station-large 10 stationLarge
+          # Asked for by name: the board's bar without a navigation stack, at both heights.
+          if ! everything; then
+            shoot 5x-station-bare 12 station -boardBarStyle bare
+            shoot 6x-station-large-bare 10 stationLarge -boardBarStyle bare
+          fi
           shoot 7-trip 15 trip
           # A train not stopping at two of its stations (made up: every train skips
           # these, two on each line out of Union).
@@ -388,10 +393,11 @@ jobs:
           shoot 13f-activity-connection-cancelled 8 activityGallery -gallerySection connectionCancelled
 
           # Asked for by name (`detent-video`): Union's board going to full height
-          # and back, twice, recorded: with the system's toolbar at the bottom, and
-          # with a bar of the board's own (`-boardBarStyle own`), to compare.
+          # and back, twice, recorded: with the system's toolbar at the bottom (in
+          # a navigation stack, and `bare` without one), and with a bar of the
+          # board's own (`own`), to compare.
           if [[ " $ONLY " == *" detent-video "* ]]; then
-            for style in toolbar own; do
+            for style in toolbar bare own; do
               xcrun simctl terminate "$UDID" "$BUNDLE_ID" > /dev/null 2>&1 || true
               sleep 1
               xcrun simctl launch "$UDID" "$BUNDLE_ID" -debugScene station -detentCycle YES \
