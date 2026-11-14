@@ -1,0 +1,4 @@
+trip scene: opening 1029 (open already: false)
+trip sheet up
+still, train's stops over the board: 161 steps, 2 late (worst 45 ms), main thread CPU 121 ms; bodies: BoardView 3
+sheet top every frame, train's stops over the board: 324 steps, 1 late (worst 38 ms), main thread CPU 1190 ms; bodies: BoardView 6
