@@ -197,8 +197,9 @@ struct StationSheet: View {
         }
         #endif
         #if DEBUG
-        // Screenshot scene: open the first train once the board has loaded.
-        .onChange(of: model.snapshot?.rows.first?.id) { _, _ in
+        // Screenshot scene: open the first train once the board has loaded (and the
+        // sheet has finished coming up: a sheet over it can't come up till then).
+        .onChange(of: model.snapshot?.rows.first?.id, initial: true) { _, _ in
             if DebugScene.current == .stationScrolled, model.snapshot != nil {
                 Task {
                     try? await Task.sleep(for: .seconds(1))
@@ -207,7 +208,10 @@ struct StationSheet: View {
             }
             guard DebugScene.current == .trip, selectedTrip == nil,
                   let row = model.snapshot?.rows.first else { return }
-            selectedTrip = TripSelection(row: row, station: station, fromBoard: true)
+            Task {
+                try? await Task.sleep(for: .seconds(1))
+                if selectedTrip == nil { selectedTrip = TripSelection(row: row, station: station, fromBoard: true) }
+            }
         }
         #endif
     }

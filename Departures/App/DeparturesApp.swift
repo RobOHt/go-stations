@@ -71,8 +71,14 @@ enum PerfProbe {
         }
         let used = Double(clock_gettime_nsec_np(CLOCK_THREAD_CPUTIME_ID) - cpu) / 1_000_000
         let bodies = counts.sorted { $0.key < $1.key }.map { "\($0.key) \($0.value)" }.joined(separator: ", ")
-        NSLog("PerfProbe %@: %ld steps, %ld late (worst %.0f ms), main thread CPU %.0f ms; bodies: %@",
-              label, steps, late, worst * 1000, used, bodies)
+        let line = String(format: "%@: %ld steps, %ld late (worst %.0f ms), main thread CPU %.0f ms; bodies: %@",
+                          label, steps, late, worst * 1000, used, bodies)
+        NSLog("PerfProbe %@", line)
+        // And to Documents/perf.txt, for the Screenshots workflow to read.
+        guard let directory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
+        let file = directory.appendingPathComponent("perf.txt")
+        let old = (try? String(contentsOf: file, encoding: .utf8)) ?? ""
+        try? (old + line + "\n").write(to: file, atomically: true, encoding: .utf8)
     }
 }
 
