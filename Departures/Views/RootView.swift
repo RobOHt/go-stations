@@ -829,6 +829,14 @@ struct RootView: View {
             // `-debugStation CODE`: another station's board than Union's.
             let code = UserDefaults.standard.string(forKey: "debugStation")
             select(code.flatMap(network.station) ?? union, detent: .medium)
+            // `-detentCycle YES`: then to full height and back, twice, 3 seconds
+            // apart, for a recording of how its bar comes through that.
+            if UserDefaults.standard.bool(forKey: "detentCycle") {
+                for next in [PresentationDetent.large, .medium, .large, .medium] {
+                    try? await Task.sleep(for: .seconds(3))
+                    detent = next
+                }
+            }
         case .trip, .homeDialog, .workDialog, .stationEarlier:
             select(union, detent: .medium)
         case .stationLarge, .stationScrolled:

@@ -549,11 +549,12 @@ private struct AlertCard: View {
 }
 
 /// A board's bar at the bottom: the day it shows (on a busy one, the part of it
-/// too), which way on your home or work board, and Get here, each a tap away.
-/// From iOS 26 it's the system's bottom toolbar, which floats its glass where iOS
-/// puts it, concentric with the screen's corners, over the board's soft scroll
-/// edge; Get here is its one prominent action, on the trailing side. Before iOS
-/// 26, a bar of our own, frosted.
+/// too) on the leading side; on the trailing side, under your thumb, which way on
+/// your home or work board, and Get here, each a tap away. From iOS 26 it's the
+/// system's bottom toolbar, which floats its glass where iOS puts it, concentric
+/// with the screen's corners, over the board's soft scroll edge; Get here is its
+/// one prominent action, at the trailing end. Before iOS 26, a bar of our own,
+/// frosted.
 private struct BoardBar: ViewModifier {
     let chosen: Date?
     let parts: [DayPeriod]
@@ -567,8 +568,17 @@ private struct BoardBar: ViewModifier {
     let onToggleDirection: () -> Void
     let onGetHere: (TripPlan) -> Void
 
+    #if DEBUG
+    /// `-boardBarStyle own`: the bar of our own on iOS 26 too, to compare.
+    private static let ownBarForced = UserDefaults.standard.string(forKey: "boardBarStyle") == "own"
+    #else
+    private static let ownBarForced = false
+    #endif
+
     func body(content: Content) -> some View {
-        if #available(iOS 26.0, *) {
+        if Self.ownBarForced {
+            content.pinnedBottomBar { ownBar }
+        } else if #available(iOS 26.0, *) {
             content
                 .scrollEdgeEffectStyle(.soft, for: .bottom)
                 .toolbar {
@@ -577,16 +587,18 @@ private struct BoardBar: ViewModifier {
                     ToolbarItem(placement: .bottomBar) {
                         day(compact: toward != nil && plan != nil, chrome: false)
                     }
+                    ToolbarSpacer(.flexible, placement: .bottomBar)
                     if let toward {
-                        // (Text buttons each get their own glass.)
-                        ToolbarSpacer(.fixed, placement: .bottomBar)
                         ToolbarItem(placement: .bottomBar) {
                             BoardDirectionButton(toward: toward, showsAll: showsAll, chrome: false,
                                                  toggle: onToggleDirection)
                         }
                     }
-                    ToolbarSpacer(.flexible, placement: .bottomBar)
                     if let plan {
+                        // (Text buttons each get their own glass.)
+                        if toward != nil {
+                            ToolbarSpacer(.fixed, placement: .bottomBar)
+                        }
                         ToolbarItem(placement: .bottomBar) {
                             GetHereToolbarButton(plan: plan) { onGetHere(plan) }
                         }
@@ -608,14 +620,13 @@ private struct BoardBar: ViewModifier {
         func row(dayCompact: Bool, directionCompact: Bool) -> some View {
             HStack(spacing: 8) {
                 day(compact: dayCompact, chrome: true)
+                Spacer(minLength: 0)
                 if let toward {
                     BoardDirectionButton(toward: toward, showsAll: showsAll, compact: directionCompact,
                                          toggle: onToggleDirection)
                 }
                 if let plan {
                     GetHereButton(plan: plan) { onGetHere(plan) }
-                } else {
-                    Spacer(minLength: 0)
                 }
             }
         }
@@ -753,7 +764,9 @@ struct BoardDirectionButton: View {
 }
 
 /// A bar button's own glass capsule, 44 points tall (a circle for an icon alone),
-/// when it isn't in the system toolbar, which gives its items their glass.
+/// when it isn't in the system toolbar, which gives its items their glass. In
+/// the toolbar, room either side within the glass it gives, which hugs a custom
+/// label: about as much as our own capsule has.
 private struct BarCapsule: ViewModifier {
     let on: Bool
     var iconOnly = false
@@ -767,6 +780,8 @@ private struct BarCapsule: ViewModifier {
                 .glass(.interactive, in: Capsule())
         } else {
             content
+                .padding(.horizontal, iconOnly ? 0 : 8)
+                .contentShape(Capsule())
         }
     }
 }
@@ -788,6 +803,8 @@ private struct GetHereToolbarButton: View {
                 Text("Get here")
             }
             .font(.subheadline.weight(.bold))
+            // (As much room inside its glass as the others have.)
+            .padding(.horizontal, 4)
         }
         .buttonStyle(.glassProminent)
         .tint(Color.accentColor)

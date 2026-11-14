@@ -387,6 +387,25 @@ jobs:
           shoot 13e-activity-cancelled 8 activityGallery -gallerySection cancelled
           shoot 13f-activity-connection-cancelled 8 activityGallery -gallerySection connectionCancelled
 
+          # Asked for by name (`detent-video`): Union's board going to full height
+          # and back, twice, recorded: with the system's toolbar at the bottom, and
+          # with a bar of the board's own (`-boardBarStyle own`), to compare.
+          if [[ " $ONLY " == *" detent-video "* ]]; then
+            for style in toolbar own; do
+              xcrun simctl terminate "$UDID" "$BUNDLE_ID" > /dev/null 2>&1 || true
+              sleep 1
+              xcrun simctl launch "$UDID" "$BUNDLE_ID" -debugScene station -detentCycle YES \
+                -boardBarStyle "$style" -homeStation OA -workStation UN > /dev/null
+              xcrun simctl io "$UDID" recordVideo --codec=h264 --force "shots/detent-$style.mov" \
+                > /dev/null 2>&1 < /dev/null &
+              recorder=$!
+              sleep 19
+              kill -INT "$recorder" 2> /dev/null || true
+              wait "$recorder" 2> /dev/null || true
+              echo "detent-$style"
+            done
+          fi
+
       - name: Trace the tracked train's motion
         if: always() && steps.sim.outputs.udid != '' && inputs.checks_only != 'true' && inputs.only == ''
         env:
