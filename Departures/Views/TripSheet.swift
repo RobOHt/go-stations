@@ -85,6 +85,7 @@ struct TripSheet: View {
     private var lineColor: Color { network.line(code: row.lineCode)?.color ?? .gray }
 
     var body: some View {
+        let _ = PerfProbe.body("TripSheet")
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 if let detail {

@@ -1,4 +1,5 @@
 import Observation
+import QuartzCore
 import SwiftUI
 import UIKit
 
@@ -26,6 +27,52 @@ struct DeparturesApp: App {
         .backgroundTask(.appRefresh(TripActivityController.refreshTaskID)) {
             await TripTracker.shared.backgroundRefresh()
         }
+    }
+}
+
+/// How much work a moving sheet makes, for the Screenshots workflow: each view's
+/// body evaluations, and the main thread's CPU time over a few seconds of it.
+/// Debug builds with `-traceRenders YES` only; otherwise it does nothing.
+@MainActor
+enum PerfProbe {
+    #if DEBUG
+    static let isOn = UserDefaults.standard.bool(forKey: "traceRenders")
+    #else
+    static let isOn = false
+    #endif
+    private static var counts: [String: Int] = [:]
+
+    /// Counts one evaluation of a view's body.
+    static func body(_ name: String) {
+        if isOn { counts[name, default: 0] += 1 }
+    }
+
+    /// Runs `step` about every frame for `seconds` (with the time since it started),
+    /// then logs how many steps there were, how many came late, the main thread's
+    /// CPU time over it, and the views' body evaluations meanwhile.
+    static func measure(_ label: String, seconds: Double, step: (Double) -> Void) async {
+        guard isOn else { return }
+        counts = [:]
+        let cpu = clock_gettime_nsec_np(CLOCK_THREAD_CPUTIME_ID)
+        let start = CACurrentMediaTime()
+        var steps = 0, late = 0
+        var last = start, worst = 0.0
+        while true {
+            let now = CACurrentMediaTime()
+            guard now - start < seconds else { break }
+            step(now - start)
+            steps += 1
+            if steps > 1 {
+                worst = max(worst, now - last)
+                if now - last > 0.034 { late += 1 }
+            }
+            last = now
+            try? await Task.sleep(for: .milliseconds(16))
+        }
+        let used = Double(clock_gettime_nsec_np(CLOCK_THREAD_CPUTIME_ID) - cpu) / 1_000_000
+        let bodies = counts.sorted { $0.key < $1.key }.map { "\($0.key) \($0.value)" }.joined(separator: ", ")
+        NSLog("PerfProbe %@: %ld steps, %ld late (worst %.0f ms), main thread CPU %.0f ms; bodies: %@",
+              label, steps, late, worst * 1000, used, bodies)
     }
 }
 

@@ -387,6 +387,25 @@ jobs:
           shoot 13e-activity-cancelled 8 activityGallery -gallerySection cancelled
           shoot 13f-activity-connection-cancelled 8 activityGallery -gallerySection connectionCancelled
 
+          # Asked for by name (`perf-trace`): with a train's stops up over Union's
+          # board, what moving the board's top edge every frame costs (it does, as
+          # they're pulled down), as the board is now and as it was (see PerfProbe).
+          if [[ " $ONLY " == *" perf-trace "* ]]; then
+            for variant in now before; do
+              extra=(); [ "$variant" = before ] && extra=(-noBoardEquatable YES)
+              xcrun simctl terminate "$UDID" "$BUNDLE_ID" > /dev/null 2>&1 || true
+              sleep 1
+              xcrun simctl launch "$UDID" "$BUNDLE_ID" -debugScene trip -traceRenders YES -sheetTopStress YES \
+                "${extra[@]}" -homeStation OA -workStation UN > /dev/null
+              sleep 22
+              echo "== $variant" >> shots/perf.txt
+              xcrun simctl spawn "$UDID" log show --last 25s --style compact \
+                --predicate 'eventMessage CONTAINS "PerfProbe"' 2> /dev/null | grep PerfProbe >> shots/perf.txt || true
+              xcrun simctl io "$UDID" screenshot --type=png "shots/perf-$variant.png" > /dev/null 2>&1 || true
+            done
+            cat shots/perf.txt
+          fi
+
           # Asked for by name (`detent-video`): Union's board going to full height
           # and back, twice, recorded, for how its bar comes through that.
           if [[ " $ONLY " == *" detent-video "* ]]; then

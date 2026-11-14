@@ -7,6 +7,10 @@ import UIKit
 /// board's soft edge. Tapping a train opens its stop list in another sheet.
 struct StationSheet: View {
     let station: Station
+    /// Set while a train's stops cover the board (their own sheet, over this one):
+    /// it's pushed back, and moves as that sheet is pulled down, which isn't the
+    /// board's own top edge moving.
+    var isCovered: Binding<Bool>? = nil
     /// Its Get here button, tapped: the trip card to it (with the plan the button
     /// has made). Nil: no button.
     var onGetHere: ((TripPlan?) -> Void)? = nil
@@ -41,6 +45,7 @@ struct StationSheet: View {
     #endif
 
     var body: some View {
+        let _ = PerfProbe.body("StationSheet")
         board
     }
 
@@ -136,6 +141,9 @@ struct StationSheet: View {
                 .environment(settings)
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
+        }
+        .onChange(of: selectedTrip == nil) { _, closed in
+            isCovered?.wrappedValue = !closed
         }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { wake += 1 }
@@ -813,4 +821,14 @@ struct GetHereButton: View {
             ? UIColor(red: 0.77, green: 0.93, blue: 0.48, alpha: 1)
             : UIColor(red: 0.29, green: 0.45, blue: 0.04, alpha: 1)
     })
+}
+
+extension StationSheet: Equatable {
+    /// The same station's board. When the map's view updates (as a sheet moves, its
+    /// top edge is measured every frame) the board, and a train's stops over it,
+    /// needn't be worked out again: what it shows comes from its own state, and its
+    /// Get here and covered flag only report back.
+    nonisolated static func == (lhs: StationSheet, rhs: StationSheet) -> Bool {
+        lhs.station.code == rhs.station.code && (lhs.onGetHere == nil) == (rhs.onGetHere == nil)
+    }
 }

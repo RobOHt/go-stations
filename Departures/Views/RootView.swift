@@ -28,6 +28,8 @@ struct RootView: View {
     @FocusState private var searchFocused: Bool
     /// Top edge of the station sheet on screen, so the buttons can sit just above it.
     @State private var sheetTop: CGFloat?
+    /// A train's stops are up over the station's board (see `StationSheet.isCovered`).
+    @State private var boardCovered = false
     /// A board has been open at some point (opened at launch or by a tap): no more
     /// hint on how to get one.
     @AppStorage("openedABoard") private var openedABoard = false
@@ -44,6 +46,7 @@ struct RootView: View {
     private let network = RailNetwork.shared
 
     var body: some View {
+        let _ = PerfProbe.body("RootView")
         NavigationStack {
             searchableMap
                 .onChange(of: searchFocused) { _, focused in
@@ -63,16 +66,19 @@ struct RootView: View {
         }
         .sheet(isPresented: stationSheetPresented) {
             if let selected {
-                StationSheet(station: selected) { plan in
-                    getHere(to: selected, plan: plan)
-                }
+                board(for: selected)
                     // The sheet's visible top edge. Its content starts lower (iOS keeps a
                     // safe area at the top of the sheet for the grabber), so measure a
                     // background that ignores the safe area and spans the whole sheet.
+                    // Not while a train's stops cover it: it's pushed back then, and
+                    // moves with every frame of pulling them down, and the controls
+                    // it'd move are covered anyway.
                     .background {
                         Color.clear
                             .ignoresSafeArea()
-                            .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minY } action: { sheetTop = $0 }
+                            .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minY } action: { top in
+                                if !boardCovered { sheetTop = top }
+                            }
                     }
                     .presentationDetents([.medium, .large], selection: $detent)
                     .presentationBackgroundInteraction(.enabled(upThrough: .medium))
@@ -152,7 +158,12 @@ struct RootView: View {
             SettingsView()
         }
         .onChange(of: selected == nil) { _, closed in
-            if closed { sheetTop = nil } else { openedABoard = true }
+            if closed {
+                sheetTop = nil
+                boardCovered = false
+            } else {
+                openedABoard = true
+            }
         }
         .onChange(of: search.place) { _, place in
             guard let place else { return }
@@ -371,6 +382,25 @@ struct RootView: View {
             get: { selected != nil },
             set: { if !$0 { selected = nil } }
         )
+    }
+
+    /// The station's board, worked out again only for another station (see
+    /// `StationSheet.==`): this view updates every frame a sheet's top edge moves.
+    @ViewBuilder
+    private func board(for station: Station) -> some View {
+        let sheet = StationSheet(station: station, isCovered: $boardCovered) { plan in
+            getHere(to: station, plan: plan)
+        }
+        #if DEBUG
+        // `-noBoardEquatable YES`: as it was, to compare (see PerfProbe).
+        if UserDefaults.standard.bool(forKey: "noBoardEquatable") {
+            sheet
+        } else {
+            sheet.equatable()
+        }
+        #else
+        sheet.equatable()
+        #endif
     }
 
     // MARK: Floating controls and search
@@ -839,6 +869,19 @@ struct RootView: View {
             }
         case .trip, .homeDialog, .workDialog, .stationEarlier:
             select(union, detent: .medium)
+            // `-sheetTopStress YES`: once the board's first train's stops are up over
+            // it, the sheet's top edge moved every frame for 3 seconds (as it is while
+            // they're pulled down), after 3 seconds still, with what each costs logged
+            // (see PerfProbe).
+            if scene == .trip, UserDefaults.standard.bool(forKey: "sheetTopStress") {
+                try? await Task.sleep(for: .seconds(10))
+                let base = sheetTop ?? 400
+                await PerfProbe.measure("still, train's stops over the board", seconds: 3) { _ in }
+                await PerfProbe.measure("sheet top every frame, train's stops over the board", seconds: 3) { time in
+                    sheetTop = base + 30 * CGFloat(sin(time * 6))
+                }
+                sheetTop = base
+            }
         case .stationLarge, .stationScrolled:
             let code = UserDefaults.standard.string(forKey: "debugStation")
             select(code.flatMap(network.station) ?? union, detent: .large)

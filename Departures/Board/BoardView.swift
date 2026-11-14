@@ -25,6 +25,7 @@ struct BoardView: View {
     var chosenDay: Date? = nil
 
     var body: some View {
+        let _ = PerfProbe.body("BoardView")
         // Lazy: a whole day's trains at a busy station run to hundreds of rows.
         LazyVStack(spacing: 0) {
             BoardTitleBar(now: now, chosenDay: chosenDay)
