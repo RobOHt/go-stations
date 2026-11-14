@@ -829,13 +829,3 @@ struct GetHereButton: View {
             : UIColor(red: 0.29, green: 0.45, blue: 0.04, alpha: 1)
     })
 }
-
-extension StationSheet: Equatable {
-    /// The same station's board. When the map's view updates (as a sheet moves, its
-    /// top edge is measured every frame) the board, and a train's stops over it,
-    /// needn't be worked out again: what it shows comes from its own state, and its
-    /// Get here and covered flag only report back.
-    nonisolated static func == (lhs: StationSheet, rhs: StationSheet) -> Bool {
-        lhs.station.code == rhs.station.code && (lhs.onGetHere == nil) == (rhs.onGetHere == nil)
-    }
-}

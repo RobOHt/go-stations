@@ -27,7 +27,12 @@ struct RootView: View {
     @State private var searchPresented = false
     @FocusState private var searchFocused: Bool
     /// Top edge of the station sheet on screen, so the buttons can sit just above it.
-    @State private var sheetTop: CGFloat?
+    /// Where the open sheet's top edge is (see `SheetEdge`): measured every frame it
+    /// moves, and read only by the floating controls' padding, not here.
+    @State private var sheetEdge = SheetEdge()
+    /// The sheet's top edge is well down the screen (below 300 points): the floating
+    /// controls show above it. Changes only when it crosses that.
+    @State private var sheetIsLow = false
     /// A train's stops are up over the station's board (see `StationSheet.isCovered`).
     @State private var boardCovered = false
     /// A board has been open at some point (opened at launch or by a tap): no more
@@ -77,7 +82,7 @@ struct RootView: View {
                         Color.clear
                             .ignoresSafeArea()
                             .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minY } action: { top in
-                                if !boardCovered { sheetTop = top }
+                                if !boardCovered { setSheetTop(top) }
                             }
                     }
                     .presentationDetents([.medium, .large], selection: $detent)
@@ -101,7 +106,7 @@ struct RootView: View {
                 .background {
                     Color.clear
                         .ignoresSafeArea()
-                        .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minY } action: { sheetTop = $0 }
+                        .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minY } action: { setSheetTop($0) }
                 }
                 .presentationDetents([.medium, .large], selection: $planDetent)
                 .presentationBackgroundInteraction(.enabled(upThrough: .medium))
@@ -112,7 +117,7 @@ struct RootView: View {
             frameTripPlan()
         }
         .onChange(of: tripPlan == nil) { _, closed in
-            if closed, selected == nil { sheetTop = nil }
+            if closed, selected == nil { setSheetTop(nil) }
         }
         .onChange(of: TripTracker.shared.trip?.startedAt) { _, started in
             // A newly tracked trip: show where the train is and where it goes (behind
@@ -159,7 +164,7 @@ struct RootView: View {
         }
         .onChange(of: selected == nil) { _, closed in
             if closed {
-                sheetTop = nil
+                setSheetTop(nil)
                 boardCovered = false
             } else {
                 openedABoard = true
@@ -384,23 +389,11 @@ struct RootView: View {
         )
     }
 
-    /// The station's board, worked out again only for another station (see
-    /// `StationSheet.==`): this view updates every frame a sheet's top edge moves.
-    @ViewBuilder
+    /// The station's board, which tells this view while a train's stops cover it.
     private func board(for station: Station) -> some View {
-        let sheet = StationSheet(station: station, isCovered: $boardCovered) { plan in
+        StationSheet(station: station, isCovered: $boardCovered) { plan in
             getHere(to: station, plan: plan)
         }
-        #if DEBUG
-        // `-noBoardEquatable YES`: as it was, to compare (see PerfProbe).
-        if UserDefaults.standard.bool(forKey: "noBoardEquatable") {
-            sheet
-        } else {
-            sheet.equatable()
-        }
-        #else
-        sheet.equatable()
-        #endif
     }
 
     // MARK: Floating controls and search
@@ -409,18 +402,19 @@ struct RootView: View {
         searchPresented || searchFocused || search.hasQuery || search.place != nil
     }
 
-    /// How far above the bottom of the floating area the station sheet (or the
-    /// trip card) reaches.
-    private var sheetLift: CGFloat? {
-        guard selected != nil || tripPlan != nil, let sheetTop else { return nil }
-        return max(0, floatingBottom - sheetTop)
+    /// The open sheet's top edge moved: to `SheetEdge` (the floating controls'
+    /// padding follows it there), and here only whether it's well down the screen.
+    private func setSheetTop(_ top: CGFloat?) {
+        sheetEdge.top = top
+        let low = (top ?? 0) > 300
+        if low != sheetIsLow { sheetIsLow = low }
     }
 
     private var showsControls: Bool {
         if selected != nil || tripPlan != nil {
             // Ride above the half-height sheet; the full-height one covers them.
-            guard (selected != nil ? detent : planDetent) != .large, let sheetTop else { return false }
-            return sheetTop > 300
+            guard (selected != nil ? detent : planDetent) != .large else { return false }
+            return sheetIsLow
         }
         return !searchActive
     }
@@ -468,14 +462,16 @@ struct RootView: View {
                 .layoutPriority(1)
             }
         }
-        .padding(.bottom, sheetLift.map { $0 + 12 } ?? BottomBarMetrics.gapAbove)
+        // Above the sheet while one's up, following it as it moves (in a view of its
+        // own, which reads where it is: this one isn't redone every frame of that).
+        .modifier(SheetLift(edge: sheetEdge, riding: selected != nil || tripPlan != nil,
+                            floatingBottom: floatingBottom))
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
         .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).maxY } action: { floatingBottom = $0 }
         .animation(.smooth(duration: 0.3), value: selected == nil)
         .animation(.smooth(duration: 0.3), value: tripPlan == nil)
         .animation(.smooth(duration: 0.3), value: showsControls)
         .animation(.smooth(duration: 0.3), value: TripTracker.shared.trip?.startedAt)
-        .animation(.smooth(duration: 0.25), value: sheetLift)
     }
 
     /// Home and work share one glass; settings and my location share another,
@@ -875,12 +871,12 @@ struct RootView: View {
             // (see PerfProbe).
             if scene == .trip, UserDefaults.standard.bool(forKey: "sheetTopStress") {
                 try? await Task.sleep(for: .seconds(10))
-                let base = sheetTop ?? 400
+                let base = sheetEdge.top ?? 400
                 await PerfProbe.measure("still, train's stops over the board", seconds: 3) { _ in }
                 await PerfProbe.measure("sheet top every frame, train's stops over the board", seconds: 6) { time in
-                    sheetTop = base + 30 * CGFloat(sin(time * 6))
+                    setSheetTop(base + 30 * CGFloat(sin(time * 6)))
                 }
-                sheetTop = base
+                setSheetTop(base)
             }
         case .stationLarge, .stationScrolled:
             let code = UserDefaults.standard.string(forKey: "debugStation")
@@ -1066,5 +1062,31 @@ private struct SearchBarBlur: View {
         }
         .allowsHitTesting(false)
         .accessibilityHidden(true)
+    }
+}
+
+/// Where the open sheet's top edge is on screen (nil: no sheet). Measured every frame
+/// the sheet moves; only `SheetLift` reads it, so only the floating controls' padding
+/// is redone then, not the screen with the map and the sheets on it.
+@MainActor
+@Observable
+final class SheetEdge {
+    var top: CGFloat?
+}
+
+/// The floating controls' room under them: up above the sheet's top edge while a
+/// sheet's open (following it as it moves), else the usual gap over the search bar.
+private struct SheetLift: ViewModifier {
+    let edge: SheetEdge
+    /// A station's board or a trip card is open.
+    let riding: Bool
+    /// The bottom of the floating controls' area, on screen.
+    let floatingBottom: CGFloat
+
+    func body(content: Content) -> some View {
+        let lift = riding ? edge.top.map { max(0, floatingBottom - $0) } : nil
+        content
+            .padding(.bottom, lift.map { $0 + 12 } ?? BottomBarMetrics.gapAbove)
+            .animation(.smooth(duration: 0.25), value: lift)
     }
 }
