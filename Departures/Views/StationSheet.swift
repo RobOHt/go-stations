@@ -201,15 +201,16 @@ struct StationSheet: View {
         #if DEBUG
         // Screenshot scene: open the first train once the board has loaded (and the
         // sheet has finished coming up: a sheet over it can't come up till then).
-        .onChange(of: model.snapshot?.rows.first?.id, initial: true) { _, _ in
+        .onChange(of: (model.snapshot?.rows.first ?? laterRows.first)?.id, initial: true) { _, _ in
             if DebugScene.current == .stationScrolled, model.snapshot != nil {
                 Task {
                     try? await Task.sleep(for: .seconds(1))
                     withAnimation { debugScroll.scrollTo(y: 320) }
                 }
             }
+            // (The live board's first train, or the timetable's when there's no live board.)
             guard DebugScene.current == .trip, selectedTrip == nil,
-                  let row = model.snapshot?.rows.first else { return }
+                  let row = model.snapshot?.rows.first ?? laterRows.first else { return }
             Task {
                 try? await Task.sleep(for: .seconds(1))
                 PerfProbe.note("trip scene: opening \(row.tripNumber) (open already: \(selectedTrip != nil))")
