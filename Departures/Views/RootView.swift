@@ -877,7 +877,7 @@ struct RootView: View {
                 try? await Task.sleep(for: .seconds(10))
                 let base = sheetTop ?? 400
                 await PerfProbe.measure("still, train's stops over the board", seconds: 3) { _ in }
-                await PerfProbe.measure("sheet top every frame, train's stops over the board", seconds: 3) { time in
+                await PerfProbe.measure("sheet top every frame, train's stops over the board", seconds: 6) { time in
                     sheetTop = base + 30 * CGFloat(sin(time * 6))
                 }
                 sheetTop = base

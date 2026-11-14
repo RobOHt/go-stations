@@ -141,6 +141,8 @@ struct StationSheet: View {
                 .environment(settings)
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
+                .onAppear { PerfProbe.note("trip sheet up") }
+                .onDisappear { PerfProbe.note("trip sheet gone") }
         }
         .onChange(of: selectedTrip == nil) { _, closed in
             isCovered?.wrappedValue = !closed
@@ -210,6 +212,7 @@ struct StationSheet: View {
                   let row = model.snapshot?.rows.first else { return }
             Task {
                 try? await Task.sleep(for: .seconds(1))
+                PerfProbe.note("trip scene: opening \(row.tripNumber) (open already: \(selectedTrip != nil))")
                 if selectedTrip == nil { selectedTrip = TripSelection(row: row, station: station, fromBoard: true) }
             }
         }
