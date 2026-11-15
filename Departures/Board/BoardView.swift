@@ -334,7 +334,7 @@ struct BoardRowView: View {
                 .padding(.leading, BoardTheme.detailIndent)
         }
         .padding(.horizontal, BoardTheme.horizontalPadding)
-        .padding(.vertical, 9)
+        .padding(.vertical, 8)
         .opacity(isDeparted ? 0.55 : 1)
         .accessibilityElement(children: .combine)
     }
@@ -383,11 +383,13 @@ struct BoardRowView: View {
     @ViewBuilder
     private var stopsText: some View {
         if !row.stops.isEmpty {
-            Text(row.stops.joined(separator: " - "))
-                .font(.system(size: 13.5, weight: .semibold))
-                .foregroundStyle(BoardTheme.white)
+            // Quieter than the train above it (see `BoardTheme.stops`).
+            Text(row.stops.joined(separator: " · "))
+                .font(.system(size: 13))
+                .foregroundStyle(BoardTheme.stops)
                 .lineLimit(1)
                 .truncationMode(.tail)
+                .accessibilityLabel(row.stops.joined(separator: ", "))
         }
     }
 }
@@ -419,32 +421,27 @@ struct PlatformCell: View {
                 }
             }
         } else if isUnion {
-            // Union posts platforms about 10 minutes before departure.
+            // Union posts platforms about 10 minutes before departure. Until then, how
+            // long till it does, short, as GO's own departures page has it: "29m", and
+            // "-" for a train over an hour away.
             let minutes = Int(ceil(row.expected.addingTimeInterval(-600).timeIntervalSince(now) / 60))
-            if minutes > 0 {
-                BilingualSmall(english: "Info in \(minutes) min", french: "Infos en \(minutes) min")
-            } else {
-                BilingualSmall(english: "Wait", french: "Attendez")
+            Group {
+                if minutes > 60 {
+                    Text(verbatim: "-")
+                        .accessibilityLabel("Platform later")
+                } else if minutes > 0 {
+                    Text(verbatim: "\(minutes)m")
+                        .accessibilityLabel("Platform in \(minutes) minutes")
+                } else {
+                    Text("Wait")
+                        .accessibilityLabel("Platform any minute")
+                }
             }
+            .font(.system(size: 15, weight: .bold).monospacedDigit())
+            .foregroundStyle(BoardTheme.white)
+            .lineLimit(1)
+            .fixedSize()
         }
-    }
-}
-
-struct BilingualSmall: View {
-    let english: String
-    let french: String
-
-    var body: some View {
-        VStack(alignment: .trailing, spacing: 0) {
-            Text(english)
-                .font(.system(size: 12.5, weight: .bold))
-                .foregroundStyle(BoardTheme.white)
-            Text(french)
-                .font(.system(size: 12.5, weight: .semibold))
-                .foregroundStyle(BoardTheme.dimGrey)
-        }
-        .lineLimit(1)
-        .fixedSize()
     }
 }
 
