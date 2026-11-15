@@ -260,7 +260,11 @@ struct CommuteDirection: Sendable {
     private let distances: [String: Double]
 
     init?(from: String, toward: String, network: RailNetwork = .shared) {
-        let distances = network.distances(to: toward)
+        self.init(from: from, toward: toward, distances: network.distances(to: toward))
+    }
+
+    /// The same, with each station's distance from `toward` along the lines worked out already.
+    init?(from: String, toward: String, distances: [String: Double]) {
         guard from != toward, distances[from] != nil else { return nil }
         self.from = from
         self.toward = toward
@@ -282,6 +286,92 @@ struct CommuteDirection: Sendable {
         else { return true }
         return next < here
     }
+}
+
+/// Which ways a station's board can show its trains, with your home or work set:
+/// toward work and toward home (on either one's own board, only toward the other);
+/// and the way it shows unless you pick another: on your home board toward work,
+/// on your work board toward home, on a station between them toward work on a
+/// weekday morning and toward home otherwise, and all directions anywhere else.
+struct BoardWays: Sendable {
+    let station: String
+    let towardWork: CommuteDirection?
+    let towardHome: CommuteDirection?
+    /// Home and work, when it's either.
+    let isHome: Bool
+    let isWork: Bool
+    /// On the way between home and work along the lines, not either of them: on
+    /// the shortest way from one to the other (give or take a little).
+    let isOnCommute: Bool
+
+    init(station: String, home: String?, work: String?, network: RailNetwork = .shared) {
+        self.station = station
+        let toWork = work.map(network.distances(to:))
+        let toHome = home.map(network.distances(to:))
+        isHome = station == home
+        isWork = station == work
+        // (Home and work the same station: no way to tell them apart.)
+        let distinct = home != work
+        towardWork = distinct ? both(work, toWork).flatMap { CommuteDirection(from: station, toward: $0.0, distances: $0.1) } : nil
+        towardHome = distinct ? both(home, toHome).flatMap { CommuteDirection(from: station, toward: $0.0, distances: $0.1) } : nil
+        if distinct, !isHome, !isWork, let work, let toWork, let toHome, let length = toHome[work],
+           let fromHome = toHome[station], let fromWork = toWork[station] {
+            isOnCommute = fromHome + fromWork <= length * 1.02 + 200
+        } else {
+            isOnCommute = false
+        }
+    }
+
+    /// The ways it can show, toward work first.
+    var ways: [StationRole] {
+        [towardWork.map { _ in StationRole.work }, towardHome.map { _ in StationRole.home }].compactMap { $0 }
+    }
+
+    func direction(toward role: StationRole) -> CommuteDirection? {
+        switch role {
+        case .work: towardWork
+        case .home: towardHome
+        case .plain: nil
+        }
+    }
+
+    /// The way it shows unless you pick another (nil: all directions).
+    func defaultWay(at date: Date) -> StationRole? {
+        if isHome { return towardWork != nil ? .work : nil }
+        if isWork { return towardHome != nil ? .home : nil }
+        guard isOnCommute, towardWork != nil, towardHome != nil else { return nil }
+        return Self.isWorkBound(at: date) ? .work : .home
+    }
+
+    /// A weekday morning (till noon): the way to work. Afternoons, evenings and
+    /// weekends, the way home (as the start-up board has it).
+    static func isWorkBound(at date: Date) -> Bool {
+        guard let clock = CommutePlanner.Clock.at(date), let weekday = CommutePlanner.weekday(clock.day) else {
+            return false
+        }
+        return weekday < 5 && clock.minuteOfDay <= CommutePlanner.workUntil
+    }
+
+    @MainActor private static var made: [String: BoardWays] = [:]
+
+    /// Worked out once for each station, home and work (it goes along the lines from
+    /// both): a board asks every time it's drawn.
+    @MainActor
+    static func of(station: String, home: String?, work: String?) -> BoardWays? {
+        guard home != nil || work != nil else { return nil }
+        let key = [station, home ?? "-", work ?? "-"].joined(separator: "|")
+        if let ways = made[key] { return ways }
+        let ways = BoardWays(station: station, home: home, work: work)
+        if made.count > 200 { made.removeAll() }
+        made[key] = ways
+        return ways
+    }
+}
+
+/// Both, or nil.
+private func both<A, B>(_ a: A?, _ b: B?) -> (A, B)? {
+    guard let a, let b else { return nil }
+    return (a, b)
 }
 
 extension Color {

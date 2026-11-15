@@ -22,8 +22,8 @@ struct StationSheet: View {
     @State private var selectedTrip: TripSelection?
     /// Trains that already left, when asked for (nil while hidden).
     @State private var earlierRows: [BoardRow]?
-    /// On your home or work board: every train, not just the ones toward the other.
-    @State private var showsAllDirections = false
+    /// The way picked in the bar's menu (nil: the board's own, see `BoardWays`).
+    @State private var pickedWay: WayPick?
     /// Timetable trains after the live ones, so the board always shows a few trains
     /// (your way, when it's filtered), however far ahead the next ones are.
     @State private var laterRows: [BoardRow] = []
@@ -51,10 +51,10 @@ struct StationSheet: View {
 
     @ViewBuilder
     private var board: some View {
-        // On your home board only the trains toward work, on your work board only the
-        // ones toward home, unless you ask for them all.
-        let commute = self.commute
-        let filter = showsAllDirections ? nil : commute?.direction
+        // Only the trains toward work or toward home (see `BoardWays`), unless you
+        // ask for them all.
+        let shownWay = self.shownWay
+        let filter = self.direction
         let allRows = model.snapshot?.rows ?? []
         let live = filter.map { allRows.filter($0.includes) } ?? allRows
         // After the live trains (they run out within a few hours), the rest of today's
@@ -89,8 +89,8 @@ struct StationSheet: View {
                         message: chosen != nil
                             ? (planned == nil ? "Loading | Chargement" : "No trains that day | Aucun train ce jour-là")
                             : boardMessage ?? (rows.isEmpty && !allRows.isEmpty
-                                ? commute.map { $0.toward == .work ? "No trains toward work | Aucun train vers le travail"
-                                                                   : "No trains toward home | Aucun train vers la maison" }
+                                ? shownWay.map { $0 == .work ? "No trains toward work | Aucun train vers le travail"
+                                                             : "No trains toward home | Aucun train vers la maison" }
                                 : nil),
                         isLoading: chosen != nil ? planned == nil : model.snapshot == nil && model.errorMessage == nil,
                         isScheduled: chosen != nil || model.snapshot?.source == .schedule,
@@ -117,11 +117,11 @@ struct StationSheet: View {
         .pinnedHeader { header }
         // The day, which way, and Get here: in the bar at the bottom.
         .modifier(BoardBar(
-            chosen: chosen, parts: showsParts ? parts : [], part: part, toward: commute?.toward,
-            showsAll: showsAllDirections, plan: getHerePlan,
+            chosen: chosen, parts: showsParts ? parts : [], part: part, ways: ways?.ways ?? [],
+            shownWay: shownWay, plan: getHerePlan,
             onSelectDay: { day in withAnimation(.snappy) { BoardTime.shared.day = day } },
             onSelectPart: { new in withAnimation(.snappy) { BoardTime.shared.period = new } },
-            onToggleDirection: { withAnimation(.snappy) { showsAllDirections.toggle() } },
+            onPickWay: { way in withAnimation(.snappy) { pickedWay = way.map(WayPick.toward) ?? .all } },
             onGetHere: { plan in onGetHere?(plan) }
         ))
         .environment(\.glassBackdrop, .sheet)
@@ -150,9 +150,9 @@ struct StationSheet: View {
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { wake += 1 }
         }
-        // Another station in the same sheet starts out filtered again.
+        // Another station in the same sheet starts out its own way again.
         .onChange(of: station.code) { _, _ in
-            showsAllDirections = false
+            pickedWay = nil
             laterRows = []
             plannedRows = nil
         }
@@ -162,21 +162,20 @@ struct StationSheet: View {
                 plannedRows = nil
                 return
             }
-            plannedRows = await BoardService.shared.dayRows(
-                for: station, on: day, toward: showsAllDirections ? nil : commute?.direction)
+            plannedRows = await BoardService.shared.dayRows(for: station, on: day, toward: direction)
         }
         // The timetable's trains after the live ones, worked out again when those move on.
         .task(id: laterKey) {
             guard let snapshot = model.snapshot else { return }
-            let direction = showsAllDirections ? nil : commute?.direction
+            let direction = self.direction
             let live = direction.map { snapshot.rows.filter($0.includes) } ?? snapshot.rows
             let after = max(snapshot.rows.map(\.scheduled).max() ?? .distantPast, Date())
             laterRows = await BoardService.shared.laterRows(
                 for: station, after: after, atLeast: max(0, Self.minimumRows - live.count), toward: direction)
         }
         #if DEBUG
-        // Screenshots: `-showAllDirections YES` opens home and work boards unfiltered.
-        .onAppear { if UserDefaults.standard.bool(forKey: "showAllDirections") { showsAllDirections = true } }
+        // Screenshots: `-showAllDirections YES` opens boards unfiltered.
+        .onAppear { if UserDefaults.standard.bool(forKey: "showAllDirections") { pickedWay = .all } }
         #endif
         // Trains that just left move into the earlier list while it's open.
         .onChange(of: model.snapshot?.fetchedAt) { _, _ in
@@ -360,12 +359,30 @@ struct StationSheet: View {
         }
     }
 
-    /// With home and work both set, on either one's board: the way to the other.
-    private var commute: (direction: CommuteDirection, toward: StationRole)? {
-        guard let home = settings.homeCode, let work = settings.workCode, home != work else { return nil }
-        if station.code == home { return CommuteDirection(from: home, toward: work).map { ($0, .work) } }
-        if station.code == work { return CommuteDirection(from: work, toward: home).map { ($0, .home) } }
-        return nil
+    /// Which ways this board can show its trains, with your home or work set.
+    private var ways: BoardWays? {
+        BoardWays.of(station: station.code, home: settings.homeCode, work: settings.workCode)
+    }
+
+    /// The way it shows: the one picked, else its own (nil: all directions).
+    private var shownWay: StationRole? {
+        guard let ways else { return nil }
+        switch pickedWay {
+        case .toward(let role)?: return ways.ways.contains(role) ? role : ways.defaultWay(at: AppClock.now)
+        case .all?: return nil
+        case nil: return ways.defaultWay(at: AppClock.now)
+        }
+    }
+
+    /// Which of its trains go that way (nil: all of them).
+    private var direction: CommuteDirection? {
+        shownWay.flatMap { ways?.direction(toward: $0) }
+    }
+
+    /// A way picked in the bar's menu.
+    private enum WayPick: Equatable {
+        case toward(StationRole)
+        case all
     }
 
     private var isHome: Bool { settings.homeCode == station.code }
@@ -443,7 +460,7 @@ struct StationSheet: View {
     private static let partsAfter = 10
     private var plannedKey: String {
         let day = BoardTime.shared.day.map(TorontoTime.dateWire) ?? "today"
-        return "\(station.code)#\(day)#\(showsAllDirections)#\(commute?.direction.toward ?? "")"
+        return "\(station.code)#\(day)#\(direction?.toward ?? "all")"
     }
 
     /// What the timetable trains depend on: the station, the last live train (or,
@@ -452,7 +469,7 @@ struct StationSheet: View {
         let last = model.snapshot.map { snapshot in
             Int((snapshot.rows.map(\.scheduled).max() ?? snapshot.fetchedAt).timeIntervalSince1970 / 60)
         }
-        return "\(station.code)#\(last.map(String.init) ?? "-")#\(showsAllDirections)#\(commute?.direction.toward ?? "")"
+        return "\(station.code)#\(last.map(String.init) ?? "-")#\(direction?.toward ?? "all")"
     }
 
     // MARK: Below the board
@@ -558,8 +575,8 @@ private struct AlertCard: View {
 }
 
 /// A board's bar at the bottom: the day it shows (on a busy one, the part of it
-/// too) on the leading side; on the trailing side, under your thumb, which way on
-/// your home or work board, and Get here, each a tap away. From iOS 26 the buttons
+/// too) on the leading side; on the trailing side, under your thumb, which way its
+/// trains go (with your home or work set), and Get here, each a tap away. From iOS 26 the buttons
 /// float in their own glass over the board's soft scroll edge, where the system's
 /// bottom toolbar puts its items, and stay put as the sheet goes to full height
 /// and back. (The system's toolbar, laid out for the sheet's new height before the
@@ -569,13 +586,14 @@ private struct BoardBar: ViewModifier {
     let chosen: Date?
     let parts: [DayPeriod]
     let part: DayPeriod
-    /// Home or work, on your home or work board (nil: no direction to pick).
-    let toward: StationRole?
-    let showsAll: Bool
+    /// The ways it can show (toward work, toward home; none: no menu).
+    let ways: [StationRole]
+    /// The way it shows (nil: all directions).
+    let shownWay: StationRole?
     let plan: TripPlan?
     let onSelectDay: (Date?) -> Void
     let onSelectPart: (DayPeriod) -> Void
-    let onToggleDirection: () -> Void
+    let onPickWay: (StationRole?) -> Void
     let onGetHere: (TripPlan) -> Void
 
     func body(content: Content) -> some View {
@@ -605,9 +623,8 @@ private struct BoardBar: ViewModifier {
                 BoardDayMenu(selected: chosen, now: Date(), parts: parts, part: part, compact: dayCompact,
                              onSelectDay: onSelectDay, onSelectPart: onSelectPart)
                 Spacer(minLength: 0)
-                if let toward {
-                    BoardDirectionButton(toward: toward, showsAll: showsAll, compact: directionCompact,
-                                         toggle: onToggleDirection)
+                if !ways.isEmpty {
+                    BoardWayMenu(ways: ways, shown: shownWay, compact: directionCompact, pick: onPickWay)
                 }
                 if let plan {
                     GetHereButton(plan: plan) { onGetHere(plan) }
@@ -711,23 +728,35 @@ struct BoardDayMenu: View {
     }()
 }
 
-/// In the board's bottom bar, on your home or work station's board: which way its
-/// trains go ("Toward work"), or "All directions"; a tap switches. Just the icon
-/// where the labels don't all fit.
-struct BoardDirectionButton: View {
-    let toward: StationRole
-    let showsAll: Bool
+/// In the board's bottom bar, with your home or work set: which way its trains go
+/// ("Toward work", "Toward home") or "All directions", and in its menu the others.
+/// Just the icon where the labels don't all fit.
+struct BoardWayMenu: View {
+    /// The ways it can show, toward work first.
+    let ways: [StationRole]
+    /// The way it shows (nil: all directions).
+    let shown: StationRole?
     var compact = false
-    let toggle: () -> Void
+    let pick: (StationRole?) -> Void
 
     var body: some View {
-        let label = showsAll ? "All directions" : (toward == .work ? "Toward work" : "Toward home")
-        Button(action: toggle) {
+        Menu {
+            Picker("Which way", selection: Binding(get: { shown }, set: pick)) {
+                ForEach(ways, id: \.self) { way in
+                    Label(Self.title(way), systemImage: way.symbolName)
+                        .tag(StationRole?.some(way))
+                }
+                Label(Self.title(nil), systemImage: "arrow.left.arrow.right")
+                    .tag(StationRole?.none)
+            }
+            .pickerStyle(.inline)
+            .labelsHidden()
+        } label: {
             HStack(spacing: 6) {
-                Image(systemName: showsAll ? "arrow.left.arrow.right" : toward.symbolName)
-                    .foregroundStyle(showsAll ? Color.primary : Color(uiColor: toward.uiColor))
+                Image(systemName: shown?.symbolName ?? "arrow.left.arrow.right")
+                    .foregroundStyle(shown.map { Color(uiColor: $0.uiColor) } ?? Color.primary)
                 if !compact {
-                    Text(label)
+                    Text(Self.title(shown))
                         .foregroundStyle(.primary)
                         .lineLimit(1)
                 }
@@ -735,11 +764,19 @@ struct BoardDirectionButton: View {
             .font(.subheadline.weight(.semibold))
             .modifier(BarCapsule(iconOnly: compact))
         }
-        .buttonStyle(.plain)
+        // (White like the other buttons, not the accent a menu's label takes.)
+        .tint(Color.primary)
         .fixedSize()
-        .accessibilityLabel(showsAll ? "Showing trains in all directions" : "Showing trains \(label.lowercased())")
-        .accessibilityHint(showsAll ? (toward == .work ? "Shows just the trains toward work" : "Shows just the trains toward home")
-                                    : "Shows the trains in all directions")
+        .accessibilityLabel("Showing trains \(Self.title(shown).lowercased())")
+        .accessibilityHint("Picks which way the board's trains go")
+    }
+
+    static func title(_ way: StationRole?) -> String {
+        switch way {
+        case .work?: "Toward work"
+        case .home?: "Toward home"
+        default: "All directions"
+        }
     }
 }
 

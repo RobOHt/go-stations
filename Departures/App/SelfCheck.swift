@@ -25,6 +25,7 @@ enum SelfCheck {
         cancelledTrain()
         plannedRoundCancelled()
         cancelledConnection()
+        boardWays()
         lines.append("done")
         write()
         NSLog("SelfCheck: done")
@@ -442,6 +443,50 @@ enum SelfCheck {
             try? JSONDecoder().decode(TripActivityAttributes.ContentState.self, from: $0)
         }
         check("connection: kept by the activity", again?.change?.cancelled == true)
+    }
+
+    /// Which way each board shows its trains, for a made-up commuter from Oakville
+    /// to Union: on the two boards, toward the other; between them, toward work on a
+    /// weekday morning and home otherwise; elsewhere, all of them.
+    private static func boardWays() {
+        let home = "OA", work = "UN"
+        let tuesdayMorning = date("07:30"), tuesdayEvening = date("17:30")
+        let saturdayMorning = date("09:00").addingTimeInterval(4 * 86_400)
+        let oakville = BoardWays(station: home, home: home, work: work)
+        check("ways: home board, toward work", oakville.ways == [.work] && oakville.defaultWay(at: tuesdayEvening) == .work)
+        let union = BoardWays(station: work, home: home, work: work)
+        check("ways: work board, toward home", union.ways == [.home] && union.defaultWay(at: tuesdayMorning) == .home)
+        let portCredit = BoardWays(station: "PO", home: home, work: work)
+        check("ways: between them, both ways", portCredit.ways == [.work, .home] && portCredit.isOnCommute)
+        check("ways: between them, toward work on a weekday morning",
+              portCredit.defaultWay(at: tuesdayMorning) == .work)
+        check("ways: between them, toward home in the evening", portCredit.defaultWay(at: tuesdayEvening) == .home)
+        check("ways: between them, toward home on a weekend", portCredit.defaultWay(at: saturdayMorning) == .home)
+        let bramalea = BoardWays(station: "BE", home: home, work: work)
+        check("ways: off the way, all directions", !bramalea.isOnCommute && bramalea.defaultWay(at: tuesdayMorning) == nil
+              && bramalea.ways == [.work, .home])
+        let aldershot = BoardWays(station: "AL", home: home, work: work)
+        check("ways: past home, all directions", !aldershot.isOnCommute && aldershot.defaultWay(at: tuesdayMorning) == nil)
+
+        // Which trains each way takes from Port Credit: on to Long Branch is toward
+        // Union (work); back to Clarkson, toward Oakville (home).
+        let east = BoardRow(tripNumber: "LW1", lineCode: "LW", lineName: "Lakeshore West", destination: "Union Station",
+                            stops: [], scheduled: tuesdayMorning, expected: tuesdayMorning, platform: nil,
+                            isExpress: false, isCancelled: false, stopCodes: ["LO", "MI", "EX", "UN"])
+        let west = BoardRow(tripNumber: "LW2", lineCode: "LW", lineName: "Lakeshore West", destination: "Aldershot",
+                            stops: [], scheduled: tuesdayMorning, expected: tuesdayMorning, platform: nil,
+                            isExpress: false, isCancelled: false, stopCodes: ["CL", "OA", "BO", "AL"])
+        let toWork = portCredit.direction(toward: .work), toHome = portCredit.direction(toward: .home)
+        check("ways: toward work, the trains to Union",
+              toWork?.includes(east) == true && toWork?.includes(west) == false)
+        check("ways: toward home, the trains to Oakville",
+              toHome?.includes(west) == true && toHome?.includes(east) == false)
+        check("ways: from Bramalea, toward work is toward Union",
+              bramalea.direction(toward: .work)?.includes(stopCodes: ["MA", "ET", "WE", "BL", "UN"]) == true)
+        check("ways: without home or work, nothing to pick",
+              BoardWays.of(station: "PO", home: nil, work: nil) == nil)
+        let homeOnly = BoardWays(station: "PO", home: home, work: nil)
+        check("ways: home only, toward home or all", homeOnly.ways == [.home] && homeOnly.defaultWay(at: tuesdayMorning) == nil)
     }
 
     // MARK: Made-up trips

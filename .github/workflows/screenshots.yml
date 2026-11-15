@@ -335,6 +335,13 @@ jobs:
               day += datetime.timedelta(days=1)
           print(datetime.datetime(day.year, day.month, day.day, 7, 50, tzinfo=tz).isoformat())")
           echo "Trip cards at $MORNING"
+          # Which way a board shows its trains: between home and work (Port Credit, for
+          # the made-up commuter from Oakville to Union) toward work on a weekday
+          # morning and toward home in the evening; off the way (Bramalea), all of them.
+          EVENING="${MORNING/T07:50/T17:40}"
+          shoot 5j-station-commute-morning 14 station -debugStation PO -debugNow "$MORNING"
+          shoot 5k-station-commute-evening 14 station -debugStation PO -debugNow "$EVENING"
+          shoot 5l-station-off-commute 12 station -debugStation BE
           shoot 15-trip-plan 14 tripPlan -debugNow "$MORNING"
           shoot 15b-trip-plan-open 14 tripPlan -debugNow "$MORNING" -planOpenFirst YES -planLarge YES
           shoot 15c-trip-change 14 tripPlan -debugNow "$MORNING" -planTo UI -debugLocation 43.5560,-79.5869 \
