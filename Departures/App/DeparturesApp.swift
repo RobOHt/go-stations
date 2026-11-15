@@ -13,6 +13,8 @@ struct DeparturesApp: App {
             #if DEBUG
             if DebugScene.current == .activityGallery {
                 TripActivityGallery()
+            } else if DebugScene.current == .boardSample {
+                BoardSample()
             } else {
                 RootView()
                     .environment(settings)

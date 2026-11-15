@@ -311,6 +311,9 @@ jobs:
           # Cancelled at the station (made up: every train, here).
           shoot 5i-station-cancelled 12 stationLarge -debugSkips UN
           shoot 6-station-large 10 stationLarge
+          # Union's board with made-up trains due now (at night the board only has the
+          # timetable's, without platforms): a platform, "Wait", "5m", "29m", "-", a delay.
+          shoot 6b-union-sample 8 boardSample
           shoot 7-trip 15 trip
           # A train not stopping at two of its stations (made up: every train skips
           # these, two on each line out of Union).

@@ -583,37 +583,72 @@ struct TrainFrontIcon: Shape {
     }
 }
 
-// MARK: - Preview (sample data modelled on the Union Station screen)
+// MARK: - Sample (made up, modelled on the Union Station screen)
+
+#if DEBUG
+extension Station {
+    static let unionSample = Station(code: "UN", name: "Union Station", latitude: 43.6452, longitude: -79.3806,
+                                     lineCodes: ["LW", "MI", "KI", "BR", "RH", "ST", "LE"], accessible: true)
+}
+
+extension BoardRow {
+    /// Union's board with trains due from `now`: a platform posted, "Wait" for a
+    /// train still without one, the countdown to the next ones' ("5m", "29m"), "-"
+    /// for those over an hour away, an express, a delay and a cancellation.
+    static func unionSample(now: Date) -> [BoardRow] {
+        // On half minutes, so the countdowns don't sit on the edge of a minute.
+        func time(_ minutes: Double) -> Date { now.addingTimeInterval(minutes * 60) }
+        func row(_ number: String, _ line: String, _ name: String, _ stops: [String], in minutes: Double,
+                 late: Double = 0, platform: String? = nil, express: Bool = false) -> BoardRow {
+            BoardRow(tripNumber: number, lineCode: line, lineName: name, destination: name, stops: stops,
+                     scheduled: time(minutes), expected: time(minutes + late), platform: platform,
+                     isExpress: express, isCancelled: false)
+        }
+        let west = ["Exhibition", "Mimico", "Long Branch", "Port Credit", "Clarkson", "Oakville", "Bronte",
+                    "Appleby", "Burlington", "Aldershot"]
+        let westExpress = ["Exhibition", "Port Credit", "Oakville", "Burlington", "Aldershot"]
+        let east = ["Danforth", "Scarborough", "Eglinton", "Guildwood", "Rouge Hill", "Pickering", "Ajax",
+                    "Whitby", "Oshawa"]
+        var cancelled = row("7324", "ST", "Stouffville", ["Kennedy", "Agincourt", "Milliken", "Unionville",
+                                                          "Centennial", "Markham", "Mount Joy"], in: 52.5)
+        cancelled.isCancelled = true
+        cancelled.reasonEnglish = "Earlier police investigation"
+        cancelled.reasonFrench = "Enquête policière antérieure"
+        return [
+            row("1875", "LW", "Lakeshore West", west, in: 2.5, platform: "7, 8"),
+            row("9026", "LE", "Lakeshore East", east, in: 6.5),
+            row("3777", "KI", "Kitchener", ["Bloor", "Weston", "Etobicoke North", "Malton", "Bramalea",
+                                            "Brampton Innovation District", "Mount Pleasant", "Georgetown"],
+                in: 14.5),
+            row("1877", "LW", "Lakeshore West", westExpress, in: 38.5, express: true),
+            row("6325", "BR", "Barrie", ["Downsview Park", "Rutherford", "Maple", "King City", "Aurora",
+                                         "Newmarket", "East Gwillimbury", "Bradford", "Barrie South",
+                                         "Allandale Waterfront"], in: 41.5, late: 7),
+            cancelled,
+            row("9030", "LE", "Lakeshore East", east, in: 71.5),
+            row("8211", "RH", "Richmond Hill", ["Oriole", "Old Cummer", "Langstaff", "Gormley", "Bloomington"],
+                in: 84.5),
+            row("1881", "LW", "Lakeshore West", west, in: 98.5),
+        ]
+    }
+}
+
+/// Union's board with made-up trains due now, at any hour (`-debugScene boardSample`):
+/// the simulator's screenshots at night otherwise only have the timetable's trains,
+/// with no platforms or countdowns.
+struct BoardSample: View {
+    @State private var now = Date()
+
+    var body: some View {
+        ScrollView {
+            BoardView(rows: BoardRow.unionSample(now: now), station: .unionSample, now: now)
+                .padding(12)
+        }
+        .background(Color(white: 0.12))
+    }
+}
 
 #Preview("Union board") {
-    let now = Date()
-    func at(_ minutes: Double) -> Date { now.addingTimeInterval(minutes * 60) }
-    let union = Station(code: "UN", name: "Union Station", latitude: 43.6452, longitude: -79.3806,
-                        lineCodes: ["LW", "MI", "KI", "BR", "RH", "ST", "LE"], accessible: true)
-    let rows = [
-        BoardRow(tripNumber: "1875", lineCode: "LW", lineName: "Lakeshore West", destination: "Lakeshore West",
-                 stops: ["Clarkson", "Oakville", "Bronte", "Appleby"], scheduled: at(2), expected: at(2),
-                 platform: "13", isExpress: true, isCancelled: false),
-        BoardRow(tripNumber: "6325", lineCode: "BR", lineName: "Barrie", destination: "Barrie",
-                 stops: ["Downsview Park GO", "Rutherford GO"], scheduled: at(4), expected: at(4),
-                 platform: "9, 10", isExpress: false, isCancelled: false),
-        BoardRow(tripNumber: "1877", lineCode: "LW", lineName: "Lakeshore West", destination: "Lakeshore West",
-                 stops: ["Clarkson", "Oakville", "Bronte", "Appleby"], scheduled: at(14), expected: at(14),
-                 platform: nil, isExpress: true, isCancelled: false),
-        BoardRow(tripNumber: "3777", lineCode: "KI", lineName: "Kitchener", destination: "Kitchener",
-                 stops: [], scheduled: at(15), expected: at(15), platform: nil, isExpress: false,
-                 isCancelled: true, reasonEnglish: "Earlier police investigation",
-                 reasonFrench: "Enquête policière antérieure"),
-        BoardRow(tripNumber: "9026", lineCode: "LE", lineName: "Lakeshore East", destination: "Lakeshore East",
-                 stops: ["Danforth", "Scarborough GO", "Eglinton"], scheduled: at(16), expected: at(23),
-                 platform: nil, isExpress: false, isCancelled: false),
-        BoardRow(tripNumber: "7324", lineCode: "ST", lineName: "Stouffville", destination: "Stouffville",
-                 stops: ["Kennedy", "Agincourt", "Milliken"], scheduled: at(23), expected: at(23),
-                 platform: nil, isExpress: false, isCancelled: false),
-    ]
-    return ScrollView {
-        BoardView(rows: rows, station: union, now: now)
-            .padding(12)
-    }
-    .background(Color(white: 0.12))
+    BoardSample()
 }
+#endif

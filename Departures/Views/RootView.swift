@@ -910,8 +910,8 @@ struct RootView: View {
             await planDebugTrip(scene)
         case .selfCheck:
             break  // Run at launch (AppDelegate).
-        case .activityGallery:
-            break  // DeparturesApp shows the gallery in place of the map.
+        case .activityGallery, .boardSample:
+            break  // DeparturesApp shows these in place of the map.
         }
     }
 

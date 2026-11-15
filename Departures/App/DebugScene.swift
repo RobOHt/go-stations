@@ -21,6 +21,9 @@ enum DebugScene: String {
     /// The Live Activity's views drawn in the app (Lock Screen, compact, minimal,
     /// expanded), since the simulator can't be locked or its island held from a script.
     case activityGallery
+    /// Union's board with made-up trains due now (`BoardSample`), drawn in place of
+    /// the map: platforms, countdowns, a delay and a cancellation at any hour.
+    case boardSample
     /// The search field active and empty: home and work listed above it.
     case searchFocused
     /// The empty search opened, then the map tapped: the search should close.
