@@ -524,6 +524,23 @@ def live_trip(spec):
     print(json.dumps(report_, indent=1) if report_ else "not in the Worker's trains")
 
 
+def alerts_overview():
+    """Every service alert in one line each: when posted, its category and
+    subcategory, the lines, stops and trips it names, and its subject."""
+    section("ServiceUpdate/ServiceAlert/All, one line each")
+    status, seconds, body, size = get("/ServiceUpdate/ServiceAlert/All")
+    report("/ServiceUpdate/ServiceAlert/All", body, status, seconds, size)
+    messages = find_list(body or {}, "Messages.Message", "Messages")
+    print(f"{len(messages)} alerts")
+    for message in messages:
+        lines = ",".join(str(l.get("Code")) for l in message.get("Lines") or [] if isinstance(l, dict))
+        stops = len(message.get("Stops") or [])
+        trips = len(message.get("Trips") or [])
+        print(f"{message.get('PostedDateTime')} | {message.get('Category')} / {message.get('SubCategory')} | "
+              f"{message.get('Status')} | lines {lines or '-'} | {stops} stops, {trips} trips | "
+              f"{str(message.get('SubjectEnglish'))[:90]}")
+
+
 def cancellations(station):
     """How a cancelled train shows in each feed: the exceptions feed (what the
     app reads), GTFS TripUpdates, Trains/All, the service alerts, and, given a
@@ -620,6 +637,9 @@ def main():
         return
     if args.approach:
         approach(args.approach, args.polls, args.gap)
+        return
+    if args.trip == "alerts":
+        alerts_overview()
         return
     if args.trip and "/" not in args.trip:
         # LINE@HH:MM or a trip number: that train now, in every feed.
