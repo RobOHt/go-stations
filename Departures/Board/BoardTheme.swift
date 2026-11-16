@@ -35,6 +35,11 @@ enum BoardTheme {
     static let timeWidth: CGFloat = 68
     static let boltWidth: CGFloat = 16
     static let badgeSize = CGSize(width: 25, height: 21)
+    /// Between a row's line badge and where the train's going.
+    static let badgeGap: CGFloat = 7
     static var detailIndent: CGFloat { timeWidth + boltWidth }
+    /// Where the line's name starts in a row, past the time, the express bolt and the
+    /// line badge: the "Line" heading starts there too.
+    static var lineIndent: CGFloat { detailIndent + badgeSize.width + badgeGap }
     static let horizontalPadding: CGFloat = 12
 }

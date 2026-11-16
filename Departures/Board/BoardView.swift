@@ -29,7 +29,7 @@ struct BoardView: View {
         // Lazy: a whole day's trains at a busy station run to hundreds of rows.
         LazyVStack(spacing: 0) {
             BoardTitleBar(now: now, chosenDay: chosenDay)
-            DottedRule()
+            BoardColumnHeader()
 
             if let onToggleEarlier {
                 EarlierToggle(isShowing: earlierRows != nil, action: onToggleEarlier)
@@ -223,6 +223,35 @@ struct BoardTitleBar: View {
     }
 }
 
+// MARK: - Column headings
+
+/// The column headings under the title, as on GO's departures page: Scheduled over
+/// the times, Line over the lines' names, Platform on the right, on a grey strip
+/// between dotted rules.
+struct BoardColumnHeader: View {
+    var body: some View {
+        VStack(spacing: 0) {
+            DottedRule()
+            HStack(spacing: 0) {
+                Text("Scheduled")
+                    .frame(width: BoardTheme.lineIndent, alignment: .leading)
+                Text("Line")
+                Spacer(minLength: 6)
+                Text("Platform")
+            }
+            .font(.system(size: 12.5, weight: .bold))
+            .foregroundStyle(BoardTheme.white)
+            .lineLimit(1)
+            .padding(.horizontal, BoardTheme.horizontalPadding)
+            .padding(.vertical, 5)
+            DottedRule()
+        }
+        .background(BoardTheme.headerStrip)
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isHeader)
+    }
+}
+
 // MARK: - Day strip
 
 /// Today and the week after it, weekday over date like a calendar's week: one tap
@@ -315,7 +344,7 @@ struct BoardRowView: View {
                 .frame(width: BoardTheme.boltWidth)
 
                 LineBadge(code: row.lineCode)
-                    .padding(.trailing, 7)
+                    .padding(.trailing, BoardTheme.badgeGap)
 
                 Text(row.destination)
                     .font(.system(size: 19, weight: .bold))
