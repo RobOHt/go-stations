@@ -556,14 +556,16 @@ enum SelfCheck {
         let onTime = BoardService.carryingDelays([stop(0, "BU", "17:56", "17:56"), stop(1, "AL", "18:03", nil)])
         check("late: on time, nothing carried", onTime[1].expected == nil)
 
-        func message(_ category: String, lines: [String] = [], trips: [String] = [], _ subject: String) -> AlertsResponse.Message {
+        func message(_ category: String, sub: String? = nil, lines: [String] = [], trips: [String] = [],
+                     _ subject: String) -> AlertsResponse.Message {
             AlertsResponse.Message(code: subject, subjectEnglish: subject, subjectFrench: nil, bodyEnglish: nil,
-                                   bodyFrench: nil, category: category, subCategory: nil,
+                                   bodyFrench: nil, category: category, subCategory: sub,
                                    lines: lines.map { AlertsResponse.LineRef(code: $0) }, stops: nil,
                                    trips: trips.map { AlertsResponse.TripRef(tripNumber: $0) })
         }
         let response = AlertsResponse(metadata: nil, messages: .init(message: [
-            message("Service Disruption", lines: ["LW"], "Lakeshore West - Signal issue near Port Credit GO"),
+            message("Service Disruption", sub: "Train Delay", lines: ["LW"], "Lakeshore West - Signal issue near Port Credit GO"),
+            message("Service Disruption", sub: "Information", lines: ["LW"], "Nov. 21: Service adjustments"),
             message("Amenity", lines: ["LW"], "Elevators out of service"),
             message("Service Disruption", lines: ["GT"], "Kitchener - Delays"),
             message("Information", trips: ["1234"], "About this train"),
@@ -572,7 +574,7 @@ enum SelfCheck {
                            stops: [], scheduled: date("17:13"), expected: date("17:13"), platform: nil,
                            isExpress: false, isCancelled: false)
         let shown = BoardService.lineAlerts(response, row: row, network: RailNetwork.shared).map(\.subjectEnglish)
-        check("late: its line's disruptions and its own alerts, not lifts or other lines",
+        check("late: its line's disruptions now and its own alerts, not planned changes, lifts or other lines",
               shown == ["Lakeshore West - Signal issue near Port Credit GO", "About this train"], "\(shown)")
         // Kitchener's trains are GT in GO's alerts.
         let kitchener = BoardRow(tripNumber: "999", lineCode: "KI", lineName: "Kitchener", destination: "Kitchener",

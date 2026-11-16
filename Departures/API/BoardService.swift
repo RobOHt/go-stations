@@ -340,10 +340,12 @@ actor BoardService {
         for message in alerts?.messages?.message ?? [] {
             let lines = Set((message.lines ?? []).compactMap { $0.code?.nonEmpty?.uppercased() })
             let trips = Set((message.trips ?? []).compactMap { $0.tripNumber?.nonEmpty })
-            // A whole line's disruptions (not its stations' lifts and the like), and
-            // anything about this train.
+            // What's disrupting the whole line now (not its stations' lifts and the
+            // like, nor the changes planned for other days, which GO files under
+            // Information: "Nov. 21: Service adjustments"), and anything about this train.
             let isDisruption = (message.category ?? "").localizedCaseInsensitiveContains("service disruption")
-            guard (isDisruption && !lines.isDisjoint(with: lineCodes)) || trips.contains(row.tripNumber),
+            let isPlanned = (message.subCategory ?? "").localizedCaseInsensitiveContains("information")
+            guard (isDisruption && !isPlanned && !lines.isDisjoint(with: lineCodes)) || trips.contains(row.tripNumber),
                   let subject = message.subjectEnglish?.nonEmpty else { continue }
             let body = (message.bodyEnglish ?? "").plainText
             guard seen.insert(subject + "|" + body).inserted else { continue }
