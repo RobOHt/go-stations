@@ -303,7 +303,58 @@ actor BoardService {
             let platform = formatPlatform(stop.track?.actual) ?? formatPlatform(stop.track?.scheduled)
             return TripDetail.Stop(index: index, code: stop.code ?? "", time: time, expected: expected, platform: platform)
         }
-        return TripDetail(stops: result, source: .live)
+        return TripDetail(stops: carryingDelays(result), source: .live)
+    }
+
+    /// Metrolinx leaves a stop's live time blank now and then, and always at the end
+    /// of the train's run: there, a train running late is as late as at the stop
+    /// before (as GO's own trip updates have it), not on time.
+    static func carryingDelays(_ stops: [TripDetail.Stop]) -> [TripDetail.Stop] {
+        var late: TimeInterval?
+        return stops.map { stop in
+            if let time = stop.time, let expected = stop.expected {
+                late = expected.timeIntervalSince(time)
+                return stop
+            }
+            guard let time = stop.time, let late, late >= 60 else { return stop }
+            return TripDetail.Stop(index: stop.index, code: stop.code, time: time,
+                                   expected: time.addingTimeInterval(late), platform: stop.platform,
+                                   arrived: stop.arrived, departed: stop.departed)
+        }
+    }
+
+    // MARK: A train's alerts
+
+    /// GO's service disruptions on a train's line, and any alert about the train
+    /// itself, for its stops' view: "Lakeshore West - Signal issue near Port Credit GO".
+    func lineAlerts(for row: BoardRow) async -> [StationAlert] {
+        let response: AlertsResponse? = try? await MetrolinxClient().fetch("/ServiceUpdate/ServiceAlert/All")
+        return Self.lineAlerts(response, row: row, network: RailNetwork.shared)
+    }
+
+    static func lineAlerts(_ alerts: AlertsResponse?, row: BoardRow, network: RailNetwork) -> [StationAlert] {
+        var lineCodes: Set<String> = [row.lineCode.uppercased()]
+        if let line = network.line(code: row.lineCode) { lineCodes.insert(line.apiCode.uppercased()) }
+        var seen = Set<String>()
+        var result: [StationAlert] = []
+        for message in alerts?.messages?.message ?? [] {
+            let lines = Set((message.lines ?? []).compactMap { $0.code?.nonEmpty?.uppercased() })
+            let trips = Set((message.trips ?? []).compactMap { $0.tripNumber?.nonEmpty })
+            // A whole line's disruptions (not its stations' lifts and the like), and
+            // anything about this train.
+            let isDisruption = (message.category ?? "").localizedCaseInsensitiveContains("service disruption")
+            guard (isDisruption && !lines.isDisjoint(with: lineCodes)) || trips.contains(row.tripNumber),
+                  let subject = message.subjectEnglish?.nonEmpty else { continue }
+            let body = (message.bodyEnglish ?? "").plainText
+            guard seen.insert(subject + "|" + body).inserted else { continue }
+            result.append(StationAlert(
+                id: "\(result.count)-\(message.code ?? subject)",
+                subjectEnglish: subject,
+                subjectFrench: message.subjectFrench?.nonEmpty ?? "",
+                body: body
+            ))
+        }
+        return Array(result.prefix(4))
     }
 
     // MARK: Union Station

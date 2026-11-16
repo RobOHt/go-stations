@@ -88,6 +88,16 @@ enum DebugScene: String {
     static let onwardSkips: Set<String>? = UserDefaults.standard.string(forKey: "debugSkipsOnward")
         .map { Set($0.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }) }
 
+    /// `-debugLate 24`: a train's stops say it's running that many minutes late, for
+    /// screenshots of how that shows.
+    static let lateMinutes: Int? = {
+        let minutes = UserDefaults.standard.integer(forKey: "debugLate")
+        return minutes > 0 ? minutes : nil
+    }()
+
+    /// `-debugTripAlert YES`: a train's stops show a made-up disruption on its line.
+    static let tripAlert = UserDefaults.standard.bool(forKey: "debugTripAlert")
+
     /// `-debugNow 2026-11-10T07:30:00-05:00`: the time the app goes by.
     static let fixedNow: Date? = UserDefaults.standard.string(forKey: "debugNow")
         .flatMap { ISO8601DateFormatter().date(from: $0) }

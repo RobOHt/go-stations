@@ -74,6 +74,9 @@ struct TripSheet: View {
     /// What GO's feeds say about this train: cancelled, or where it won't stop
     /// (nil: it runs as planned).
     @State private var cancellation: CancelledTrains.Status?
+    /// GO's service disruptions on its line, and its own alerts ("Signal issue
+    /// near Port Credit GO").
+    @State private var alerts: [StationAlert] = []
 
     private let network = RailNetwork.shared
 
@@ -116,6 +119,35 @@ struct TripSheet: View {
         .environment(\.glassBackdrop, .sheet)
         .task {
             detail = await BoardService.shared.tripDetail(for: row, from: selection.station)
+            // Metrolinx's times again every half minute while the train runs: one held
+            // somewhere gets later as it waits, and its times here with it.
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(30))
+                guard !Task.isCancelled, let current = detail, current.source == .live,
+                      isUnderway(current, at: Date()) else { continue }
+                let fresh = await BoardService.shared.tripDetail(for: row, from: selection.station)
+                // (Never the timetable in place of live times when one fetch fails.)
+                if fresh.source == .live, fresh.stops.map(\.code) == current.stops.map(\.code) {
+                    detail = fresh
+                }
+            }
+        }
+        .task {
+            // GO's disruptions on its line: now, and every two minutes while it's open.
+            while !Task.isCancelled {
+                let fetched = await BoardService.shared.lineAlerts(for: row)
+                #if DEBUG
+                let fresh = DebugScene.tripAlert ? [Self.debugAlert(row)] + fetched : fetched
+                #else
+                let fresh = fetched
+                #endif
+                if fresh != alerts { withAnimation(.snappy) { alerts = fresh } }
+                try? await Task.sleep(for: .seconds(120))
+            }
+        }
+        .onChange(of: detail?.stops.map { $0.expected ?? $0.time }) { _, times in
+            // The map's train (and the speed above) by the new times.
+            if let times { TrainMotion.shared.retime(row.tripNumber, times: times) }
         }
         .task(id: plannedTrip?.onward?.map(\.row.id)) {
             // The trains after this one, live when Metrolinx has them (platforms too).
@@ -206,6 +238,11 @@ struct TripSheet: View {
                             .background(lineColor, in: Capsule())
                             .accessibilityLabel(direction.label)
                     }
+                    // Running late: how late, beside which way it goes (anew with each
+                    // live report, every 15 seconds while this is open).
+                    if let minutes = minutesLate(at: Date()) {
+                        LatePill(minutes: minutes)
+                    }
                     Text(origin.text)
                         .font(.footnote)
                         .foregroundStyle(.secondary)
@@ -231,6 +268,44 @@ struct TripSheet: View {
     /// Cancelled at the station it was opened from (as its board said, or GO's feeds now say).
     private var isCancelledHere: Bool {
         row.isCancelled || cancellation?.isCancelled(at: selection.station.code) == true
+    }
+
+    /// How late the train is running: by its latest live report, else Metrolinx's
+    /// time at the first of its stops it hasn't left. Nil when it's on time (under
+    /// two minutes late, as on the boards), not known, or in.
+    private func minutesLate(at now: Date) -> Int? {
+        #if DEBUG
+        if let late = DebugScene.lateMinutes { return late }
+        #endif
+        guard let detail, detail.source == .live, !isCancelledHere else { return nil }
+        let state = trainState(detail, at: now)
+        if case .arrived = state { return nil }
+        let late: TimeInterval
+        if let delay = LiveTrains.shared.train(row.tripNumber, at: now)?.delay {
+            late = delay
+        } else if let next = detail.stops.first(where: { !state.hasPassed($0.index, stopCount: detail.stops.count) }),
+                  let time = next.time, let expected = next.expected {
+            late = expected.timeIntervalSince(time)
+        } else {
+            return nil
+        }
+        let minutes = Int((late / 60).rounded())
+        return minutes >= 2 ? minutes : nil
+    }
+
+    /// The line's alerts are about now: only for a train leaving within a few hours or on its way.
+    private func showsAlerts(_ detail: TripDetail, at now: Date) -> Bool {
+        #if DEBUG
+        if DebugScene.tripAlert { return true }
+        #endif
+        return isUnderway(detail, at: now)
+    }
+
+    /// Leaving within a few hours, or on its way: its times can still change.
+    private func isUnderway(_ detail: TripDetail, at now: Date) -> Bool {
+        guard row.expected.timeIntervalSince(now) < Self.trackAhead else { return false }
+        if case .arrived = trainState(detail, at: now) { return false }
+        return true
     }
 
     // MARK: Tracking
@@ -313,6 +388,15 @@ struct TripSheet: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
+                // What's holding things up on its line, while it's on its way or about to be.
+                if !alerts.isEmpty, showsAlerts(detail, at: context.date) {
+                    VStack(alignment: .leading, spacing: 10) {
+                        ForEach(alerts) { alert in
+                            AlertCard(alert: alert)
+                        }
+                    }
+                }
+
                 ZStack(alignment: .topLeading) {
                     TripLine(stopCount: detail.stops.count, state: state, color: lineColor)
 
@@ -358,6 +442,17 @@ struct TripSheet: View {
     #if DEBUG
     private static var debugAnchor: UnitPoint? {
         UserDefaults.standard.bool(forKey: "tripScrollToEnd") ? .bottom : nil
+    }
+
+    /// A made-up disruption on the train's line (`-debugTripAlert YES`).
+    private static func debugAlert(_ row: BoardRow) -> StationAlert {
+        StationAlert(
+            id: "debug",
+            subjectEnglish: "\(row.lineName) - Signal issue, delays of up to 30 minutes",
+            subjectFrench: "\(row.lineName) – Problème de signalisation, retards jusqu’à 30 minutes",
+            body: "Repair personnel are working on the problem, but there will be delays, cancellations "
+                + "and modifications until the situation is resolved."
+        )
     }
     #endif
 
@@ -422,6 +517,36 @@ struct TripSheet: View {
         .foregroundStyle(.secondary)
         .padding(.horizontal, 6)
     }
+}
+
+// MARK: - How late
+
+/// "25 min late" ("1 h 10 min late"), in orange like the stops' late times.
+private struct LatePill: View {
+    let minutes: Int
+
+    var body: some View {
+        Label(Self.text(minutes), systemImage: "clock.badge.exclamationmark.fill")
+            .font(.subheadline.weight(.bold))
+            .foregroundStyle(Color.late)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(Color.late.opacity(0.16), in: Capsule())
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Running \(minutes) minutes late")
+    }
+
+    static func text(_ minutes: Int) -> String {
+        minutes < 60 ? "\(minutes) min late" : "\(minutes / 60) h \(minutes % 60) min late"
+    }
+}
+
+extension Color {
+    /// Late times and how late a train is: orange, a darker one on a light background
+    /// so it reads there too.
+    static let late = Color(uiColor: UIColor { traits in
+        traits.userInterfaceStyle == .dark ? .systemOrange : UIColor(red: 0.72, green: 0.34, blue: 0, alpha: 1)
+    })
 }
 
 // MARK: - How fast
@@ -647,7 +772,7 @@ private struct StopRow: View {
                 if isDelayed, let expected = stop.expected {
                     Text(TorontoTime.hourMinute(expected))
                         .font(.caption.weight(.bold).monospacedDigit())
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(Color.late)
                 }
             }
             .lineLimit(1)

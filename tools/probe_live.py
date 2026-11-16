@@ -454,7 +454,7 @@ def truthy(value):
 
 def live_trip(spec):
     """One train as every feed has it right now: `LINE@HH:MM` (its line and when it
-    started its run, e.g. GT@17:22: Kitchener is still GT there) or its trip number. Trains/All, its GTFS trip
+    started its run, e.g. LW@17:13; Kitchener's trains are GT there) or its trip number. Trains/All, its GTFS trip
     update and position, its Schedule/Trip, the NextService lines for it at its
     stops still to come, the line's service alerts, and the Worker's report."""
     section(f"Live: {spec}")

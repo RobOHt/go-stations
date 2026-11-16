@@ -528,7 +528,8 @@ struct StationSheet: View {
     }
 }
 
-private struct AlertCard: View {
+/// One of GO's alerts: its subject in English and French, a tap for the rest.
+struct AlertCard: View {
     let alert: StationAlert
     @State private var expanded = false
 

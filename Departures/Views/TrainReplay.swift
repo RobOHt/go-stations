@@ -298,6 +298,12 @@ final class TrainMotion {
         watched[number] = Watched(line: line, codes: codes, times: times, count: count)
     }
 
+    /// A watched train's stops have new times (it's running late, say).
+    func retime(_ number: String, times: [Date?]) {
+        guard let current = watched[number] else { return }
+        watched[number] = Watched(line: current.line, codes: current.codes, times: times, count: current.count)
+    }
+
     func unwatch(_ number: String) {
         guard let current = watched[number] else { return }
         if current.count > 1 {

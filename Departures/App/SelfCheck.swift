@@ -26,6 +26,7 @@ enum SelfCheck {
         plannedRoundCancelled()
         cancelledConnection()
         boardWays()
+        runningLate()
         lines.append("done")
         write()
         NSLog("SelfCheck: done")
@@ -536,6 +537,51 @@ enum SelfCheck {
     }
 
     // MARK: Results
+
+    /// A train running 24 minutes late: as late at the end of its run, where
+    /// Metrolinx leaves the time blank, as at the stop before; and the alerts its
+    /// stops show. (Made up.)
+    private static func runningLate() {
+        func stop(_ index: Int, _ code: String, _ time: String, _ expected: String?) -> TripDetail.Stop {
+            TripDetail.Stop(index: index, code: code, time: date(time), expected: expected.map { date($0) }, platform: nil)
+        }
+        let stops = BoardService.carryingDelays([
+            stop(0, "UN", "17:13", nil), stop(1, "PO", "17:38", "18:02"), stop(2, "OA", "17:46", "18:10"),
+            stop(3, "BU", "17:56", "18:20"), stop(4, "AL", "18:03", nil),
+        ])
+        check("late: as late at the end of its run", stops[4].expected == date("18:27"),
+              "\(String(describing: stops[4].expected))")
+        check("late: nothing made up before its first live time", stops[0].expected == nil)
+        check("late: live times kept", stops[1].expected == date("18:02") && stops[3].expected == date("18:20"))
+        let onTime = BoardService.carryingDelays([stop(0, "BU", "17:56", "17:56"), stop(1, "AL", "18:03", nil)])
+        check("late: on time, nothing carried", onTime[1].expected == nil)
+
+        func message(_ category: String, lines: [String] = [], trips: [String] = [], _ subject: String) -> AlertsResponse.Message {
+            AlertsResponse.Message(code: subject, subjectEnglish: subject, subjectFrench: nil, bodyEnglish: nil,
+                                   bodyFrench: nil, category: category, subCategory: nil,
+                                   lines: lines.map { AlertsResponse.LineRef(code: $0) }, stops: nil,
+                                   trips: trips.map { AlertsResponse.TripRef(tripNumber: $0) })
+        }
+        let response = AlertsResponse(metadata: nil, messages: .init(message: [
+            message("Service Disruption", lines: ["LW"], "Lakeshore West - Signal issue near Port Credit GO"),
+            message("Amenity", lines: ["LW"], "Elevators out of service"),
+            message("Service Disruption", lines: ["GT"], "Kitchener - Delays"),
+            message("Information", trips: ["1234"], "About this train"),
+        ]))
+        let row = BoardRow(tripNumber: "1234", lineCode: "LW", lineName: "Lakeshore West", destination: "Aldershot",
+                           stops: [], scheduled: date("17:13"), expected: date("17:13"), platform: nil,
+                           isExpress: false, isCancelled: false)
+        let shown = BoardService.lineAlerts(response, row: row, network: RailNetwork.shared).map(\.subjectEnglish)
+        check("late: its line's disruptions and its own alerts, not lifts or other lines",
+              shown == ["Lakeshore West - Signal issue near Port Credit GO", "About this train"], "\(shown)")
+        // Kitchener's trains are GT in GO's alerts.
+        let kitchener = BoardRow(tripNumber: "999", lineCode: "KI", lineName: "Kitchener", destination: "Kitchener",
+                                 stops: [], scheduled: date("17:13"), expected: date("17:13"), platform: nil,
+                                 isExpress: false, isCancelled: false)
+        check("late: a line by GO's other code",
+              BoardService.lineAlerts(response, row: kitchener, network: RailNetwork.shared).map(\.subjectEnglish)
+                == ["Kitchener - Delays"])
+    }
 
     private static func check(_ name: String, _ passed: Bool, _ detail: @autoclosure () -> String = "") {
         let line = passed ? "ok   \(name)" : "FAIL \(name)" + (detail().isEmpty ? "" : ": \(detail())")

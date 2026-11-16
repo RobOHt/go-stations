@@ -315,6 +315,8 @@ jobs:
           # timetable's, without platforms): a platform, "Wait", "5m", "29m", "-", a delay.
           shoot 6b-union-sample 8 boardSample
           shoot 7-trip 15 trip
+          # The same train running 24 minutes late, with a disruption on its line (made up).
+          shoot 7c-trip-late 15 trip -debugLate 24 -debugTripAlert YES
           # A train not stopping at two of its stations (made up: every train skips
           # these, two on each line out of Union).
           shoot 7b-trip-skipping 15 trip -debugSkips BL,WE,MI,LO,DA,SC,KE,AG,DW,RU,OR,OL,KP
