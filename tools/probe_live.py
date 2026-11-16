@@ -454,7 +454,7 @@ def truthy(value):
 
 def live_trip(spec):
     """One train as every feed has it right now: `LINE@HH:MM` (its line and when it
-    started its run, e.g. KI@17:22) or its trip number. Trains/All, its GTFS trip
+    started its run, e.g. GT@17:22: Kitchener is still GT there) or its trip number. Trains/All, its GTFS trip
     update and position, its Schedule/Trip, the NextService lines for it at its
     stops still to come, the line's service alerts, and the Worker's report."""
     section(f"Live: {spec}")
@@ -516,7 +516,7 @@ def live_trip(spec):
     report("/ServiceUpdate/ServiceAlert/All", body, status, seconds, size)
     for message in find_list(body or {}, "Messages.Message", "Messages"):
         text = json.dumps(message)
-        if f'"{line}"' in text or "Kitchener" in text and line == "KI":
+        if f'"{line}"' in text or (line in ("KI", "GT") and "Kitchener" in text):
             print(json.dumps(message, indent=1)[:3000])
 
     section("Worker /v1/live/trains (what the app gets)")
