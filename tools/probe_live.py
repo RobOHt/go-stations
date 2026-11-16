@@ -452,6 +452,78 @@ def truthy(value):
     return str(value).strip().lower() in ("true", "1", "yes", "y")
 
 
+def live_trip(spec):
+    """One train as every feed has it right now: `LINE@HH:MM` (its line and when it
+    started its run, e.g. KI@17:22) or its trip number. Trains/All, its GTFS trip
+    update and position, its Schedule/Trip, the NextService lines for it at its
+    stops still to come, the line's service alerts, and the Worker's report."""
+    section(f"Live: {spec}")
+    status, seconds, body, size = get("/ServiceataGlance/Trains/All")
+    report("/ServiceataGlance/Trains/All", body, status, seconds, size)
+    trains = [t for t in find_list(body or {}, "Trips.Trip", "Trips") if isinstance(t, dict)]
+    if "@" in spec:
+        line, start = spec.split("@", 1)
+        found = [t for t in trains if str(t.get("LineCode", "")).strip() == line
+                 and str(t.get("StartTime", "")).strip() == start]
+    else:
+        line, found = None, [t for t in trains if str(t.get("TripNumber")) == spec]
+    if not found:
+        print("Not in Trains/All. Its trains:")
+        for t in trains:
+            if line is None or str(t.get("LineCode", "")).strip() == line:
+                print({k: t.get(k) for k in ("TripNumber", "LineCode", "StartTime", "EndTime", "Display",
+                                             "DelaySeconds", "AtStationCode", "NextStopCode", "ModifiedDate")})
+        return
+    train = found[0]
+    number = str(train.get("TripNumber"))
+    line = str(train.get("LineCode", "")).strip()
+    print(json.dumps(train, indent=1))
+
+    for name in ("TripUpdates", "VehiclePosition"):
+        status, seconds, body, size = get(f"/Gtfs/Feed/{name}")
+        report(f"/Gtfs/Feed/{name}", body, status, seconds, size)
+        if isinstance(body, dict):
+            print("header:", json.dumps(body.get("header") or body.get("Header")))
+        for entity in find_list(body or {}, "entity", "Entity"):
+            part = entity.get("trip_update") or entity.get("vehicle") or {}
+            if number in str((part.get("trip") or {}).get("trip_id", "")):
+                print(json.dumps(entity, indent=1)[:15000])
+
+    day = datetime.now(TORONTO).strftime("%Y%m%d")
+    status, seconds, body, size = get(f"/Schedule/Trip/{day}/{number}")
+    report(f"/Schedule/Trip/{day}/{number}", body, status, seconds, size)
+    codes = []
+    for trip in find_list(body or {}, "Trips", "Trips.Trip")[:1]:
+        for stop in trip.get("Stops") or []:
+            print("  ", json.dumps(stop))
+            code = next((str(v) for k, v in stop.items() if "code" in k.lower() and v), None)
+            if code:
+                codes.append(code.strip())
+
+    # Its NextService lines at the stops it has still to make.
+    ahead = str(train.get("AtStationCode") or train.get("NextStopCode") or "").strip()
+    rest = codes[codes.index(ahead):] if ahead in codes else codes[-4:]
+    section(f"NextService for {number} at {', '.join(rest[:5])}")
+    for code in rest[:5]:
+        status, seconds, body, size = get(f"/Stop/NextService/{code}")
+        lines = [l for l in find_list(body or {}, "NextService.Lines") if str(l.get("TripNumber")) == number]
+        print(f"{code}: HTTP {status}, {len(lines)} line(s) for it")
+        for l in lines:
+            print("  ", json.dumps(l))
+
+    section(f"Service alerts mentioning {line}")
+    status, seconds, body, size = get("/ServiceUpdate/ServiceAlert/All")
+    report("/ServiceUpdate/ServiceAlert/All", body, status, seconds, size)
+    for message in find_list(body or {}, "Messages.Message", "Messages"):
+        text = json.dumps(message)
+        if f'"{line}"' in text or "Kitchener" in text and line == "KI":
+            print(json.dumps(message, indent=1)[:3000])
+
+    section("Worker /v1/live/trains (what the app gets)")
+    report_ = worker_trains().get(number)
+    print(json.dumps(report_, indent=1) if report_ else "not in the Worker's trains")
+
+
 def cancellations(station):
     """How a cancelled train shows in each feed: the exceptions feed (what the
     app reads), GTFS TripUpdates, Trains/All, the service alerts, and, given a
@@ -548,6 +620,10 @@ def main():
         return
     if args.approach:
         approach(args.approach, args.polls, args.gap)
+        return
+    if args.trip and "/" not in args.trip:
+        # LINE@HH:MM or a trip number: that train now, in every feed.
+        live_trip(args.trip)
         return
     if args.trip:
         status, seconds, body, size = get(f"/Schedule/Trip/{args.trip}")
