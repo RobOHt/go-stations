@@ -101,7 +101,7 @@ enum DebugScene: String {
     /// `-debugAlertDelay 6`: a train's alerts come in that many seconds after its
     /// stops open, and the train jumps a few stops on at the same moment (as when a
     /// live report and the alerts come in together), for a recording of how the
-    /// stops make room and the train catches up.
+    /// train catches up.
     static let alertDelay: Double? = {
         let seconds = UserDefaults.standard.double(forKey: "debugAlertDelay")
         return seconds > 0 ? seconds : nil

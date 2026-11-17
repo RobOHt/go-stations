@@ -103,6 +103,7 @@ struct TripSheet: View {
                         restOfTrip(trip)
                     }
                     sourceNote(detail)
+                    alertList(detail)
                 } else {
                     ProgressView()
                         .frame(maxWidth: .infinity)
@@ -302,6 +303,19 @@ struct TripSheet: View {
         return minutes >= 2 ? minutes : nil
     }
 
+    /// What's holding things up on its line, while it's on its way or about to be:
+    /// at the end, after its stops, as on a station's board.
+    @ViewBuilder
+    private func alertList(_ detail: TripDetail) -> some View {
+        if !alerts.isEmpty, showsAlerts(detail, at: Date()) {
+            VStack(alignment: .leading, spacing: 10) {
+                ForEach(alerts) { alert in
+                    AlertCard(alert: alert)
+                }
+            }
+        }
+    }
+
     /// The line's alerts are about now: only for a train leaving within a few hours or on its way.
     private func showsAlerts(_ detail: TripDetail, at now: Date) -> Bool {
         #if DEBUG
@@ -398,15 +412,6 @@ struct TripSheet: View {
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                }
-
-                // What's holding things up on its line, while it's on its way or about to be.
-                if !alerts.isEmpty, showsAlerts(detail, at: context.date) {
-                    VStack(alignment: .leading, spacing: 10) {
-                        ForEach(alerts) { alert in
-                            AlertCard(alert: alert)
-                        }
-                    }
                 }
 
                 ZStack(alignment: .topLeading) {
