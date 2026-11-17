@@ -241,6 +241,24 @@ jobs:
           # The first launch also warms up map tiles.
           shoot 1-map 20 map
           shoot 1b-tracked-trip 25 trackedTrip
+          # Opened again with that train still tracked (a plain launch, no scene): the
+          # map should go to where the train actually is, its stops open.
+          if everything || [[ " $ONLY " == *" 1e-tracked-relaunch "* ]]; then
+            if ! everything && [[ " $ONLY " != *" 1b-tracked-trip "* ]]; then
+              # (The train tracked first.)
+              xcrun simctl terminate "$UDID" "$BUNDLE_ID" > /dev/null 2>&1 || true
+              sleep 1
+              xcrun simctl launch "$UDID" "$BUNDLE_ID" -debugScene trackedTrip \
+                -homeStation OA -workStation UN > /dev/null
+              sleep 25
+            fi
+            xcrun simctl terminate "$UDID" "$BUNDLE_ID" > /dev/null 2>&1 || true
+            sleep 2
+            xcrun simctl launch "$UDID" "$BUNDLE_ID" -homeStation OA -workStation UN > /dev/null
+            sleep 12
+            xcrun simctl io "$UDID" screenshot --type=png shots/1e-tracked-relaunch.png > /dev/null 2>&1
+            echo 1e-tracked-relaunch
+          fi
           # Settings > Show all trains: every train running now, from the timetable.
           shoot 1c-all-trains 20 allTrains -showsAllTrains YES
           # The map at five widths around Union, then elsewhere on the network (dark,
