@@ -53,6 +53,21 @@ struct TripDetail: Sendable {
     let source: BoardSnapshot.Source?
 }
 
+extension TripDetail {
+    /// `stops` from `index` on (where the train is, or is on its way to) as late as
+    /// it's running by its live report (`late`), where they have no live time:
+    /// Metrolinx leaves the end of a run's blank, and every stop's once the train is
+    /// past the last one it times. As they were when it's under a minute late.
+    static func fillingDelay(_ stops: [Stop], late: TimeInterval?, from index: Int) -> [Stop] {
+        guard let late, late >= 60 else { return stops }
+        return stops.map { stop in
+            guard stop.index >= index, stop.expected == nil, let time = stop.time else { return stop }
+            return Stop(index: stop.index, code: stop.code, time: time, expected: time.addingTimeInterval(late),
+                        platform: stop.platform, arrived: stop.arrived, departed: stop.departed)
+        }
+    }
+}
+
 struct StationAlert: Identifiable, Equatable, Sendable {
     let id: String
     let subjectEnglish: String

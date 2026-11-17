@@ -556,6 +556,23 @@ enum SelfCheck {
         let onTime = BoardService.carryingDelays([stop(0, "BU", "17:56", "17:56"), stop(1, "AL", "18:03", nil)])
         check("late: on time, nothing carried", onTime[1].expected == nil)
 
+        // Past the last stop Metrolinx times, no live time ahead at all: as late as
+        // its live report says, from the stop it's on its way to.
+        let blanks = TripDetail.fillingDelay([stop(0, "UN", "17:13", nil), stop(1, "PO", "17:38", nil),
+                                              stop(2, "AL", "18:03", nil)], late: 1800, from: 1)
+        check("late: blank times ahead as late as its live report",
+              blanks[0].expected == nil && blanks[1].expected == date("18:08") && blanks[2].expected == date("18:33"))
+        // Tracking it: a refresh bringing blank times ahead keeps them that late, so
+        // tracking doesn't end when its timetable has it in.
+        let tracked = lakeshore(boarding: 0, destination: 10)
+            .following(train(at: "MI", status: "to", time: date("12:20"), delay: 1800), now: date("12:20:05"))
+        let refreshed = TrackedTrip(row: tracked.row, boardingCode: "AL", boardingIndex: 0, destinationIndex: 10,
+                                    stops: lakeshore(boarding: 0, destination: 10).stops, source: .live,
+                                    startedAt: tracked.startedAt).carrying(tracked)
+        check("late: tracking keeps it late through a refresh with blank times",
+              refreshed.stops[10].expected == date("12:30") && (refreshed.endsAt ?? .distantPast) > date("12:25"),
+              "\(String(describing: refreshed.stops[10].expected)), ends \(String(describing: refreshed.endsAt))")
+
         func message(_ category: String, sub: String? = nil, lines: [String] = [], trips: [String] = [],
                      _ subject: String) -> AlertsResponse.Message {
             AlertsResponse.Message(code: subject, subjectEnglish: subject, subjectFrench: nil, bodyEnglish: nil,

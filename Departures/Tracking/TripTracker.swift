@@ -259,6 +259,11 @@ struct TrackedTrip: Codable, Equatable, Sendable {
             next.live = LiveFix(index: index, isAt: fix.isAt, time: fix.time)
         }
         next.liveDelay = seen.liveDelay
+        // Where Metrolinx leaves the times ahead blank (the end of the run always, and
+        // every stop once the train's past the last it times): as late as the train
+        // was last seen running, not on time (and in, by them, long before it is).
+        let ahead = next.live?.index ?? next.stops.firstIndex { $0.departed == nil } ?? 0
+        next.stops = TripDetail.fillingDelay(next.stops, late: next.liveDelay, from: ahead)
         return next
     }
 
@@ -445,9 +450,13 @@ final class TripTracker {
         let boarding = codes.firstIndex(of: selection.station.code) ?? 0
         let later = codes.indices.filter { $0 > boarding }
         let destination = later.first { codes[$0] == home || codes[$0] == work } ?? later.last ?? boarding
-        let trip = TrackedTrip(row: selection.row, boardingCode: codes[boarding], boardingIndex: boarding,
+        var trip = TrackedTrip(row: selection.row, boardingCode: codes[boarding], boardingIndex: boarding,
                                destinationIndex: destination, stops: detail.stops, source: detail.source,
                                startedAt: Date(), startsAtStop: selection.fromBoard)
+        // Where its train is and how late it's running, by its latest live report.
+        if let train = LiveTrains.shared.latest(trip.tripNumber) {
+            trip = trip.following(train, now: Date())
+        }
         set(trip)
         TripActivityController.shared.start(trip)
         Task { await checkCancelled() }
@@ -527,7 +536,16 @@ final class TripTracker {
         }
         // A train with another after it changes over once it's in (above), whatever.
         if trip.hasOnward { return }
-        let running = (trip.live?.isFresh(at: now) ?? false) && !trip.isSeenIn
+        // Not straight after it was asked for, whatever its times say.
+        if now.timeIntervalSince(trip.startedAt) < 120 { return }
+        // Still on its way to your stop, by its own report or the newest the app has
+        // (the trip's may be from before the app was away).
+        let report = LiveTrains.shared.train(trip.tripNumber, at: now)?
+            .fix(in: trip.stopCodes, from: trip.live?.index ?? 0)
+        let onItsWay = report.map {
+            $0.index < trip.destinationIndex || ($0.index == trip.destinationIndex && !$0.isAt)
+        } ?? false
+        let running = ((trip.live?.isFresh(at: now) ?? false) && !trip.isSeenIn) || onItsWay
         if now >= trip.endsAt ?? trip.startedAt.addingTimeInterval(4 * 3600), !running {
             set(nil)
         }

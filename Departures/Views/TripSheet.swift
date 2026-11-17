@@ -95,7 +95,9 @@ struct TripSheet: View {
         let _ = PerfProbe.body("TripSheet")
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                if let detail {
+                if let fetched = detail {
+                    // (The times ahead as late as it's running, where Metrolinx has none.)
+                    let detail = shown(fetched, at: Date())
                     stopList(detail)
                     // On a trip with changes, the rest of it: where you change, and each
                     // train after this one to where you get off.
@@ -129,7 +131,7 @@ struct TripSheet: View {
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(30))
                 guard !Task.isCancelled, let current = detail, current.source == .live,
-                      isUnderway(current, at: Date()) else { continue }
+                      isUnderway(shown(current, at: Date()), at: Date()) else { continue }
                 let fresh = await BoardService.shared.tripDetail(for: row, from: selection.station)
                 // (Never the timetable in place of live times when one fetch fails.)
                 if fresh.source == .live, fresh.stops.map(\.code) == current.stops.map(\.code) {
@@ -303,6 +305,26 @@ struct TripSheet: View {
         return minutes >= 2 ? minutes : nil
     }
 
+    /// Its stops with the times ahead as late as it's running where Metrolinx leaves
+    /// them blank (the end of its run always; every stop once it's past the last one
+    /// Metrolinx times): by its latest live report, else by tracking's. So a train
+    /// 30 minutes late isn't shown in on time, and can be tracked to the end.
+    private func shown(_ detail: TripDetail, at now: Date) -> TripDetail {
+        let codes = detail.stops.map(\.code)
+        var late: TimeInterval?
+        var from: Int?
+        if let tracked = tracker.trip, tracked.matches(row), tracked.stopCodes == codes {
+            late = tracked.liveDelay
+            from = tracked.live?.index
+        }
+        if let train = LiveTrains.shared.train(row.tripNumber, at: now), let fix = train.fix(in: codes) {
+            late = train.delay ?? late
+            from = fix.index
+        }
+        guard let from else { return detail }
+        return TripDetail(stops: TripDetail.fillingDelay(detail.stops, late: late, from: from), source: detail.source)
+    }
+
     /// What's holding things up on its line, while it's on its way or about to be:
     /// at the end, after its stops, as on a station's board.
     @ViewBuilder
@@ -344,7 +366,8 @@ struct TripSheet: View {
             if tracking {
                 tracker.stop()
             } else if let detail {
-                tracker.track(selection, detail: detail, home: settings.homeCode, work: settings.workCode)
+                tracker.track(selection, detail: shown(detail, at: Date()), home: settings.homeCode,
+                              work: settings.workCode)
             }
         } label: {
             Label(tracking ? "Tracking" : "Track this train",
