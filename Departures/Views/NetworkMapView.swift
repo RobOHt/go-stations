@@ -91,6 +91,19 @@ final class MapController {
         return drawnTrain.coordinate
     }
     fileprivate var drawnTrain: (coordinate: CLLocationCoordinate2D, at: Date)?
+
+    /// Where the map drew the tracked train, if it has since `date` (after its live
+    /// reports came in, say).
+    func trackedTrain(drawnSince date: Date) -> CLLocationCoordinate2D? {
+        guard let drawnTrain, drawnTrain.at >= date else { return nil }
+        return drawnTrain.coordinate
+    }
+
+    /// Whether a finger has been on the map since `date`: a camera move worked out
+    /// since then doesn't take the map from under it.
+    func wasTouched(since date: Date) -> Bool {
+        isTouching || lastTouch > date
+    }
     /// Where the last camera move meant to put a point, checked once the move ends.
     private var goal: (point: MKMapPoint, target: CGPoint, issued: Date)?
     /// A finger is on the map, or just left it: automatic camera moves wait.
