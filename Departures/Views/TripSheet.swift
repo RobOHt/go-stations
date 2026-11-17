@@ -77,6 +77,10 @@ struct TripSheet: View {
     /// GO's service disruptions on its line, and its own alerts ("Signal issue
     /// near Port Credit GO").
     @State private var alerts: [StationAlert] = []
+    #if DEBUG
+    /// `-debugAlertDelay`: the train has jumped on, with the alerts coming in.
+    @State private var debugJumped = false
+    #endif
 
     private let network = RailNetwork.shared
 
@@ -133,11 +137,16 @@ struct TripSheet: View {
             }
         }
         .task {
+            #if DEBUG
+            if let delay = DebugScene.alertDelay { try? await Task.sleep(for: .seconds(delay)) }
+            #endif
             // GO's disruptions on its line: now, and every two minutes while it's open.
             while !Task.isCancelled {
                 let fetched = await BoardService.shared.lineAlerts(for: row)
                 #if DEBUG
                 let fresh = DebugScene.tripAlert ? [Self.debugAlert(row)] + fetched : fetched
+                // (The train jumping on in the same moment the alerts come in.)
+                if DebugScene.alertDelay != nil { debugJumped = true }
                 #else
                 let fresh = fetched
                 #endif
@@ -353,6 +362,9 @@ struct TripSheet: View {
     /// Where the train is: the tracked one as tracking follows it, any other by
     /// its times and latest live report.
     private func trainState(_ detail: TripDetail, at now: Date) -> TrainState {
+        #if DEBUG
+        if debugJumped { return .stopped(at: min(3, detail.stops.count - 1)) }
+        #endif
         let codes = detail.stops.map(\.code)
         if let tracked = tracker.trip, tracked.matches(row), tracked.stopCodes == codes {
             return tracked.state(at: now)
@@ -626,6 +638,19 @@ extension TrainState {
     }
 }
 
+/// How the train's marker, and the line's faded part behind it, follow the train:
+/// gliding over the ten seconds until where it is gets worked out again, so it moves
+/// smoothly, but in a moment when it jumps (a live report placing it elsewhere, new
+/// times). Animated on their own, as where the train is changes: what moves the
+/// stops themselves (alerts coming in above them) moves the line and the train with
+/// them, never slowly after them.
+enum TrainGlide {
+    static func animation(from old: Double?, to new: Double, reduceMotion: Bool) -> Animation? {
+        guard let old, !reduceMotion else { return nil }
+        return abs(new - old) <= 1 ? .linear(duration: 10) : .smooth(duration: 0.5)
+    }
+}
+
 /// The continuous line behind the stop dots: faded where the train has already been,
 /// full colour ahead of it, with white chevrons flowing toward the terminus while
 /// the train is moving.
@@ -633,6 +658,35 @@ private struct TripLine: View {
     let stopCount: Int
     let state: TrainState
     let color: Color
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Where the faded part ends, in stops along the line (see `TrainGlide`).
+    @State private var shown: Double?
+
+    var body: some View {
+        let progress = state.progress(stopCount: stopCount) ?? 0
+        TripLineDrawing(stopCount: stopCount, train: shown ?? progress, isMoving: state.isMoving, color: color)
+            .onAppear { shown = progress }
+            .onChange(of: progress) { _, new in
+                withAnimation(TrainGlide.animation(from: shown, to: new, reduceMotion: reduceMotion)) { shown = new }
+            }
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+    }
+}
+
+/// The line, faded up to `train` stops along it: animatable, so the faded part
+/// glides with the train's marker.
+private struct TripLineDrawing: View, Animatable {
+    let stopCount: Int
+    var train: Double
+    let isMoving: Bool
+    let color: Color
+
+    var animatableData: Double {
+        get { train }
+        set { train = newValue }
+    }
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -645,8 +699,8 @@ private struct TripLine: View {
     var body: some View {
         let top = y(0)
         let bottom = y(Double(max(stopCount - 1, 0)))
-        let train = min(max(y(state.progress(stopCount: stopCount) ?? 0), top), bottom)
-        let animate = state.isMoving && !reduceMotion
+        let train = min(max(y(self.train), top), bottom)
+        let animate = isMoving && !reduceMotion
 
         TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !animate)) { context in
             let spacing: CGFloat = 16
@@ -670,7 +724,7 @@ private struct TripLine: View {
                 }
 
                 // Chevrons pointing down the list, the way the train is going.
-                guard state.isMoving else { return }
+                guard isMoving else { return }
                 var chevrons = Path()
                 var position = train + 16 + phase
                 while position < bottom - 4 {
@@ -684,9 +738,6 @@ private struct TripLine: View {
             }
         }
         .frame(height: bottom + rowHeight / 2)
-        .animation(.linear(duration: 10), value: train)
-        .allowsHitTesting(false)
-        .accessibilityHidden(true)
     }
 }
 
@@ -696,17 +747,29 @@ private struct TrainMarkerLayer: View {
     let state: TrainState
     let color: Color
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Where the train's drawn, in stops along the line (see `TrainGlide`).
+    @State private var shown: Double?
+
     var body: some View {
         let rowHeight = TripSheet.rowHeight
+        let progress = state.progress(stopCount: stopCount)
         ZStack(alignment: .topLeading) {
             Color.clear
-            if let progress = state.progress(stopCount: stopCount) {
+            if progress != nil, let shown {
                 TrainMarker(color: color, isSleeping: state.isIdle, isMoving: state.isMoving)
-                    .position(x: TripSheet.lineX, y: CGFloat(progress) * rowHeight + rowHeight / 2)
-                    .animation(.linear(duration: 10), value: progress)
+                    .position(x: TripSheet.lineX, y: CGFloat(shown) * rowHeight + rowHeight / 2)
             }
         }
         .frame(height: CGFloat(stopCount) * rowHeight)
+        .onAppear { shown = progress }
+        .onChange(of: progress) { _, new in
+            guard let new else {
+                shown = nil
+                return
+            }
+            withAnimation(TrainGlide.animation(from: shown, to: new, reduceMotion: reduceMotion)) { shown = new }
+        }
         .allowsHitTesting(false)
         .accessibilityHidden(true)
     }

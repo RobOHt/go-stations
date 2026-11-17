@@ -435,6 +435,25 @@ jobs:
             echo detent
           fi
 
+          # Asked for by name (`trip-video`): a train's stops, its alerts coming in six
+          # seconds on as the train jumps a few stops on, recorded: the line and the
+          # train should move with the stops as the alerts push them down, never drift
+          # after them, and the train get to its new place in a moment.
+          if [[ " $ONLY " == *" trip-video "* ]]; then
+            xcrun simctl terminate "$UDID" "$BUNDLE_ID" > /dev/null 2>&1 || true
+            sleep 1
+            xcrun simctl launch "$UDID" "$BUNDLE_ID" -debugScene trip -debugTripAlert YES -debugLate 24 \
+              -debugAlertDelay 6 -homeStation OA -workStation UN > /dev/null
+            xcrun simctl io "$UDID" recordVideo --codec=h264 --force shots/trip.mov \
+              > /dev/null 2>&1 < /dev/null &
+            recorder=$!
+            sleep 18
+            kill -INT "$recorder" 2> /dev/null || true
+            for i in $(seq 1 20); do kill -0 "$recorder" 2> /dev/null || break; sleep 1; done
+            kill -9 "$recorder" 2> /dev/null || true
+            echo trip-video
+          fi
+
       - name: Trace the tracked train's motion
         if: always() && steps.sim.outputs.udid != '' && inputs.checks_only != 'true' && inputs.only == ''
         env:
