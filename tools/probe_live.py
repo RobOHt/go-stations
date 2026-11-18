@@ -439,11 +439,16 @@ def worker(polls, gap):
         now = time.time()
         ages = sorted(now - t["time"] for t in trains.values())
         moved = sum(1 for k, t in trains.items() if k in before and t["time"] != before[k]["time"])
+        # What Service at a Glance added (only while its entry is current).
+        delays = sorted(t["delay"] for t in trains.values() if "delay" in t)
+        late = sum(1 for d in delays if d >= 120)
         print(f"{datetime.now(TORONTO).strftime('%H:%M:%S')} {time.time() - started:.1f}s "
               f"cache {headers.get('cf-cache-status', '-')} age {headers.get('age', '-')} "
               f"cache-control {headers.get('cache-control', '-')} at {now - body.get('at', 0):.0f}s ago; "
               f"{len(trains)} trains, newer report than last poll for {moved}; report ages "
-              f"min {ages[0]:.0f} median {ages[len(ages) // 2]:.0f} max {ages[-1]:.0f}" if ages else "no trains")
+              f"min {ages[0]:.0f} median {ages[len(ages) // 2]:.0f} max {ages[-1]:.0f}; "
+              f"a delay for {len(delays)} ({late} 2+ min late), moving known for "
+              f"{sum(1 for t in trains.values() if 'moving' in t)}" if ages else "no trains")
         before = trains
         time.sleep(max(0, gap - (time.time() - started)))
 
