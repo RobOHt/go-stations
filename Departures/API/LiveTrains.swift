@@ -24,6 +24,11 @@ struct LiveTrain: Decodable, Equatable, Sendable {
 
     var coordinate: TrackGeometry.Coordinate { .init(latitude: lat, longitude: lon) }
 
+    /// A position a train could be at: on the globe, and not 0 for "not given".
+    var isOnEarth: Bool {
+        lat.isFinite && lon.isFinite && abs(lat) <= 90 && abs(lon) <= 180 && lat != 0 && lon != 0
+    }
+
     /// Whether it still says where the train is.
     func isFresh(at now: Date) -> Bool {
         now.timeIntervalSince(time) < LiveFix.freshFor && time.timeIntervalSince(now) < 60
@@ -103,7 +108,8 @@ final class LiveTrains {
     }
 
     private struct Response: Decodable {
-        let trains: [LiveTrain]
+        /// (One train the app can't read costs that train, not the list.)
+        @FeedList var trains: [LiveTrain]?
     }
 
     private static let decoder: JSONDecoder = {
@@ -119,11 +125,13 @@ final class LiveTrains {
         guard let result = try? await URLSession.shared.data(for: request) else { return }
         let (data, response) = result
         guard (response as? HTTPURLResponse)?.statusCode == 200,
-              let list = try? Self.decoder.decode(Response.self, from: data)
+              let list = try? Self.decoder.decode(Response.self, from: data),
+              let trains = list.trains
         else { return }
         let now = Date()
         var next: [String: LiveTrain] = [:]
-        for var train in list.trains {
+        // A position no train could be at isn't one to draw (MapKit won't).
+        for var train in trains where train.isOnEarth {
             // Creeping along the platform it's at, GO says it's on its way to that
             // same station: it's still there.
             if train.status == "to", let before = trains[train.trip], before.isAtStop, before.stop == train.stop {

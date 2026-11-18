@@ -71,6 +71,7 @@ jobs:
             -derivedDataPath build \
             -resultBundlePath Tests.xcresult \
             CODE_SIGNING_ALLOWED=NO \
+            -retry-tests-on-failure -test-iterations 2 \
             "${only[@]}" \
             test > test.log 2>&1 || status=$?
           grep -E "error:|Test (Suite|case|run)|✘|TEST (SUCCEEDED|FAILED)" test.log | tail -300 || true

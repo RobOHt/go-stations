@@ -54,12 +54,16 @@ struct TripDetail: Sendable {
 }
 
 extension TripDetail {
+    /// No train is this late: a delay of more (a feed's date off by a day, say) is
+    /// taken as not known.
+    static let mostLate: TimeInterval = 12 * 3600
+
     /// `stops` from `index` on (where the train is, or is on its way to) as late as
     /// it's running by its live report (`late`), where they have no live time:
     /// Metrolinx leaves the end of a run's blank, and every stop's once the train is
     /// past the last one it times. As they were when it's under a minute late.
     static func fillingDelay(_ stops: [Stop], late: TimeInterval?, from index: Int) -> [Stop] {
-        guard let late, late >= 60 else { return stops }
+        guard let late, late >= 60, late < TripDetail.mostLate else { return stops }
         return stops.map { stop in
             guard stop.index >= index, stop.expected == nil, let time = stop.time else { return stop }
             return Stop(index: stop.index, code: stop.code, time: time, expected: time.addingTimeInterval(late),
@@ -149,6 +153,13 @@ extension String {
                         "&lt;": "<", "&gt;": ">", "&ndash;": "–", "&mdash;": "—"]
         for (entity, replacement) in entities {
             text = text.replacingOccurrences(of: entity, with: replacement)
+        }
+        // Numbered ones too ("&#8217;", "&#x2014;").
+        text = text.replacing(#/&#(x?)([0-9A-Fa-f]{1,6});/#) { match in
+            let (whole, hex, digits) = match.output
+            guard let code = UInt32(digits, radix: hex.isEmpty ? 10 : 16), let scalar = Unicode.Scalar(code)
+            else { return String(whole) }
+            return String(Character(scalar))
         }
         text = text.replacingOccurrences(of: "\n\\s*\n+", with: "\n\n", options: .regularExpression)
         return text.trimmed

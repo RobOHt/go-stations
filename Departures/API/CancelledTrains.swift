@@ -90,7 +90,8 @@ actor CancelledTrains {
     }
 
     private struct Response: Decodable {
-        let trips: [Entry]
+        /// (One entry the app can't read costs that entry, not the list.)
+        @FeedList var trips: [Entry]?
     }
 
     private static func load() async -> List? {
@@ -99,8 +100,8 @@ actor CancelledTrains {
             request.setValue("application/json", forHTTPHeaderField: "Accept")
             if let result = try? await URLSession.shared.data(for: request),
                (result.1 as? HTTPURLResponse)?.statusCode == 200,
-               let decoded = try? JSONDecoder().decode(Response.self, from: result.0) {
-                return List(entries: decoded.trips, fetchedAt: Date())
+               let trips = (try? JSONDecoder().decode(Response.self, from: result.0))?.trips {
+                return List(entries: trips, fetchedAt: Date())
             }
         }
         // Without the worker's: the exceptions feed alone.

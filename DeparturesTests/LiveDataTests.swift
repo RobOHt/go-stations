@@ -104,7 +104,7 @@ extension GOFeeds {
 
         func message(_ code: String, lines: Any = [["Code": "LW"]], trips: Any = [Any](), sub: String = "Train Delay",
                      body: String = "Delays of up to 15 minutes.") -> [String: Any] {
-            ["Code": code, "SubjectEnglish": "Lakeshore West delays", "SubjectFrench": "Retards", "BodyEnglish": body,
+            ["Code": code, "SubjectEnglish": code, "SubjectFrench": "Retards", "BodyEnglish": body,
              "BodyFrench": "Retards", "Category": "Service Disruption", "SubCategory": sub, "Lines": lines,
              "Stops": [Any](), "Trips": trips]
         }
@@ -116,13 +116,13 @@ extension GOFeeds {
                 message("A3"),
             ]))
             let shown = BoardService.lineAlerts(alerts, row: row("4201"), network: network)
-            #expect(shown.map(\.id) == ["A3"])
+            #expect(shown.map(\.subjectEnglish) == ["A3"])
         }
 
         @Test("the same alert twice: shown once; one for planned work: not with the train")
         func duplicates() throws {
             let alerts = try decode(GO.alerts([message("B1"), message("B1"), message("B2", sub: "Information")]))
-            #expect(BoardService.lineAlerts(alerts, row: row("4202"), network: network).map(\.id) == ["B1"])
+            #expect(BoardService.lineAlerts(alerts, row: row("4202"), network: network).map(\.subjectEnglish) == ["B1"])
         }
 
         @Test("an alert naming the train, or with its line one alone")
@@ -131,7 +131,7 @@ extension GOFeeds {
                 message("C1", lines: [Any](), trips: [["TripNumber": "4203"]]),
                 message("C2", lines: ["Code": "LW"]),
             ]))
-            #expect(Set(BoardService.lineAlerts(alerts, row: row("4203"), network: network).map(\.id)) == ["C1", "C2"])
+            #expect(Set(BoardService.lineAlerts(alerts, row: row("4203"), network: network).map(\.subjectEnglish)) == ["C1", "C2"])
         }
     }
 }

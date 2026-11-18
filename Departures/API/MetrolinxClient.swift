@@ -78,6 +78,8 @@ enum MetrolinxError: LocalizedError {
     case busy
     case unavailable(String?)
     case badResponse
+    /// GO's feed has stopped updating.
+    case stale
 
     var errorDescription: String? {
         switch self {
@@ -87,6 +89,7 @@ enum MetrolinxError: LocalizedError {
             if let message, !message.isEmpty { return "Live data unavailable: \(message)" }
             return "Live data is unavailable right now."
         case .badResponse: return "Couldn't read the live data."
+        case .stale: return "Live departures haven't updated lately."
         }
     }
 }
@@ -113,9 +116,9 @@ protocol MetrolinxEnvelope {
 }
 
 struct APIMetadata: Decodable, Sendable {
-    let timeStamp: String?
-    let errorCode: String?
-    let errorMessage: String?
+    @FeedText var timeStamp: String?
+    @FeedText var errorCode: String?
+    @FeedText var errorMessage: String?
 }
 
 /// Accepts a JSON string, number or bool (Metrolinx sends "0"/"1" for some flags).
@@ -144,127 +147,230 @@ struct Lenient: Decodable, Sendable {
 
 /// GET /Stop/NextService/{StopCode}
 struct NextServiceResponse: Decodable, MetrolinxEnvelope, Sendable {
-    let metadata: APIMetadata?
-    let nextService: Body?
+    @FeedPart var metadata: APIMetadata?
+    @FeedPart var nextService: Body?
 
     struct Body: Decodable, Sendable {
-        let lines: [Line]?
+        @FeedList var lines: [Line]?
     }
 
     struct Line: Decodable, Sendable {
-        let stopCode: String?
-        let lineCode: String?
-        let lineName: String?
-        let serviceType: String?
-        let directionCode: String?
-        let directionName: String?
-        let scheduledDepartureTime: String?
-        let computedDepartureTime: String?
-        let departureStatus: String?
-        let scheduledPlatform: String?
-        let actualPlatform: String?
-        let tripNumber: String?
-        let status: String?
+        @FeedText var stopCode: String?
+        @FeedText var lineCode: String?
+        @FeedText var lineName: String?
+        @FeedText var serviceType: String?
+        @FeedText var directionCode: String?
+        @FeedText var directionName: String?
+        @FeedText var scheduledDepartureTime: String?
+        @FeedText var computedDepartureTime: String?
+        @FeedText var departureStatus: String?
+        @FeedText var scheduledPlatform: String?
+        @FeedText var actualPlatform: String?
+        @FeedText var tripNumber: String?
+        @FeedText var status: String?
     }
 }
 
 /// GET /ServiceUpdate/UnionDepartures/All — the Union Station board.
 struct UnionDeparturesResponse: Decodable, MetrolinxEnvelope, Sendable {
-    let metadata: APIMetadata?
-    let allDepartures: Body?
+    @FeedPart var metadata: APIMetadata?
+    @FeedPart var allDepartures: Body?
 
     struct Body: Decodable, Sendable {
-        let trip: [Trip]?
+        @FeedList var trip: [Trip]?
     }
 
     struct Trip: Decodable, Sendable {
-        let info: String?
-        let tripNumber: String?
-        let platform: String?
-        let service: String?
-        let serviceType: String?
-        let time: String?
-        let stops: [Stop]?
+        @FeedText var info: String?
+        @FeedText var tripNumber: String?
+        @FeedText var platform: String?
+        @FeedText var service: String?
+        @FeedText var serviceType: String?
+        @FeedText var time: String?
+        @FeedList var stops: [Stop]?
     }
 
     struct Stop: Decodable, Sendable {
-        let name: String?
-        let code: String?
+        @FeedText var name: String?
+        @FeedText var code: String?
     }
 }
 
 /// GET /Schedule/Trip/{yyyyMMdd}/{TripNumber}
 struct TripStatusResponse: Decodable, MetrolinxEnvelope, Sendable {
-    let metadata: APIMetadata?
-    let trips: [Trip]?
+    @FeedPart var metadata: APIMetadata?
+    @FeedList var trips: [Trip]?
 
     struct Trip: Decodable, Sendable {
-        let number: String?
-        let destination: String?
-        let status: String?
-        let stops: [Stop]?
+        @FeedText var number: String?
+        @FeedText var destination: String?
+        @FeedText var status: String?
+        @FeedList var stops: [Stop]?
     }
 
     struct Stop: Decodable, Sendable {
-        let code: String?
-        let status: String?
-        let track: Track?
-        let arrivalTime: TimeBlock?
-        let departureTime: TimeBlock?
+        @FeedText var code: String?
+        @FeedText var status: String?
+        @FeedPart var track: Track?
+        @FeedPart var arrivalTime: TimeBlock?
+        @FeedPart var departureTime: TimeBlock?
     }
 
     struct Track: Decodable, Sendable {
-        let scheduled: String?
-        let actual: String?
+        @FeedText var scheduled: String?
+        @FeedText var actual: String?
     }
 
     /// Bare "HH:MM" wall-clock times.
     struct TimeBlock: Decodable, Sendable {
-        let scheduled: String?
-        let computed: String?
+        @FeedText var scheduled: String?
+        @FeedText var computed: String?
     }
 }
 
 /// GET /ServiceUpdate/Exceptions/Train — cancelled trips and cancelled stops.
 struct ExceptionsResponse: Decodable, MetrolinxEnvelope, Sendable {
-    let metadata: APIMetadata?
-    let trip: [Trip]?
+    @FeedPart var metadata: APIMetadata?
+    @FeedList var trip: [Trip]?
 
     struct Trip: Decodable, Sendable {
-        let tripNumber: String?
+        @FeedText var tripNumber: String?
         let isCancelled: Lenient?
-        let stop: [Stop]?
+        @FeedList var stop: [Stop]?
     }
 
     struct Stop: Decodable, Sendable {
-        let code: String?
+        @FeedText var code: String?
         let isCancelled: Lenient?
     }
 }
 
 /// GET /ServiceUpdate/ServiceAlert/All
 struct AlertsResponse: Decodable, MetrolinxEnvelope, Sendable {
-    let metadata: APIMetadata?
-    let messages: Body?
+    @FeedPart var metadata: APIMetadata?
+    @FeedPart var messages: Body?
 
     struct Body: Decodable, Sendable {
-        let message: [Message]?
+        @FeedList var message: [Message]?
     }
 
     struct Message: Decodable, Sendable {
-        let code: String?
-        let subjectEnglish: String?
-        let subjectFrench: String?
-        let bodyEnglish: String?
-        let bodyFrench: String?
-        let category: String?
-        let subCategory: String?
-        let lines: [LineRef]?
-        let stops: [StopRef]?
-        let trips: [TripRef]?
+        @FeedText var code: String?
+        @FeedText var subjectEnglish: String?
+        @FeedText var subjectFrench: String?
+        @FeedText var bodyEnglish: String?
+        @FeedText var bodyFrench: String?
+        @FeedText var category: String?
+        @FeedText var subCategory: String?
+        @FeedList var lines: [LineRef]?
+        @FeedList var stops: [StopRef]?
+        @FeedList var trips: [TripRef]?
     }
 
     struct LineRef: Decodable, Sendable { let code: String? }
     struct StopRef: Decodable, Sendable { let code: String? }
     struct TripRef: Decodable, Sendable { let tripNumber: String? }
+}
+
+// MARK: - Reading GO's answers leniently
+
+// GO's feeds are generated, and say the same thing in more than one shape now and
+// then: a trip number as a number, one train alone where there's usually a list,
+// junk among the trains, "Track": "2" where there's usually an object. Each field
+// of the response shapes above is read with one of these, so one odd value costs
+// that value (or that item), not the whole answer.
+
+/// Text, also when GO sends it as a number or true/false ("TripNumber": 1925).
+@propertyWrapper
+struct FeedText: Decodable, Sendable {
+    var wrappedValue: String?
+
+    init(wrappedValue: String?) {
+        self.wrappedValue = wrappedValue
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        if container.decodeNil() {
+            wrappedValue = nil
+        } else if let text = try? container.decode(String.self) {
+            wrappedValue = text
+        } else if let number = try? container.decode(Int.self) {
+            wrappedValue = String(number)
+        } else if let number = try? container.decode(Double.self) {
+            wrappedValue = number == number.rounded() && abs(number) < 1e15 ? String(Int(number)) : String(number)
+        } else if let flag = try? container.decode(Bool.self) {
+            wrappedValue = flag ? "true" : "false"
+        } else {
+            wrappedValue = nil
+        }
+    }
+}
+
+/// A list, also one item alone where there's usually a list, without the items
+/// that aren't what they should be (null, or junk).
+@propertyWrapper
+struct FeedList<Item: Decodable>: Decodable {
+    var wrappedValue: [Item]?
+
+    init(wrappedValue: [Item]?) {
+        self.wrappedValue = wrappedValue
+    }
+
+    init(from decoder: Decoder) throws {
+        if let single = try? decoder.singleValueContainer(), single.decodeNil() {
+            wrappedValue = nil
+        } else if var list = try? decoder.unkeyedContainer() {
+            var items: [Item] = []
+            while !list.isAtEnd {
+                if let item = try? list.decode(Item.self) {
+                    items.append(item)
+                } else if (try? list.decode(Skipped.self)) == nil {
+                    break
+                }
+            }
+            wrappedValue = items
+        } else {
+            wrappedValue = (try? Item(from: decoder)).map { [$0] }
+        }
+    }
+
+    /// Anything at all, to step past an item that isn't what it should be.
+    private struct Skipped: Decodable {
+        init(from decoder: Decoder) throws {}
+    }
+}
+
+extension FeedList: Sendable where Item: Sendable {}
+
+/// A part of an answer that's left out when it isn't what it should be, rather
+/// than losing the whole answer.
+@propertyWrapper
+struct FeedPart<Value: Decodable>: Decodable {
+    var wrappedValue: Value?
+
+    init(wrappedValue: Value?) {
+        self.wrappedValue = wrappedValue
+    }
+
+    init(from decoder: Decoder) throws {
+        wrappedValue = try? Value(from: decoder)
+    }
+}
+
+extension FeedPart: Sendable where Value: Sendable {}
+
+/// A field that isn't there at all is nil, as with a plain optional.
+extension KeyedDecodingContainer {
+    func decode(_ type: FeedText.Type, forKey key: Key) throws -> FeedText {
+        try decodeIfPresent(type, forKey: key) ?? FeedText(wrappedValue: nil)
+    }
+
+    func decode<Item>(_ type: FeedList<Item>.Type, forKey key: Key) throws -> FeedList<Item> {
+        try decodeIfPresent(type, forKey: key) ?? FeedList(wrappedValue: nil)
+    }
+
+    func decode<Value>(_ type: FeedPart<Value>.Type, forKey key: Key) throws -> FeedPart<Value> {
+        try decodeIfPresent(type, forKey: key) ?? FeedPart(wrappedValue: nil)
+    }
 }

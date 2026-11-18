@@ -62,6 +62,7 @@ actor BoardService {
         } else {
             let next = try nextResult.get()
             rows = await stationRows(next, station: station, client: client, network: network, now: now)
+            if rows.isEmpty, Self.isFrozen(next, now: now) { throw MetrolinxError.stale }
         }
 
         let cancelled = Self.cancelledTrips(exceptions, stationCode: station.code)
@@ -82,6 +83,23 @@ actor BoardService {
             alerts: Self.stationAlerts(alerts, station: station, network: network),
             fetchedAt: now
         )
+    }
+
+    /// GO's departures have stopped updating: they still list trains, every one of
+    /// them long gone (its feeds have frozen for days at a time).
+    static func isFrozen(_ next: NextServiceResponse, now: Date) -> Bool {
+        let times = (next.nextService?.lines ?? []).compactMap {
+            TorontoTime.parse($0.computedDepartureTime) ?? TorontoTime.parse($0.scheduledDepartureTime)
+        }
+        return !times.isEmpty && times.allSatisfy { $0 < now.addingTimeInterval(-30 * 60) }
+    }
+
+    /// The live time GO gives a train, or its scheduled one when there's none, or when
+    /// GO's is further off than any train runs late (its date wrong, say).
+    static func expected(_ computed: String?, scheduled: Date) -> Date {
+        guard let live = TorontoTime.parse(computed), abs(live.timeIntervalSince(scheduled)) < TripDetail.mostLate
+        else { return scheduled }
+        return live
     }
 
     // MARK: Timetable fallback
@@ -381,7 +399,7 @@ actor BoardService {
             else { continue }
 
             let live = nextByTrip[number]
-            let expected = TorontoTime.parse(live?.computedDepartureTime) ?? scheduled
+            let expected = Self.expected(live?.computedDepartureTime, scheduled: scheduled)
             guard expected > now.addingTimeInterval(-45) else { continue }
             seen.insert(number)
 
@@ -436,7 +454,7 @@ actor BoardService {
                   !seen.contains(trip),
                   let scheduled = TorontoTime.parse(line.scheduledDepartureTime)
             else { continue }
-            let expected = TorontoTime.parse(line.computedDepartureTime) ?? scheduled
+            let expected = Self.expected(line.computedDepartureTime, scheduled: scheduled)
             guard expected > now.addingTimeInterval(-45) else { continue }
             seen.insert(trip)
             drafts.append(Draft(line: line, trip: trip, scheduled: scheduled, expected: expected))

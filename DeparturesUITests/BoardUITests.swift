@@ -93,6 +93,14 @@ final class BoardUITests: XCTestCase {
         ]))
         let app = launch(feeds, ["-debugScene", "station"])
         XCTAssertTrue(text(app, startingWith: "Live · updated").waitForExistence(timeout: 20), "not live")
-        try app.performAccessibilityAudit()
+        keep(app, "audited board")
+        // Every issue, with the element it's about, in one failure.
+        var issues: [String] = []
+        try app.performAccessibilityAudit { issue in
+            let element = issue.element.map { "\($0.elementType.rawValue) '\($0.label)' at \($0.frame)" } ?? "no element"
+            issues.append("\(issue.compactDescription): \(element). \(issue.detailedDescription)")
+            return true
+        }
+        XCTAssert(issues.isEmpty, "\n" + issues.joined(separator: "\n"))
     }
 }
