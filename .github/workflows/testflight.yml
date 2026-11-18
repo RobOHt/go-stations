@@ -38,8 +38,14 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # No upload unless the app's tests pass (see tests.yml).
+  tests:
+    name: Tests
+    uses: ./.github/workflows/tests.yml
+
   upload:
     name: Archive and upload
+    needs: tests
     # GitHub's Xcode 27 image (macOS 27, Apple silicon) with the iOS 27 SDK and simulators.
     runs-on: xcode-27
     timeout-minutes: 45

@@ -63,6 +63,32 @@ python3 tools/build_network.py            # downloads the official GO-GTFS.zip
 python3 tools/build_network.py --input path/to/GO-GTFS.zip
 ```
 
+## Tests
+
+GO's feeds aren't always right, so most tests are about what a rider should see
+when they aren't: a feed down, frozen for days, sending a web page or half an
+answer, the same thing in another shape (a number where there's usually text, one
+train where there's usually a list, junk among the trains), trains twice or out of
+order, positions stale or impossible.
+
+```sh
+node --test worker/test/*.test.js   # the worker, in a few seconds, no network
+```
+
+- `worker/test/robustness.test.js`: the proxy, the live trains and cancellations, and
+  following a tracked train, with bad data; then thousands of seeded rounds of random
+  junk, checking every train, cancellation and push is one the app can read and show.
+- `DeparturesTests/` (in Xcode, Product → Test): the app's boards, a train's stops,
+  live positions, cancellations and alerts, read through a stand-in for the worker
+  (`FakeNetwork`), plus the self-checks of the tracking logic.
+- `DeparturesUITests/`: the app driven like a rider, with made-up feeds the app
+  serves itself in debug builds (`GO_FIXTURES`, see `GOFixtures`), and an
+  accessibility audit.
+
+The Tests workflow runs the app's tests on a simulator for other branches and pull
+requests; the TestFlight workflow runs them before every upload, and uploads only
+when they pass.
+
 ## Project layout
 
 ```
@@ -78,6 +104,9 @@ Departures/
   Views/        map, search, trip card, station sheet, settings
   Resources/    network.json, asset catalog
 DeparturesWidgets/   widget extension that draws the Live Activity
+DeparturesTests/     unit tests (GO's feeds played by FakeNetwork)
+DeparturesUITests/   UI tests (made-up feeds served by the app)
+worker/              the Cloudflare Worker: proxy, live trains, Live Activity pushes; its tests in worker/test
 tools/build_network.py
 tools/commute_reference.py   the launch logic again in Python; CI checks the app against it
 ```
