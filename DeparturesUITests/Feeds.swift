@@ -73,6 +73,40 @@ struct Feeds {
         ["Metadata": ok, "Trip": trips]
     }
 
+    /// /Schedule/Trip/{day}/{number}: `stops` as [code, minutes from now, minutes late (nil: blank)].
+    static func trip(_ number: String, stops: [(String, Double, Double?)]) -> [String: Any] {
+        ["Metadata": ok, "Trips": [[
+            "Number": number, "Destination": "Aldershot GO", "Status": "S",
+            "Stops": stops.map { code, minutes, late in
+                let time = soon(minutes)
+                let block: [String: Any] = ["Scheduled": clock(time),
+                                            "Computed": late.map { clock(time.addingTimeInterval($0 * 60)) } ?? ""]
+                return ["Code": code, "Status": "S", "Track": ["Scheduled": "", "Actual": ""],
+                        "ArrivalTime": block, "DepartureTime": block] as [String: Any]
+            },
+        ]]]
+    }
+
+    /// The service days a train leaving `minutes` from now may be on (yesterday's, after midnight).
+    static func serviceDays(_ minutes: Double) -> [String] {
+        let day = DateFormatter()
+        day.locale = Locale(identifier: "en_US_POSIX")
+        day.timeZone = zone
+        day.dateFormat = "yyyyMMdd"
+        let time = soon(minutes)
+        return [day.string(from: time), day.string(from: time.addingTimeInterval(-86400))]
+    }
+
+    static func alerts(_ messages: [[String: Any]]) -> [String: Any] {
+        ["Metadata": ok, "Messages": ["Message": messages]]
+    }
+
+    static func delayAlert(_ subject: String, line: String = "LW") -> [String: Any] {
+        ["Code": subject, "SubjectEnglish": subject, "SubjectFrench": subject, "BodyEnglish": "Delays of up to 10 minutes.",
+         "BodyFrench": "Retards", "Category": "Service Disruption", "SubCategory": "Train Delay",
+         "Lines": [["Code": line]], "Stops": [Any](), "Trips": [Any]()]
+    }
+
     // MARK: Times
 
     static let zone = TimeZone(identifier: "America/Toronto")!
