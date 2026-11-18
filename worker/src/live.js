@@ -45,41 +45,50 @@ export function mergeTrains(vehicles, glance, now) {
     const id = TRIP_ID.exec(String(vehicle?.trip?.trip_id ?? ""));
     const lat = Number(vehicle?.position?.latitude);
     const lon = Number(vehicle?.position?.longitude);
-    if (!id || !Number.isFinite(lat) || !Number.isFinite(lon) || (lat === 0 && lon === 0)) continue;
-    const status = vehicle.current_status;
+    if (!id || !onEarth(lat, lon)) continue;
+    const time = Number(vehicle.timestamp) || Math.floor(now);
+    // Listed twice: its newer report.
+    if (trains.get(id[3])?.time >= time) continue;
     trains.set(id[3], {
       trip: id[3],
       line: id[2],
       lat: round(lat),
       lon: round(lon),
-      time: Number(vehicle.timestamp) || Math.floor(now),
-      status: status === "STOPPED_AT" ? "at" : status === "IN_TRANSIT_TO" || status === "INCOMING_AT" ? "to" : null,
-      stop: typeof vehicle.stop_id === "string" && vehicle.stop_id ? vehicle.stop_id : null,
+      time,
+      status: stopStatus(vehicle.current_status),
+      stop: stopCode(vehicle.stop_id),
     });
   }
 
   const offset = torontoOffset(glance?.Metadata?.TimeStamp, now);
   for (const train of list(glance?.Trips?.Trip)) {
-    const trip = String(train?.TripNumber ?? "").trim();
-    if (!/^[A-Za-z0-9]{1,12}$/.test(trip)) continue;
+    const trip = tripNumber(train?.TripNumber);
+    if (!trip) continue;
+    // What it says counts only while it's current: Service at a Glance has stopped
+    // updating for days at a time, its last delays and positions frozen in it.
+    const time = feedTime(train.ModifiedDate, offset, now);
+    if (time == null || !(now - time < GONE) || !(time < now + 120)) continue;
     const extra = {};
-    if (Number.isFinite(train.DelaySeconds)) extra.delay = train.DelaySeconds;
-    if (typeof train.IsInMotion === "boolean") extra.moving = train.IsInMotion;
-    if (Number.isFinite(train.Course)) extra.course = train.Course;
+    const delay = numberFrom(train.DelaySeconds);
+    if (delay != null) extra.delay = delay;
+    const moving = flagFrom(train.IsInMotion);
+    if (moving != null) extra.moving = moving;
+    const course = numberFrom(train.Course);
+    if (course != null) extra.course = course;
     const known = trains.get(trip);
     if (known) {
       Object.assign(known, extra);
       continue;
     }
-    const time = wallClock(train.ModifiedDate, offset);
     const lat = Number(train.Latitude);
     const lon = Number(train.Longitude);
-    if (time == null || !Number.isFinite(lat) || !Number.isFinite(lon) || (lat === 0 && lon === 0)) continue;
+    const line = String(train.LineCode ?? "").trim().toUpperCase();
+    if (!onEarth(lat, lon) || !/^[A-Z]{2}$/.test(line)) continue;
     // Its "station" can be a signal or junction along the line; the app checks.
-    const at = typeof train.AtStationCode === "string" && train.AtStationCode ? train.AtStationCode : null;
+    const at = stopCode(train.AtStationCode);
     trains.set(trip, {
       trip,
-      line: String(train.LineCode ?? "").trim() || null,
+      line,
       lat: round(lat),
       lon: round(lon),
       time,
@@ -92,6 +101,53 @@ export function mergeTrains(vehicles, glance, now) {
   const running = [...trains.values()].filter((train) => now - train.time < GONE && train.time < now + 120);
   running.sort((a, b) => (a.trip < b.trip ? -1 : a.trip > b.trip ? 1 : 0));
   return { at: Math.floor(now), trains: running };
+}
+
+/** A position a train could be at: numbers, on the globe, and not protobuf's 0 for "not given". */
+function onEarth(lat, lon) {
+  return Number.isFinite(lat) && Number.isFinite(lon) && Math.abs(lat) <= 90 && Math.abs(lon) <= 180 && lat !== 0 && lon !== 0;
+}
+
+/** GTFS's VehicleStopStatus, as words or as protobuf's numbers: "at" a station, or "to" one. */
+function stopStatus(value) {
+  if (value === "STOPPED_AT" || value === 1 || value === "1") return "at";
+  if (value === "IN_TRANSIT_TO" || value === "INCOMING_AT" || value === 2 || value === 0 || value === "2" || value === "0") return "to";
+  return null;
+}
+
+/** A station code ("OA"), or null. */
+function stopCode(value) {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+/** A trip number ("1925", or 1925), or null. */
+function tripNumber(value) {
+  const text = typeof value === "string" ? value.trim() : Number.isInteger(value) && value >= 0 ? String(value) : "";
+  return /^[A-Za-z0-9]{1,12}$/.test(text) ? text : null;
+}
+
+/** A number, or one written as text ("120"); null otherwise. */
+function numberFrom(value) {
+  const number = typeof value === "number" ? value : typeof value === "string" && value.trim() ? Number(value) : NaN;
+  return Number.isFinite(number) ? number : null;
+}
+
+/** true or false, or either written as text; null otherwise. */
+function flagFrom(value) {
+  if (typeof value === "boolean") return value;
+  const text = String(value ?? "").trim().toLowerCase();
+  return text === "true" ? true : text === "false" ? false : null;
+}
+
+/**
+ * A Toronto wall-clock time from GO's feeds as a real time, by the feed's offset
+ * (`offset`): one that comes out more than a couple of minutes ahead of now was
+ * from before the clocks went back an hour.
+ */
+function feedTime(text, offset, now) {
+  const time = wallClock(text, offset);
+  if (time == null) return null;
+  return time > now + 120 && time - 3600 <= now + 120 ? time - 3600 : time;
 }
 
 /** Seconds to add to a Toronto wall-clock time read as UTC to get the real time. */
@@ -158,9 +214,13 @@ export function arrivalAt(stops, index) {
  * when there's nothing fresh to go on and nothing to do.
  */
 export function follow(job, train, now) {
-  const { codes, scheduled } = job.live;
-  const count = codes.length;
+  const codes = list(job.live?.codes);
+  const scheduled = list(job.live?.scheduled);
   const base = job.state;
+  // (The stops and their codes come from the same trip, so they line up; if they
+  // ever don't, only as far as both go.)
+  const count = Math.min(codes.length, list(base?.stops).length);
+  if (!count) return null;
   const boarding = clamp(base.boardingIndex ?? 0, 0, count - 1);
   const destination = clamp(base.destinationIndex ?? count - 1, boarding, count - 1);
 
@@ -168,10 +228,14 @@ export function follow(job, train, now) {
     // Lost the train (or never had it). Once followed, end the activity a while
     // after it should have got in.
     if (job.followed && now > (job.end ?? now) + 600) {
-      return { job, changed: true, push: { event: "end", state: base, dismissal: now + 60 } };
+      return { job, changed: true, push: { event: "end", state: job.shown ?? base, dismissal: now + 60 } };
     }
     return null;
   }
+
+  // A report no newer than the last one looked at (an old one, coming late) says
+  // nothing new about where the train is, or how late.
+  const news = !(train.time <= job.seen);
 
   const obs = { ...(job.obs ?? {}) };
   const arr = { ...(job.arr ?? {}) };
@@ -181,8 +245,8 @@ export function follow(job, train, now) {
   const missed = Number.isFinite(job.seen) && train.time - job.seen > REPORT_GAP;
 
   // Where it is, in this trip's stops: at or after where it was last seen.
-  let index = train.stop ? codes.indexOf(train.stop, obs.k ?? 0) : -1;
-  if (index < 0 && obs.k == null && train.stop) index = codes.indexOf(train.stop);
+  let index = news && train.stop ? codes.indexOf(train.stop, obs.k ?? 0) : -1;
+  if (index < 0 && obs.k == null && news && train.stop) index = codes.indexOf(train.stop);
   if (index >= 0) {
     const sameStop = obs.k === index;
     if (train.status === "at") {
@@ -200,7 +264,7 @@ export function follow(job, train, now) {
     }
   }
 
-  const reported = Number.isFinite(train.delay) ? train.delay : null;
+  const reported = news && Number.isFinite(train.delay) ? train.delay : null;
   const delay = reported == null ? job.delay ?? 0
     : job.delay == null || Math.abs(reported - job.delay) >= DELAY_STEP ? reported : job.delay;
   // A train doesn't leave a station early, whatever its delay says.
@@ -279,13 +343,15 @@ export function follow(job, train, now) {
     leave,
     eta,
     followed: true,
-    seen: train.time,
+    seen: news ? train.time : job.seen,
     end: ended ? now : arrivalAt(stops, destination) ?? job.end,
   };
   const key = JSON.stringify([k ?? null, obs.at ?? null, stops.map((stop) => [stop.time ?? null, stop.arrives ?? null])]);
   const changed = JSON.stringify([job.obs, job.arr, job.dep, job.delay, job.leave, job.eta, job.end, job.followed]) !==
     JSON.stringify([next.obs, next.arr, next.dep, next.delay, next.leave, next.eta, next.end, next.followed]);
 
+  // What the Live Activity shows now: what it ends with, should the train be lost.
+  next.shown = state;
   if (ended) {
     // On the Lock Screen as long after it got in as the app asked for.
     const summary = Number.isFinite(job.summary) ? job.summary : 15 * 60;
@@ -437,8 +503,9 @@ export function torontoClock(t) {
   }
 }
 
+/** A list from a feed: as it is, or one item alone where there's usually a list. */
 function list(value) {
-  return Array.isArray(value) ? value : [];
+  return Array.isArray(value) ? value : value && typeof value === "object" ? [value] : [];
 }
 
 function round(degrees) {
@@ -510,7 +577,8 @@ export function cancellations(exceptions, updates) {
     const id = TRIP_ID.exec(String(update?.trip?.trip_id ?? ""));
     if (!id) continue;
     const relation = update.trip.schedule_relationship;
-    const cancelled = relation === "CANCELED" || relation === "CANCELLED" || relation === 3;
+    // CANCELED, or DELETED: taken out of the timetable altogether.
+    const cancelled = ["CANCELED", "CANCELLED", "DELETED", 3, 7].includes(relation);
     const skipped = [];
     for (const stop of list(update.stop_time_update)) {
       const code = String(stop?.stop_id ?? "").trim();

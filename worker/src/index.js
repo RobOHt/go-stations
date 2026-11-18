@@ -114,17 +114,26 @@ export default {
       return error(504, "Metrolinx didn't respond");
     }
 
-    const body = await upstream.text();
-    // Metrolinx reports most failures inside a 200 response (Metadata.ErrorCode).
-    const code = /"ErrorCode"\s*:\s*"?(\d{3})/.exec(body)?.[1] ?? String(upstream.status);
-
-    if ([401, 403].includes(upstream.status) || code === "401" || code === "403") {
-      return error(502, "Metrolinx rejected the proxy's API key");
+    // Only GO's own answer goes back, and only when it's data: never its error pages
+    // (which can repeat the request, key and all), nor a web page or half an answer
+    // in place of data (kept for everyone for as long as a good answer would be).
+    if ([401, 403].includes(upstream.status)) return error(502, "Metrolinx rejected the proxy's API key");
+    if (!upstream.ok) return error(502, `Metrolinx answered ${upstream.status}`);
+    const body = (await upstream.text().catch(() => "")).replaceAll(env.METROLINX_API_KEY, "");
+    let data;
+    try {
+      data = JSON.parse(body);
+    } catch {
+      data = null;
     }
+    if (!data || typeof data !== "object") return error(502, "Metrolinx didn't send data");
+    // Metrolinx reports most failures inside a 200 response (Metadata.ErrorCode).
+    const code = String(data.Metadata?.ErrorCode ?? "200").trim();
+    if (code === "401" || code === "403") return error(502, "Metrolinx rejected the proxy's API key");
 
-    const ok = upstream.ok && (code === "200" || code === "204");
+    const ok = code === "200" || code === "204";
     return new Response(body, {
-      status: upstream.ok ? 200 : 502,
+      status: 200,
       headers: {
         "Content-Type": "application/json; charset=utf-8",
         "Cache-Control": ok ? `public, max-age=${route.ttl}` : "no-store",
@@ -455,132 +464,143 @@ export class LiveActivities extends DurableObject {
     let live;
     let cancelled;
     for (const [key, job] of jobs) {
-      // Is its train cancelled (or running after all)? Looked up every couple of
-      // minutes until it's followed, then with every look at it.
-      if (job.live && now < (job.watchUntil ?? 0) &&
-          (watching(job, now) || now >= lastLook(job) + CANCEL_EVERY - 1)) {
-        if (cancelled === undefined) cancelled = await cancelledTrains(this.env).catch(() => null);
-        if (cancelled) {
-          if (await this.checkCancelled(key, job, cancelled.trips, now)) continue;
-          if (!job.cancelled && (await this.checkConnection(key, job, cancelled.trips, now))) continue;
-        } else if (!watching(job, now) || job.cancelled) {
-          // No answer from the feeds: the next look after the usual wait. (Not a
-          // look: what the app said of it stands meanwhile, see shownState.)
-          job.cancelRetryAt = now;
-          await this.ctx.storage.put(key, job);
-        }
-      }
-      if (job.cancelled) {
-        // Cancelled: it says so until a while after it was due, then it ends.
-        if (now >= (job.cancelledUntil ?? 0)) {
-          job.revision = (job.revision ?? 0) + 1;
-          const { result } = await sendPush(this.env, job, {
-            event: "end", state: { ...job.state, revision: job.revision }, dismissal: now + 120,
-          });
-          await this.note("end cancelled", result);
-          await this.ctx.storage.delete(key);
-        }
-        continue;
-      }
-      if (watching(job, now)) {
-        // Where its train is (one look at the feeds for every trip followed).
-        if (live === undefined) live = await liveTrains(this.env).catch(() => null);
-        const train = live?.trains.find((each) => each.trip === job.live.trip);
-        const result = live ? follow(job, train, now) : null;
-        if (result) {
-          let next = result.job;
-          let push = result.push;
-          // Gone from where you get on a couple of minutes ago: are you on it? (The
-          // app knows where you are.)
-          const check = missedCheck(next, train, now);
-          if (check) {
-            next.missedSent = true;
-            await this.note("missed check", await sendWake(this.env, next, { missed: check }));
-          }
-          if (push?.event === "end" && next.legs?.length) {
-            // In where you change: on to the next train.
-            next = nextLeg(next, now);
-            push = { event: "update", state: next.state, stale: next.times[0] ?? next.end };
-          } else if (push?.event !== "end") {
-            // The next train found cancelled meanwhile (see checkConnection): that
-            // first, then the alert before where you change.
-            const connection = next.connectionAlertDue;
-            const alert = connection ?? alertFor(next, result.state, now);
-            if (alert) {
-              if (connection) {
-                next.connectionAlerted = true;
-                delete next.connectionAlertDue;
-              } else {
-                next.alerted = alert.key;
-              }
-              push = { ...(push ?? { event: "update", state: result.state, stale: result.stale }), alert };
+      // One trip the worker can't handle doesn't hold up everyone else's: noted,
+      // and dropped once it has failed a few times over.
+      try {
+        await (async () => {
+          // Is its train cancelled (or running after all)? Looked up every couple of
+          // minutes until it's followed, then with every look at it.
+          if (job.live && now < (job.watchUntil ?? 0) &&
+              (watching(job, now) || now >= lastLook(job) + CANCEL_EVERY - 1)) {
+            if (cancelled === undefined) cancelled = await cancelledTrains(this.env).catch(() => null);
+            if (cancelled) {
+              if (await this.checkCancelled(key, job, cancelled.trips, now)) return;
+              if (!job.cancelled && (await this.checkConnection(key, job, cancelled.trips, now))) return;
+            } else if (!watching(job, now) || job.cancelled) {
+              // No answer from the feeds: the next look after the usual wait. (Not a
+              // look: what the app said of it stands meanwhile, see shownState.)
+              job.cancelRetryAt = now;
+              await this.ctx.storage.put(key, job);
             }
           }
-          if (push) {
-            next.revision = (next.revision ?? 0) + 1;
-            const state = { ...push.state, revision: next.revision };
-            const { gone, result: said } = await sendPush(this.env, next, { ...push, state });
-            await this.note(`${push.alert ? "alert" : push.event} live`, said);
-            if (gone || push.event === "end") {
+          if (job.cancelled) {
+            // Cancelled: it says so until a while after it was due, then it ends.
+            if (now >= (job.cancelledUntil ?? 0)) {
+              job.revision = (job.revision ?? 0) + 1;
+              const { result } = await sendPush(this.env, job, {
+                event: "end", state: { ...job.state, revision: job.revision }, dismissal: now + 120,
+              });
+              await this.note("end cancelled", result);
               await this.ctx.storage.delete(key);
-              continue;
             }
+            return;
           }
-          if (result.changed || push || check) await this.ctx.storage.put(key, next);
-          continue;
-        }
-        // Following it, but nothing new to go on: wait for the next look.
-        if (job.followed) continue;
-      } else if (job.followed && now >= job.watchUntil) {
-        // Followed, but never seen getting in: on to the next train, or end it.
-        if (job.legs?.length) {
-          const next = nextLeg(job, now);
-          next.revision = (next.revision ?? 0) + 1;
-          const { gone, result: said } = await sendPush(this.env, next, {
-            event: "update", state: { ...next.state, revision: next.revision }, stale: next.times[0] ?? next.end,
-          });
-          await this.note("change lost", said);
-          if (gone) await this.ctx.storage.delete(key);
-          else await this.ctx.storage.put(key, next);
-          continue;
-        }
-        job.revision = (job.revision ?? 0) + 1;
-        const { result: said } = await sendPush(this.env, job, {
-          event: "end", state: { ...job.state, revision: job.revision }, dismissal: now + 60,
-        });
-        await this.note("end live", said);
-        await this.ctx.storage.delete(key);
-        continue;
-      }
+          if (watching(job, now)) {
+            // Where its train is (one look at the feeds for every trip followed).
+            if (live === undefined) live = await liveTrains(this.env).catch(() => null);
+            const train = live?.trains.find((each) => each.trip === job.live.trip);
+            const result = live ? follow(job, train, now) : null;
+            if (result) {
+              let next = result.job;
+              let push = result.push;
+              // Gone from where you get on a couple of minutes ago: are you on it? (The
+              // app knows where you are.)
+              const check = missedCheck(next, train, now);
+              if (check) {
+                next.missedSent = true;
+                await this.note("missed check", await sendWake(this.env, next, { missed: check }));
+              }
+              if (push?.event === "end" && next.legs?.length) {
+                // In where you change: on to the next train.
+                next = nextLeg(next, now);
+                push = { event: "update", state: next.state, stale: next.times[0] ?? next.end };
+              } else if (push?.event !== "end") {
+                // The next train found cancelled meanwhile (see checkConnection): that
+                // first, then the alert before where you change.
+                const connection = next.connectionAlertDue;
+                const alert = connection ?? alertFor(next, result.state, now);
+                if (alert) {
+                  if (connection) {
+                    next.connectionAlerted = true;
+                    delete next.connectionAlertDue;
+                  } else {
+                    next.alerted = alert.key;
+                  }
+                  push = { ...(push ?? { event: "update", state: result.state, stale: result.stale }), alert };
+                }
+              }
+              if (push) {
+                next.revision = (next.revision ?? 0) + 1;
+                const state = { ...push.state, revision: next.revision };
+                const { gone, result: said } = await sendPush(this.env, next, { ...push, state });
+                await this.note(`${push.alert ? "alert" : push.event} live`, said);
+                if (gone || push.event === "end") {
+                  await this.ctx.storage.delete(key);
+                  return;
+                }
+              }
+              if (result.changed || push || check) await this.ctx.storage.put(key, next);
+              return;
+            }
+            // Following it, but nothing new to go on: wait for the next look.
+            if (job.followed) return;
+          } else if (job.followed && now >= job.watchUntil) {
+            // Followed, but never seen getting in: on to the next train, or end it.
+            if (job.legs?.length) {
+              const next = nextLeg(job, now);
+              next.revision = (next.revision ?? 0) + 1;
+              const { gone, result: said } = await sendPush(this.env, next, {
+                event: "update", state: { ...next.state, revision: next.revision }, stale: next.times[0] ?? next.end,
+              });
+              await this.note("change lost", said);
+              if (gone) await this.ctx.storage.delete(key);
+              else await this.ctx.storage.put(key, next);
+              return;
+            }
+            job.revision = (job.revision ?? 0) + 1;
+            const { result: said } = await sendPush(this.env, job, {
+              event: "end", state: { ...(job.shown ?? job.state), revision: job.revision }, dismissal: now + 60,
+            });
+            await this.note("end live", said);
+            await this.ctx.storage.delete(key);
+            return;
+          }
 
-      // Not followed: an update at each of the times the app gave (with the alert
-      // when it's due), then the end, or on to the next train where you change.
-      if (due(job, now) > now + 1) continue;
-      const ending = now >= job.end - 1;
-      if (ending && job.legs?.length) {
-        const next = nextLeg(job, now);
-        next.revision = (next.revision ?? 0) + 1;
-        const { gone, result } = await sendPush(this.env, next, {
-          event: "update", state: { ...next.state, revision: next.revision }, stale: next.times[0] ?? next.end,
-        });
-        await this.note("change", result);
-        if (gone) await this.ctx.storage.delete(key);
-        else await this.ctx.storage.put(key, next);
-        continue;
-      }
-      job.revision = (job.revision ?? 0) + 1;
-      const state = { ...job.state, revision: job.revision };
-      const later = job.times.filter((t) => t > now + 1);
-      const alert = ending ? null : alertFor(job, job.state, now);
-      if (alert) job.alerted = alert.key;
-      const { gone, result } = ending
-        ? await sendPush(this.env, job, { event: "end", state, dismissal: job.dismissal })
-        : await sendPush(this.env, job, { event: "update", state, stale: later[0] ?? job.end, alert });
-      await this.note(ending ? "end" : alert ? "alert" : "update", result);
-      if (ending || gone) {
-        await this.ctx.storage.delete(key);
-      } else {
-        await this.ctx.storage.put(key, { ...job, times: later });
+          // Not followed: an update at each of the times the app gave (with the alert
+          // when it's due), then the end, or on to the next train where you change.
+          if (due(job, now) > now + 1) return;
+          const ending = now >= job.end - 1;
+          if (ending && job.legs?.length) {
+            const next = nextLeg(job, now);
+            next.revision = (next.revision ?? 0) + 1;
+            const { gone, result } = await sendPush(this.env, next, {
+              event: "update", state: { ...next.state, revision: next.revision }, stale: next.times[0] ?? next.end,
+            });
+            await this.note("change", result);
+            if (gone) await this.ctx.storage.delete(key);
+            else await this.ctx.storage.put(key, next);
+            return;
+          }
+          job.revision = (job.revision ?? 0) + 1;
+          const state = { ...job.state, revision: job.revision };
+          const later = job.times.filter((t) => t > now + 1);
+          const alert = ending ? null : alertFor(job, job.state, now);
+          if (alert) job.alerted = alert.key;
+          const { gone, result } = ending
+            ? await sendPush(this.env, job, { event: "end", state, dismissal: job.dismissal })
+            : await sendPush(this.env, job, { event: "update", state, stale: later[0] ?? job.end, alert });
+          await this.note(ending ? "end" : alert ? "alert" : "update", result);
+          if (ending || gone) {
+            await this.ctx.storage.delete(key);
+          } else {
+            await this.ctx.storage.put(key, { ...job, times: later });
+          }
+        })();
+      } catch (failure) {
+        const failures = (job.failures ?? 0) + 1;
+        await this.note(`failed ${failures}x`, String(failure?.message ?? failure).slice(0, 120)).catch(() => {});
+        if (failures >= 5) await this.ctx.storage.delete(key);
+        else await this.ctx.storage.put(key, { ...job, failures }).catch(() => {});
       }
     }
     await this.wake();
