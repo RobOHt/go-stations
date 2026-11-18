@@ -148,7 +148,7 @@ struct Lenient: Decodable, Sendable {
 /// GET /Stop/NextService/{StopCode}
 struct NextServiceResponse: Decodable, MetrolinxEnvelope, Sendable {
     @FeedPart var metadata: APIMetadata?
-    @FeedPart var nextService: Body?
+    let nextService: Body?
 
     struct Body: Decodable, Sendable {
         @FeedList var lines: [Line]?
@@ -174,7 +174,7 @@ struct NextServiceResponse: Decodable, MetrolinxEnvelope, Sendable {
 /// GET /ServiceUpdate/UnionDepartures/All — the Union Station board.
 struct UnionDeparturesResponse: Decodable, MetrolinxEnvelope, Sendable {
     @FeedPart var metadata: APIMetadata?
-    @FeedPart var allDepartures: Body?
+    let allDepartures: Body?
 
     struct Body: Decodable, Sendable {
         @FeedList var trip: [Trip]?
@@ -248,7 +248,7 @@ struct ExceptionsResponse: Decodable, MetrolinxEnvelope, Sendable {
 /// GET /ServiceUpdate/ServiceAlert/All
 struct AlertsResponse: Decodable, MetrolinxEnvelope, Sendable {
     @FeedPart var metadata: APIMetadata?
-    @FeedPart var messages: Body?
+    let messages: Body?
 
     struct Body: Decodable, Sendable {
         @FeedList var message: [Message]?
@@ -267,9 +267,9 @@ struct AlertsResponse: Decodable, MetrolinxEnvelope, Sendable {
         @FeedList var trips: [TripRef]?
     }
 
-    struct LineRef: Decodable, Sendable { let code: String? }
-    struct StopRef: Decodable, Sendable { let code: String? }
-    struct TripRef: Decodable, Sendable { let tripNumber: String? }
+    struct LineRef: Decodable, Sendable { @FeedText var code: String? }
+    struct StopRef: Decodable, Sendable { @FeedText var code: String? }
+    struct TripRef: Decodable, Sendable { @FeedText var tripNumber: String? }
 }
 
 // MARK: - Reading GO's answers leniently

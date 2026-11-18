@@ -125,13 +125,14 @@ extension GOFeeds {
             #expect(BoardService.lineAlerts(alerts, row: row("4202"), network: network).map(\.subjectEnglish) == ["B1"])
         }
 
-        @Test("an alert naming the train, or with its line one alone")
+        @Test("an alert naming the train (its number as text or a number), or with its line one alone")
         func shapes() throws {
             let alerts = try decode(GO.alerts([
                 message("C1", lines: [Any](), trips: [["TripNumber": "4203"]]),
                 message("C2", lines: ["Code": "LW"]),
+                message("C3", lines: [Any](), trips: [["TripNumber": 4203]]),
             ]))
-            #expect(Set(BoardService.lineAlerts(alerts, row: row("4203"), network: network).map(\.subjectEnglish)) == ["C1", "C2"])
+            #expect(Set(BoardService.lineAlerts(alerts, row: row("4203"), network: network).map(\.subjectEnglish)) == ["C1", "C2", "C3"])
         }
     }
 }

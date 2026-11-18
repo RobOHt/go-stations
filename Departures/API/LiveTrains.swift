@@ -126,12 +126,12 @@ final class LiveTrains {
         let (data, response) = result
         guard (response as? HTTPURLResponse)?.statusCode == 200,
               let list = try? Self.decoder.decode(Response.self, from: data),
-              let trains = list.trains
+              let reported = list.trains
         else { return }
         let now = Date()
         var next: [String: LiveTrain] = [:]
         // A position no train could be at isn't one to draw (MapKit won't).
-        for var train in trains where train.isOnEarth {
+        for var train in reported where train.isOnEarth {
             // Creeping along the platform it's at, GO says it's on its way to that
             // same station: it's still there.
             if train.status == "to", let before = trains[train.trip], before.isAtStop, before.stop == train.stop {

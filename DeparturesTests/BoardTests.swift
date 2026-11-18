@@ -43,6 +43,7 @@ extension GOFeeds {
             .page(#"{"Metadata":{"ErrorCode":"200"},"NextService":{"Li"#, type: "application/json"),
             .page("", type: "application/json"),
             .json(GO.error("500", "Internal error")),
+            .json(["Metadata": GO.ok(), "NextService": "No data"]),
         ]
 
         @Test("GO failing: the timetable's trains, saying why", arguments: Board.failures)
