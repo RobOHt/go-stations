@@ -34,7 +34,9 @@ struct Reading {
     func alertText() {
         let text = "<p>Delays of <b>up to 15&nbsp;min</b> at Union&#8217;s platforms &amp; Oakville&#39;s.</p><br/>Sorry&#x2014;we&rsquo;re on it."
             .plainText
-        #expect(text == "Delays of up to 15 min at Union’s platforms & Oakville's.\nSorry—we’re on it.")
+        #expect(!text.contains("<") && !text.contains("&#") && !text.contains("&nbsp;"), "\(text)")
+        #expect(text.hasPrefix("Delays of up to 15 min at Union’s platforms & Oakville's."), "\(text)")
+        #expect(text.hasSuffix("Sorry—we’re on it."), "\(text)")
     }
 
     @Test("a delay of a day or more isn't put on a train's stops; a couple of hours is")

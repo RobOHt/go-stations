@@ -120,7 +120,7 @@ extension GOFeeds {
             .json(["Metadata": GO.ok(), "Trips": [["Number": "8016", "Stops": [Any]()]]]),
         ]
 
-        @Test("GO failing or sending nothing: the timetable's stops", arguments: failures)
+        @Test("GO failing or sending nothing: the timetable's stops", arguments: Stops.failures)
         func failing(_ reply: FakeNetwork.Reply) async throws {
             // Trip 8016 in the made-up timetable: Aldershot 05:20, Oakville 05:50.
             let train = row("8016", at: Toronto.today(5, 50))

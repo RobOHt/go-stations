@@ -130,4 +130,57 @@ enum DebugScene: String {
     }
 }
 
+/// For the UI tests (DeparturesUITests): GO's feeds as a test sets them, from the
+/// `GO_FIXTURES` environment variable, by the worker's paths:
+/// `{"/Stop/NextService/OA": {"status": 200, "type": "application/json", "body": "…"}, …}`
+/// ("timetable" for the timetable download). Anything else from the worker is a
+/// 404, as the worker answers a path it doesn't know.
+final class GOFixtures: URLProtocol, @unchecked Sendable {
+    private struct Answer: Decodable {
+        let status: Int
+        let type: String?
+        let body: String
+    }
+
+    private static let routes: [String: Answer] = {
+        guard let text = ProcessInfo.processInfo.environment["GO_FIXTURES"],
+              let routes = try? JSONDecoder().decode([String: Answer].self, from: Data(text.utf8))
+        else { return [:] }
+        return routes
+    }()
+
+    /// Serves the fixtures, when the UI tests gave some.
+    static func startIfAsked() {
+        guard !routes.isEmpty else { return }
+        URLProtocol.registerClass(GOFixtures.self)
+    }
+
+    private static func key(for url: URL) -> String? {
+        if url == ScheduleStore.remoteURL { return "timetable" }
+        let text = url.absoluteString
+        guard text.hasPrefix(ProxyConfig.baseURL) else { return nil }
+        return String(text.dropFirst(ProxyConfig.baseURL.count)).components(separatedBy: "?")[0]
+    }
+
+    override class func canInit(with request: URLRequest) -> Bool {
+        request.url.flatMap(key(for:)) != nil
+    }
+
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+
+    override func startLoading() {
+        guard let url = request.url, let key = Self.key(for: url) else { return }
+        let answer = Self.routes[key]
+            ?? Answer(status: 404, type: "application/json",
+                      body: #"{"Metadata":{"ErrorCode":"404","ErrorMessage":"Not found"}}"#)
+        let response = HTTPURLResponse(url: url, statusCode: answer.status, httpVersion: "HTTP/1.1",
+                                       headerFields: ["Content-Type": answer.type ?? "application/json"])!
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: Data(answer.body.utf8))
+        client?.urlProtocolDidFinishLoading(self)
+    }
+
+    override func stopLoading() {}
+}
+
 #endif

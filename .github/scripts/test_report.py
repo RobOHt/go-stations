@@ -32,13 +32,17 @@ if os.path.isdir(bundle):
     except (subprocess.CalledProcessError, json.JSONDecodeError) as error:
         print(f"Couldn't read {bundle}: {error}", file=sys.stderr)
 
-if tests is None:
+def compiler_errors():
     text = open(log, errors="replace").read() if os.path.exists(log) else ""
     errors = sorted(set(re.findall(r"^.*\.swift:\d+:\d+: error: .*$", text, re.M)))
     errors = [line.replace(os.getcwd() + "/", "") for line in errors][:60]
     annotate("error", "Tests didn't run", "\n".join(errors) or text[-3000:])
     summary(["## Tests didn't run", "```", *errors, "```"])
     sys.exit(0)
+
+
+if tests is None:
+    compiler_errors()
 
 passed, failed, skipped = 0, [], 0
 
@@ -70,6 +74,9 @@ def walk(node, path):
 
 for node in tests.get("testNodes", []):
     walk(node, [])
+# Nothing ran: it didn't build.
+if passed + len(failed) + skipped == 0:
+    compiler_errors()
 
 lines = [f"## Tests: {passed} passed, {len(failed)} failed, {skipped} skipped"]
 for name, why in failed:

@@ -10,6 +10,7 @@ final class LaunchTests: XCTestCase {
     func testLaunches() throws {
         let app = XCUIApplication()
         app.launchArguments = ["-homeStation", "OA", "-workStation", "UN"]
+        app.launchEnvironment["GO_FIXTURES"] = Feeds.quiet().environment
         app.launch()
         XCTAssertTrue(app.wait(for: .runningForeground, timeout: 20))
         // A few seconds in (the board and the map loading): still running.

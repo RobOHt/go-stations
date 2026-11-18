@@ -128,6 +128,8 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
                      didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         #if DEBUG
         if UnitTests.areRunning { return true }
+        // The UI tests' made-up feeds, before anything asks for the real ones.
+        GOFixtures.startIfAsked()
         #endif
         // Trip alerts show while the app is open, and getting to your station is
         // heard (it can wake the app to take back the reminder to set off).

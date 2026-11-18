@@ -22,7 +22,7 @@ extension GOFeeds {
             _ = await CancelledTrains.shared.list(maxAge: 0)
         }
 
-        func board(_ station: Station? = nil) async throws -> BoardSnapshot {
+        func load(_ station: Station? = nil) async throws -> BoardSnapshot {
             try await BoardService.shared.board(for: station ?? oakville)
         }
 
@@ -45,10 +45,10 @@ extension GOFeeds {
             .json(GO.error("500", "Internal error")),
         ]
 
-        @Test("GO failing: the timetable's trains, saying why", arguments: failures)
+        @Test("GO failing: the timetable's trains, saying why", arguments: Board.failures)
         func failing(_ reply: FakeNetwork.Reply) async throws {
             FakeNetwork.set("/Stop/NextService/OA", reply)
-            let board = try await board()
+            let board = try await load()
             #expect(board.source == .schedule)
             #expect(board.note?.isEmpty == false)
             #expect(!board.rows.isEmpty, "no trains from the timetable")
@@ -61,7 +61,7 @@ extension GOFeeds {
             FakeNetwork.set("/Stop/NextService/OA", .json(GO.nextService([
                 GO.line("2001", at: gone), GO.line("2002", at: gone.addingTimeInterval(1200)),
             ], metadata: GO.ok(gone))))
-            let board = try await board()
+            let board = try await load()
             #expect(!board.rows.contains { ["2001", "2002"].contains($0.tripNumber) })
             #expect(board.source == .schedule)
             #expect(!board.rows.isEmpty)
@@ -74,7 +74,7 @@ extension GOFeeds {
             FakeNetwork.set("/ServiceUpdate/ServiceAlert/All", .page("<html>busy</html>", status: 500))
             FakeNetwork.set("/live/cancelled", .failure(.timedOut))
             _ = await CancelledTrains.shared.list(maxAge: 0)
-            let board = try await board()
+            let board = try await load()
             #expect(board.source == .live)
             #expect(board.rows.first?.tripNumber == "2011")
         }
@@ -85,7 +85,7 @@ extension GOFeeds {
             FakeNetwork.set("/Stop/NextService/UN", .json(GO.nextService([
                 GO.line("2021", at: Toronto.inMinutes(9), stop: "UN", direction: "LW - Aldershot GO"),
             ])))
-            let board = try await board(union)
+            let board = try await load(union)
             #expect(board.source == .live)
             #expect(board.rows.contains { $0.tripNumber == "2021" })
         }
@@ -100,7 +100,7 @@ extension GOFeeds {
                 GO.line("2032", at: soon.addingTimeInterval(300), expected: soon.addingTimeInterval(120)),
                 GO.line("2033", at: soon.addingTimeInterval(600), expected: soon.addingTimeInterval(900)),
             ])))
-            let board = try await board()
+            let board = try await load()
             let blank = try row("2031", in: board)
             #expect(!blank.isDelayed)
             #expect(blank.expected == blank.scheduled)
@@ -115,7 +115,7 @@ extension GOFeeds {
             FakeNetwork.set("/Stop/NextService/OA", .json(GO.nextService([
                 GO.line("2041", at: soon, expected: soon.addingTimeInterval(86400)),
             ])))
-            let train = try row("2041", in: try await board())
+            let train = try row("2041", in: try await load())
             #expect(train.delayMinutes < 12 * 60, "\(train.delayMinutes) min late")
         }
 
@@ -126,7 +126,7 @@ extension GOFeeds {
                 GO.line("2051", at: Toronto.inMinutes(10)),
                 GO.line("2052", at: Toronto.inMinutes(25)),
             ])))
-            let board = try await board()
+            let board = try await load()
             let live = board.rows.map(\.tripNumber).filter { $0.hasPrefix("205") }
             #expect(live == ["2051", "2052", "2053"])
             #expect(board.rows.map(\.scheduled) == board.rows.map(\.scheduled).sorted())
@@ -141,7 +141,7 @@ extension GOFeeds {
             FakeNetwork.set("/Stop/NextService/OA", .json(GO.nextService([
                 GO.line("2061", at: nil), GO.line("2062", at: Toronto.inMinutes(10)), junk, blank,
             ])))
-            let board = try await board()
+            let board = try await load()
             #expect(board.source == .live)
             #expect(board.rows.contains { $0.tripNumber == "2062" })
             #expect(!board.rows.contains { ["2061", "2063", "2064"].contains($0.tripNumber) })
@@ -167,7 +167,7 @@ extension GOFeeds {
             FakeNetwork.set("/Stop/NextService/OA", .json(GO.nextService(cases.enumerated().map { i, each in
                 GO.line(each.trip, at: soon.addingTimeInterval(Double(i) * 60), platform: each.planned, actual: each.actual)
             })))
-            let board = try await board()
+            let board = try await load()
             for each in cases {
                 #expect(try row(each.trip, in: board).platform == each.shown, "\(each.trip): \(each.planned), \(each.actual)")
             }
@@ -198,7 +198,7 @@ extension GOFeeds {
                 ["TripNumber": "2110", "IsCancelled": "0", "Stop": ["Code": "OA", "IsCancelled": "1"]],
             ])))
             _ = await CancelledTrains.shared.list(maxAge: 0)
-            let board = try await board()
+            let board = try await load()
             let cancelled = Set(board.rows.filter(\.isCancelled).map(\.tripNumber))
             #expect(cancelled.intersection(trips) == ["2101", "2102", "2103", "2107", "2110"])
         }
@@ -220,7 +220,7 @@ extension GOFeeds {
                 ["trip": "2125", "skips": ["OA"]],
             ]]))
             _ = await CancelledTrains.shared.list(maxAge: 0)
-            let board = try await board()
+            let board = try await load()
             let cancelled = Set(board.rows.filter(\.isCancelled).map(\.tripNumber))
             #expect(cancelled.intersection(trips) == ["2121", "2123", "2125"])
         }
@@ -237,7 +237,7 @@ extension GOFeeds {
                 ["trip": "2132", "day": TorontoTime.dateWire(soon), "all": true],
             ]]))
             _ = await CancelledTrains.shared.list(maxAge: 0)
-            let board = try await board()
+            let board = try await load()
             #expect(try row("2132", in: board).isCancelled)
         }
 
@@ -249,7 +249,7 @@ extension GOFeeds {
             FakeNetwork.set("/Stop/NextService/OA", .json(GO.nextService([
                 GO.line(2141, at: soon, platform: 3), GO.line("2142", at: soon.addingTimeInterval(60)),
             ])))
-            let board = try await board()
+            let board = try await load()
             #expect(board.source == .live)
             #expect(try row("2141", in: board).platform == "3")
             #expect(board.rows.contains { $0.tripNumber == "2142" })
@@ -258,7 +258,7 @@ extension GOFeeds {
         @Test("one train where there's usually a list")
         func oneAlone() async throws {
             FakeNetwork.set("/Stop/NextService/OA", .json(GO.nextService(GO.line("2151", at: Toronto.inMinutes(20)))))
-            let board = try await board()
+            let board = try await load()
             #expect(board.source == .live)
             #expect(board.rows.first?.tripNumber == "2151")
         }
@@ -268,7 +268,7 @@ extension GOFeeds {
             FakeNetwork.set("/Stop/NextService/OA", .json(GO.nextService([
                 NSNull(), 42, "train", GO.line("2161", at: Toronto.inMinutes(20)), [String: Any](),
             ])))
-            let board = try await board()
+            let board = try await load()
             #expect(board.source == .live)
             #expect(board.rows.first?.tripNumber == "2161")
         }
@@ -277,9 +277,9 @@ extension GOFeeds {
         func metadata() async throws {
             FakeNetwork.set("/Stop/NextService/OA", .json(GO.nextService([GO.line("2171", at: Toronto.inMinutes(20))],
                                                                          metadata: ["ErrorCode": 200, "ErrorMessage": "OK"])))
-            #expect(try await board().rows.first?.tripNumber == "2171")
+            #expect(try await load().rows.first?.tripNumber == "2171")
             FakeNetwork.set("/Stop/NextService/OA", .json(["NextService": ["Lines": [GO.line("2172", at: Toronto.inMinutes(20))]]]))
-            #expect(try await board().rows.first?.tripNumber == "2172")
+            #expect(try await load().rows.first?.tripNumber == "2172")
         }
 
         @Test("a train listed twice: shown once")
@@ -288,7 +288,7 @@ extension GOFeeds {
             FakeNetwork.set("/Stop/NextService/OA", .json(GO.nextService([
                 GO.line("2181", at: soon), GO.line("2181", at: soon, expected: soon.addingTimeInterval(120)),
             ])))
-            let board = try await board()
+            let board = try await load()
             #expect(board.rows.filter { $0.tripNumber == "2181" }.count == 1)
         }
 
@@ -298,7 +298,7 @@ extension GOFeeds {
             FakeNetwork.set("/Stop/NextService/OA", .json(GO.nextService([
                 GO.line("2191", at: soon), GO.line("21912", at: soon, line: "21", type: "B"),
             ])))
-            let board = try await board()
+            let board = try await load()
             #expect(board.rows.map(\.tripNumber).contains("2191"))
             #expect(!board.rows.map(\.tripNumber).contains("21912"))
         }
@@ -314,7 +314,7 @@ extension GOFeeds {
                 GO.unionTrip("2202", at: Toronto.inMinutes(20), platform: "-"),
                 GO.unionTrip("2201", at: Toronto.inMinutes(10)),
             ])))
-            let board = try await board(union)
+            let board = try await load(union)
             #expect(board.source == .live)
             #expect(board.rows.map(\.tripNumber).filter { $0.hasPrefix("220") } == ["2201", "2202", "2203"])
             #expect(try row("2201", in: board).platform == "5, 6")
@@ -323,7 +323,7 @@ extension GOFeeds {
             FakeNetwork.set("/ServiceUpdate/UnionDepartures/All", .json(GO.union(
                 GO.unionTrip("2211", at: Toronto.inMinutes(10), stops: ["Name": "Oakville GO", "Code": "OA"])
             )))
-            #expect(try await board(union).rows.first?.tripNumber == "2211")
+            #expect(try await load(union).rows.first?.tripNumber == "2211")
         }
     }
 }
