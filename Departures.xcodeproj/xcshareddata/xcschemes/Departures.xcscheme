@@ -37,6 +37,28 @@
          </BuildableReference>
       </MacroExpansion>
       <Testables>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "40766A96BE10B99F3CF54947"
+               BuildableName = "DeparturesTests.xctest"
+               BlueprintName = "DeparturesTests"
+               ReferencedContainer = "container:Departures.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "CF7282FF8106DCFD1EE1DF35"
+               BuildableName = "DeparturesUITests.xctest"
+               BlueprintName = "DeparturesUITests"
+               ReferencedContainer = "container:Departures.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
       </Testables>
    </TestAction>
    <LaunchAction

@@ -1,0 +1,91 @@
+name: Tests
+
+# The app's unit tests (DeparturesTests: GO's feeds failing, frozen or oddly shaped,
+# played by a stand-in, plus the self-checks) and UI tests (DeparturesUITests), on an
+# iOS simulator. Run by the TestFlight workflow before every upload, and here on
+# pushes to other branches, pull requests, or by hand.
+on:
+  push:
+    branches-ignore: [main]
+    paths:
+      - "Departures/**"
+      - "DeparturesTests/**"
+      - "DeparturesUITests/**"
+      - "DeparturesWidgets/**"
+      - "Departures.xcodeproj/**"
+      - ".github/workflows/tests.yml"
+      - ".github/scripts/test_report.py"
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      only:
+        description: "Run only these (xcodebuild -only-testing), say DeparturesTests"
+        required: false
+        default: ""
+  workflow_call:
+
+concurrency:
+  group: tests-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Unit and UI tests (iOS Simulator)
+    runs-on: xcode-27
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Select Xcode 27
+        run: |
+          XCODE=$(ls -d /Applications/Xcode_27.1*.app 2>/dev/null | grep -vi beta | sort -V | tail -1)
+          [ -n "$XCODE" ] || XCODE=$(ls -d /Applications/Xcode_27*.app | grep -vi beta | sort -V | tail -1)
+          echo "Using $XCODE"
+          sudo xcode-select -s "$XCODE/Contents/Developer"
+          xcodebuild -version
+
+      - name: Boot a simulator
+        id: sim
+        run: |
+          python3 .github/scripts/pick_simulator.py > sim.txt
+          read -r RUNTIME TYPE NAME < sim.txt
+          echo "Simulator: $NAME on $RUNTIME"
+          UDID=$(xcrun simctl create tests "$TYPE" "$RUNTIME")
+          xcrun simctl boot "$UDID"
+          xcrun simctl bootstatus "$UDID" -b > /dev/null
+          echo "udid=$UDID" >> "$GITHUB_OUTPUT"
+
+      - name: Test
+        env:
+          UDID: ${{ steps.sim.outputs.udid }}
+          ONLY: ${{ inputs.only }}
+        run: |
+          only=()
+          for each in $ONLY; do only+=("-only-testing:$each"); done
+          status=0
+          xcodebuild \
+            -project Departures.xcodeproj \
+            -scheme Departures \
+            -configuration Debug \
+            -destination "id=$UDID" \
+            -derivedDataPath build \
+            -resultBundlePath Tests.xcresult \
+            CODE_SIGNING_ALLOWED=NO \
+            "${only[@]}" \
+            test > test.log 2>&1 || status=$?
+          grep -E "error:|Test (Suite|case|run)|✘|TEST (SUCCEEDED|FAILED)" test.log | tail -300 || true
+          exit $status
+
+      - name: Report
+        if: always()
+        run: python3 .github/scripts/test_report.py Tests.xcresult test.log
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: |
+            Tests.xcresult
+            test.log
+          retention-days: 7

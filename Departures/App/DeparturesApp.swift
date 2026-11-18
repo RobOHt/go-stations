@@ -11,7 +11,10 @@ struct DeparturesApp: App {
     var body: some Scene {
         WindowGroup {
             #if DEBUG
-            if DebugScene.current == .activityGallery {
+            if UnitTests.areRunning {
+                // Hosting the unit tests: nothing on screen, nothing started.
+                Color.clear
+            } else if DebugScene.current == .activityGallery {
                 TripActivityGallery()
             } else if DebugScene.current == .boardSample {
                 BoardSample()
@@ -31,6 +34,15 @@ struct DeparturesApp: App {
         }
     }
 }
+
+#if DEBUG
+/// The unit tests (DeparturesTests) run inside the app: it then starts nothing of
+/// its own (no board, no location, no requests), so the tests' stand-in for GO's
+/// feeds answers only what they ask.
+enum UnitTests {
+    static let areRunning = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+}
+#endif
 
 /// How much work a moving sheet makes, for the Screenshots workflow: each view's
 /// body evaluations, and the main thread's CPU time over a few seconds of it.
@@ -114,6 +126,9 @@ final class AppRoute {
 final class AppDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication,
                      didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
+        #if DEBUG
+        if UnitTests.areRunning { return true }
+        #endif
         // Trip alerts show while the app is open, and getting to your station is
         // heard (it can wake the app to take back the reminder to set off).
         TripAlerts.shared.start()

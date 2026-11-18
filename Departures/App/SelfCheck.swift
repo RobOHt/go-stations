@@ -9,7 +9,8 @@ import UIKit
 /// and the last line is "done". The trips are made up.
 @MainActor
 enum SelfCheck {
-    private static var lines: [String] = []
+    /// What the last run found, a line per check (read by the unit tests too).
+    private(set) static var lines: [String] = []
 
     static func run() {
         lines = []

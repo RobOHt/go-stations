@@ -27,6 +27,10 @@ on:
       - ".github/workflows/commute.yml"
       - ".github/scripts/pick_simulator.py"
       - "worker/**"
+      - "DeparturesTests/**"
+      - "DeparturesUITests/**"
+      - ".github/workflows/tests.yml"
+      - ".github/scripts/test_report.py"
   workflow_dispatch:
 
 concurrency:
