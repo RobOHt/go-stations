@@ -74,6 +74,7 @@ final class BoardUITests: XCTestCase {
     @MainActor
     func testOddShapesStillShowTheTrains() throws {
         var feeds = Feeds.quiet()
+        let due = Feeds.clock(Feeds.soon(12))
         var odd = Feeds.line("5021", in: 12, platform: "4", stop: "OA")
         odd["TripNumber"] = 5021
         odd["ScheduledPlatform"] = 4
@@ -82,12 +83,13 @@ final class BoardUITests: XCTestCase {
         let app = launch(feeds, ["-debugScene", "station", "-debugStation", "OA"])
         XCTAssertTrue(text(app, startingWith: "Live · updated").waitForExistence(timeout: 20), "not live")
         keep(app, "odd shapes board")
-        XCTAssertTrue(app.staticTexts[Feeds.clock(Feeds.soon(12))].exists, "the train at \(Feeds.clock(Feeds.soon(12)))")
+        XCTAssertTrue(app.staticTexts[due].exists, "the train at \(due)")
     }
 
     @MainActor
     func testTrainLateToTheEndOfItsRunWithItsLinesAlerts() throws {
         var feeds = Feeds.quiet()
+        let aldershot = Feeds.clock(Feeds.soon(67))
         feeds.json("/ServiceUpdate/UnionDepartures/All", Feeds.union([Feeds.unionTrip("5101", in: 10, platform: "3")]))
         feeds.json("/Stop/NextService/UN", Feeds.nextService([
             Feeds.line("5101", in: 10, late: 7, stop: "UN", direction: "LW - Aldershot GO"),
@@ -103,7 +105,6 @@ final class BoardUITests: XCTestCase {
         keep(app, "late train")
         XCTAssertTrue(app.staticTexts["Lakeshore West - Signal problems"].waitForExistence(timeout: 10), "no line alert")
         // Aldershot, where GO times nothing: as late as the rest.
-        let aldershot = Feeds.clock(Feeds.soon(67))
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", aldershot)).firstMatch.exists,
                       "Aldershot not at \(aldershot)")
     }

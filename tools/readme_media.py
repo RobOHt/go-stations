@@ -152,25 +152,25 @@ BANNER = """<!doctype html>
   .dots { position: absolute; inset: 0; opacity: 0.18;
     background-image: radial-gradient(circle, #8a94a6 1.2px, transparent 1.6px); background-size: 22px 22px;
     mask-image: linear-gradient(90deg, #000 0%, transparent 55%); }
-  .text { position: absolute; left: 84px; top: 118px; width: 560px; }
+  .text { position: absolute; left: 80px; top: 122px; width: 540px; }
   .icon { width: 104px; height: 104px; border-radius: 24px; box-shadow: 0 10px 30px rgba(0,0,0,.45); }
   h1 { font-family: "Inter Display", Inter, sans-serif; font-weight: 800; font-size: 82px; letter-spacing: -2px;
     margin: 30px 0 14px; line-height: 1; }
-  p { font-size: 27px; line-height: 1.38; color: #c3cad6; margin: 0 0 30px; font-weight: 400; }
+  p { font-size: 26px; line-height: 1.4; color: #c3cad6; margin: 0 0 30px; font-weight: 400; }
   .tags { display: flex; flex-wrap: wrap; gap: 10px; }
   .tags span { font-size: 17px; font-weight: 600; color: #e8edf5; padding: 8px 14px; border-radius: 999px;
     background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.14); }
-  .phone { position: absolute; width: 238px; filter: drop-shadow(0 24px 40px rgba(0,0,0,0.55)); }
+  .phone { position: absolute; width: 226px; filter: drop-shadow(0 24px 40px rgba(0,0,0,0.55)); }
   .phone img { width: 100%; display: block; }
-  .a { left: 676px; top: 96px; }
-  .b { left: 852px; top: 46px; z-index: 2; width: 252px; }
-  .c { left: 1040px; top: 128px; }
+  .a { left: 650px; top: 104px; }
+  .b { left: 820px; top: 50px; z-index: 2; width: 244px; }
+  .c { left: 1008px; top: 132px; }
 </style></head><body>
   <div class="dots"></div>
   <div class="text">
     <img class="icon" src="icon.png">
     <h1>GO Stations</h1>
-    <p>GO Transit's departure boards, every train live on the map, and your train on the Lock Screen.</p>
+    <p>Departure boards, every train live on the map, and your train on the Lock Screen.</p>
     <div class="tags"><span>SwiftUI</span><span>MapKit</span><span>Live Activities</span><span>Cloudflare Workers</span></div>
   </div>
   <div class="phone a"><img src="{left}"></div>
@@ -180,7 +180,7 @@ BANNER = """<!doctype html>
 """
 
 
-def banner(left="trains.png", middle="board.png", right="lock-screen.png"):
+def banner(left="trains.png", middle="board-sample.png", right="lock-screen.png"):
     """The repository's social preview (1280 by 640, for Settings → Social preview)."""
     from playwright.sync_api import sync_playwright
 
@@ -201,6 +201,18 @@ def banner(left="trains.png", middle="board.png", right="lock-screen.png"):
     print("banner", os.path.getsize(png) // 1024, "KB")
 
 
+def prune():
+    """Leaves only what the README shows (and the social preview), so the repository
+    doesn't keep media nothing uses."""
+    import re
+    with open(os.path.join(ROOT, "README.md")) as readme:
+        used = set(re.findall(r"docs/media/([\w.-]+)", readme.read())) | {"social-preview.png"}
+    for name in sorted(os.listdir(OUT)):
+        if name not in used:
+            os.remove(os.path.join(OUT, name))
+            print("left out", name)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--fetch", action="store_true", help="download the readme-media-raw branch first")
@@ -216,6 +228,7 @@ def main():
     for each in CLIPS:
         clip(*each)
     banner()
+    prune()
 
 
 if __name__ == "__main__":

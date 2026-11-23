@@ -7,26 +7,24 @@ tracked trains to push their Live Activities while the app is closed.
 
 ```mermaid
 flowchart LR
-    subgraph phone["iPhone"]
-        app["GO Stations app<br/>SwiftUI · MapKit"]
-        activity["Live Activity<br/>Lock Screen · Dynamic Island"]
-        timetable[("Timetable<br/>GTFS, on device")]
-    end
+    actions["GitHub Actions<br/>daily timetable build"]
+    app["GO Stations app<br/>SwiftUI · MapKit<br/>timetable on the phone"]
     subgraph cloudflare["Cloudflare"]
+        direction TB
         worker["Worker<br/>proxy · edge cache · rate limits"]
         follower["LiveActivities<br/>Durable Object"]
     end
     metrolinx[("Metrolinx Open Data<br/>REST · GTFS-Realtime")]
     apns["Apple Push<br/>Notification service"]
-    actions["GitHub Actions"]
+    activity["Live Activity<br/>Lock Screen · Dynamic Island"]
 
+    actions -- "timetable" --> app
     app -- "boards, trips, live trains" --> worker
     worker -- "adds the API key" --> metrolinx
-    app -- "track this train" --> follower
+    worker -- "track this train" --> follower
     follower -- "where is it? every 20 s" --> metrolinx
     follower -- "updates and alerts" --> apns
     apns --> activity
-    actions -- "daily timetable build" --> timetable
 ```
 
 ## The app

@@ -17,7 +17,13 @@ A native iOS app for people who ride GO trains, with a small serverless backend.
 ![Dependencies](https://img.shields.io/badge/third--party%20dependencies-none-2EA44F)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-<!-- SHOWCASE -->
+<p>
+  <img src="docs/media/board-sample.png" width="30%" alt="A station's departure board: platforms, a delay and a cancellation, in English and French">
+  &nbsp;
+  <img src="docs/media/lock-screen.png" width="30%" alt="A tracked train's Live Activity on the Lock Screen and in the Dynamic Island">
+  &nbsp;
+  <img src="docs/media/trip-late.png" width="30%" alt="A late train's stops, each with its new time">
+</p>
 
 </div>
 
@@ -32,26 +38,40 @@ A native iOS app for people who ride GO trains, with a small serverless backend.
 
 The full tour, screen by screen: [docs/FEATURES.md](docs/FEATURES.md).
 
-<!-- DEMOS -->
+## See it in action
+
+<table>
+  <tr>
+    <td align="center" width="33%"><img src="docs/media/trip.gif" alt="From the map to Union Station's board to a train's stops"><br><b>Map, board, a train's stops</b></td>
+    <td align="center" width="33%"><img src="docs/media/plan.gif" alt="A trip to Oakville planned from search, with the trip offered to track"><br><b>A trip planned from search</b></td>
+    <td align="center" width="33%"><img src="docs/media/tracked.gif" alt="A tracked train followed on the map along Lake Ontario"><br><b>A tracked train, followed</b></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/media/journey.png" alt="A trip with a change, tracked from search, offering alerts before each step"><br><b>A whole trip, tracked</b></td>
+    <td align="center"><img src="docs/media/plan-change.png" alt="A trip with a change at Union, with each train and how long to change"><br><b>Trips with changes</b></td>
+    <td align="center"><img src="docs/media/map-light.png" alt="The network map in light mode, every line in its colour"><br><b>Light or dark</b></td>
+  </tr>
+</table>
+
+<sub>Recorded in the iOS simulator by the <a href=".github/workflows/readme-media.yml">README media workflow</a>, from GO's live data (with a few made-up delays and cancellations, to show them at any hour) and the made-up commuter the tests use: home Oakville, work Union. Full quality: <a href="docs/media/trip.mp4">board and stops</a> · <a href="docs/media/plan.mp4">trip planning</a> · <a href="docs/media/tracked.mp4">tracking</a> · <a href="docs/media/island.mp4">the Dynamic Island</a> · <a href="docs/media/trains.mp4">every train</a>.</sub>
 
 ## How it's built
 
 ```mermaid
 flowchart LR
-    subgraph phone["iPhone"]
-        app["GO Stations app<br/>SwiftUI · MapKit"]
-        activity["Live Activity<br/>Lock Screen · Dynamic Island"]
-    end
+    app["GO Stations app<br/>SwiftUI · MapKit"]
     subgraph cloudflare["Cloudflare"]
+        direction TB
         worker["Worker<br/>proxy · edge cache · rate limits"]
         follower["Durable Object<br/>follows tracked trains"]
     end
     metrolinx[("Metrolinx Open Data<br/>REST · GTFS-Realtime")]
     apns["Apple Push<br/>Notification service"]
+    activity["Live Activity<br/>Lock Screen · Dynamic Island"]
 
     app -- "boards, trips, live trains" --> worker
     worker -- "adds the API key" --> metrolinx
-    app -- "track this train" --> follower
+    worker -- "track this train" --> follower
     follower -- "where is it? every 20 s" --> metrolinx
     follower -- "updates and alerts" --> apns
     apns --> activity
@@ -70,7 +90,7 @@ The app does the planning and drawing on the phone. A Cloudflare Worker sits bet
 
 ### Tech stack
 
-| | |
+| Layer | Built with |
 | --- | --- |
 | **App** | Swift, SwiftUI, MapKit, ActivityKit and WidgetKit (Live Activity, Dynamic Island), Core Location, iCloud key-value storage |
 | **Backend** | Cloudflare Workers, Durable Objects with alarms, edge caching, rate limiting, APNs with token auth |
@@ -86,7 +106,7 @@ cd go-stations
 open Departures.xcodeproj    # Xcode 26 or later: pick your team, then Run
 ```
 
-The app works out of the box against the project's Worker. To run your own Worker, push updates and TestFlight builds, see [docs/SETUP.md](docs/SETUP.md).
+The app works out of the box against the project's Worker. To run your own Worker, Live Activity pushes and TestFlight builds, see [docs/SETUP.md](docs/SETUP.md).
 
 ### Running the tests
 
