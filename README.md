@@ -42,8 +42,8 @@ The full tour, screen by screen: [docs/FEATURES.md](docs/FEATURES.md).
 
 <table>
   <tr>
-    <td align="center" width="33%"><img src="docs/media/trip.gif" alt="From the map to Union Station's board to a train's stops"><br><b>Map, board, a train's stops</b></td>
-    <td align="center" width="33%"><img src="docs/media/plan.gif" alt="A trip to Oakville planned from search, with the trip offered to track"><br><b>A trip planned from search</b></td>
+    <td align="center" width="33%"><img src="docs/media/trip.gif" alt="From the map to Union Station's board to a train's stops, with platforms"><br><b>Map, board, a train's stops</b></td>
+    <td align="center" width="33%"><img src="docs/media/plan.gif" alt="A trip to Oakville planned from search, offered to track"><br><b>A trip planned from search</b></td>
     <td align="center" width="33%"><img src="docs/media/tracked.gif" alt="A tracked train followed on the map along Lake Ontario"><br><b>A tracked train, followed</b></td>
   </tr>
   <tr>
@@ -53,7 +53,7 @@ The full tour, screen by screen: [docs/FEATURES.md](docs/FEATURES.md).
   </tr>
 </table>
 
-<sub>Recorded in the iOS simulator by the <a href=".github/workflows/readme-media.yml">README media workflow</a>, from GO's live data (with a few made-up delays and cancellations, to show them at any hour) and the made-up commuter the tests use: home Oakville, work Union. Full quality: <a href="docs/media/trip.mp4">board and stops</a> · <a href="docs/media/plan.mp4">trip planning</a> · <a href="docs/media/tracked.mp4">tracking</a> · <a href="docs/media/island.mp4">the Dynamic Island</a> · <a href="docs/media/trains.mp4">every train</a>.</sub>
+<sub>Recorded at a weekday rush hour in the iOS simulator by the <a href=".github/workflows/readme-media.yml">README media workflow</a>, from GO's live data, with the made-up commuter the tests use (home Oakville, work Union) and, in the screenshots at the top, a made-up delay, cancellation and alert. Full quality: <a href="docs/media/trip.mp4">board and stops</a> · <a href="docs/media/plan.mp4">trip planning</a> · <a href="docs/media/tracked.mp4">tracking</a>.</sub>
 
 ## How it's built
 

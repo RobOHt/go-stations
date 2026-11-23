@@ -44,15 +44,16 @@ SCREENS = {
 }
 
 # Clips: (name, start s, length s, speed, width px, frames a second). Start and
-# length are in the recording's own time (the app launches about 2 s in); speed > 1
-# plays it faster: trains move slowly at the scale of the network.
+# length are in the recording's own time, and differ from take to take: pick them
+# from the recording. Start once the map is drawn, since a GIF's first frame is all
+# people see with animated images turned off. Speed > 1 plays it faster: trains
+# move slowly at the scale of the network.
 CLIPS = [
-    ("trains", 10, 34, 8, 320, 12),
-    ("board", 5.2, 6.5, 1, 320, 12),
-    ("trip", 4.2, 8, 1, 320, 12),
-    ("tracked", 6, 40, 8, 320, 12),
-    ("island", 33, 15, 1, 320, 12),
-    ("plan", 3.2, 7, 1, 320, 12),
+    ("trains", 5, 36, 8, 320, 12),
+    ("union-trains", 5, 80, 10, 320, 12),
+    ("trip", 5, 8, 1, 320, 12),
+    ("tracked", 5.6, 4.6, 1, 320, 12),
+    ("plan", 10.6, 5, 1, 320, 12),
 ]
 
 
