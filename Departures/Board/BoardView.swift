@@ -641,8 +641,8 @@ extension BoardRow {
         var cancelled = row("7324", "ST", "Stouffville", ["Kennedy", "Agincourt", "Milliken", "Unionville",
                                                           "Centennial", "Markham", "Mount Joy"], in: 52.5)
         cancelled.isCancelled = true
-        cancelled.reasonEnglish = "Earlier police investigation"
-        cancelled.reasonFrench = "Enquête policière antérieure"
+        cancelled.reasonEnglish = "Mechanical problem"
+        cancelled.reasonFrench = "Problème mécanique"
         return [
             row("1875", "LW", "Lakeshore West", west, in: 2.5, platform: "7, 8"),
             row("9026", "LE", "Lakeshore East", east, in: 6.5),
