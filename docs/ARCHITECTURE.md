@@ -158,7 +158,7 @@ from what a rider should see before looking at how the code handles it:
 | Commute check | Changes to the planner | The start-up planner against its Python reference (`tools/commute_reference.py`) on the current timetable: thousands of random situations must give the same station for the same reason |
 | Timetable | Daily | Rebuilds `schedule.json` from GO's GTFS on the `schedule-data` branch |
 | Screenshots | `preview/**` branches, or by hand | Simulator screenshots of set-up scenes, for review by eye |
-| README media | By hand | Records the README's clips and screenshots (`tools/readme_media.py` makes `docs/media` from them) |
+| README media | By hand | Records the README's clips and screenshots (`tools/readme_media.py` makes `docs/media` from them, and `tools/demo_video.py` a short demo video) |
 
 ## Updating the network data
 
