@@ -8,6 +8,11 @@ name: README media
 # trains are running (a weekday rush hour): the map and boards show live data.
 on:
   workflow_dispatch:
+    inputs:
+      only:
+        description: "Record only these shots and clips (names, separated by spaces); empty records them all"
+        required: false
+        default: ""
   push:
     branches: ["readme-media"]
 
@@ -83,9 +88,12 @@ jobs:
       - name: Record
         env:
           UDID: ${{ steps.sim.outputs.udid }}
+          ONLY: ${{ inputs.only }}
         run: |
           mkdir -p media
           log() { echo "$(date -u +%H:%M:%S) $*" | tee -a media/log.txt; }
+          # Whether to record this one: all of them, or just those asked for.
+          wanted() { [ -z "$ONLY" ] || [[ " $ONLY " == *" $1 "* ]]; }
           launch() {
             xcrun simctl terminate "$UDID" "$BUNDLE_ID" > /dev/null 2>&1 || true
             sleep 1
@@ -94,6 +102,7 @@ jobs:
           # A clip: recording starts a second before the app does, and runs `seconds`.
           clip() {
             name=$1; seconds=$2; shift 2
+            wanted "$name" || return 0
             xcrun simctl terminate "$UDID" "$BUNDLE_ID" > /dev/null 2>&1 || true
             sleep 1
             xcrun simctl io "$UDID" recordVideo --codec=h264 --force "raw-$name.mp4" > /dev/null 2>&1 &
@@ -115,16 +124,22 @@ jobs:
           }
           shot() {
             name=$1; wait=$2; shift 2
+            wanted "$name" || return 0
             launch "$@"
             sleep "$wait"
             xcrun simctl io "$UDID" screenshot --type=png "media/$name.png" > /dev/null 2>&1
             log "shot $name"
           }
           # The first launch warms up the map's tiles.
+          wanted map || { launch -debugScene map; sleep 20; }
           shot map 20 -debugScene map
           # Every train running now, live, on the map (sped up afterwards).
           shot trains 25 -debugScene allTrains -showsAllTrains YES
           clip trains 45 -debugScene allTrains -showsAllTrains YES
+          # Closer in, where the lines meet at Union: close enough to see the trains
+          # move (at the whole network's scale they barely do in a minute).
+          shot union-trains 25 -debugScene map -mapCenter 43.662,-79.388 -mapWidth 6500 -showsAllTrains YES
+          clip union-trains 90 -debugScene map -mapCenter 43.662,-79.388 -mapWidth 6500 -showsAllTrains YES
           # Union's board, then a train's stops over it.
           shot board 12 -debugScene station
           shot board-large 10 -debugScene stationLarge
@@ -153,6 +168,7 @@ jobs:
           shot journey 22 -debugScene trackedJourney -debugNow "$MORNING" -debugLocation 43.5560,-79.5869
           # The Live Activity: track a train, then switch to Settings; the island
           # shows it, and expands with the app's alert a few seconds later.
+          if wanted island; then
           xcrun simctl terminate "$UDID" "$BUNDLE_ID" > /dev/null 2>&1 || true
           sleep 1
           xcrun simctl launch "$UDID" "$BUNDLE_ID" -debugScene liveActivity -homeStation OA -workStation UN > /dev/null
@@ -173,6 +189,7 @@ jobs:
           wait "$recorder" || true
           shrink island
           xcrun simctl terminate "$UDID" com.apple.Preferences > /dev/null 2>&1 || true
+          fi
           # Its views drawn in the app: Lock Screen, compact, minimal, expanded.
           shot lock-screen 8 -debugScene activityGallery -galleryLockScreen YES -galleryClean YES
           shot activity-gallery 8 -debugScene activityGallery -galleryClean YES
