@@ -1,0 +1,193 @@
+name: README media
+
+# Records the clips and takes the screenshots the README shows, from a Debug build
+# in the iPhone simulator (the set-up scenes in Departures/App/DebugScene.swift,
+# with the screenshots' made-up commuter: home Oakville, work Union), and
+# force-pushes them, as recorded, to the readme-media-raw branch.
+# tools/readme_media.py makes docs/media from them. Best run while plenty of
+# trains are running (a weekday rush hour): the map and boards show live data.
+on:
+  workflow_dispatch:
+  push:
+    branches: ["readme-media"]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: readme-media
+  cancel-in-progress: true
+
+jobs:
+  record:
+    name: Record
+    runs-on: xcode-27
+    timeout-minutes: 50
+    env:
+      BUNDLE_ID: com.robinzhong.Departures
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Select Xcode 27
+        run: |
+          XCODE=$(ls -d /Applications/Xcode_27.1*.app 2>/dev/null | grep -vi beta | sort -V | tail -1)
+          [ -n "$XCODE" ] || XCODE=$(ls -d /Applications/Xcode_27*.app | grep -vi beta | sort -V | tail -1)
+          echo "Using $XCODE"
+          sudo xcode-select -s "$XCODE/Contents/Developer"
+          xcodebuild -version
+
+      - name: Bundle a fresh timetable
+        run: |
+          python3 tools/build_schedule.py --output Departures/Resources/schedule.json \
+            || echo "::warning title=Timetable::Couldn't build a fresh timetable; using the committed copy"
+
+      - name: Build
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project Departures.xcodeproj \
+            -scheme Departures \
+            -configuration Debug \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            build 2>&1 | tee build.log | grep -E "error:|BUILD (SUCCEEDED|FAILED)" || true
+          test -d build/Build/Products/Debug-iphonesimulator/Departures.app
+
+      - name: Boot a simulator
+        id: sim
+        run: |
+          python3 .github/scripts/pick_simulator.py > sim.txt
+          read -r RUNTIME TYPE NAME < sim.txt
+          echo "Simulator: $NAME on $RUNTIME"
+          UDID=$(xcrun simctl create media "$TYPE" "$RUNTIME")
+          xcrun simctl boot "$UDID"
+          xcrun simctl bootstatus "$UDID" -b > /dev/null
+          echo "udid=$UDID" >> "$GITHUB_OUTPUT"
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "runtime=$RUNTIME" >> "$GITHUB_OUTPUT"
+          xcrun simctl install "$UDID" build/Build/Products/Debug-iphonesimulator/Departures.app
+          xcrun simctl privacy "$UDID" grant location "$BUNDLE_ID" || true
+          # Standing outside Union Station.
+          xcrun simctl location "$UDID" set 43.6453,-79.3806
+          xcrun simctl ui "$UDID" appearance dark
+          xcrun simctl status_bar "$UDID" override --time "9:41" --batteryState charged \
+            --batteryLevel 100 --cellularBars 4 --wifiBars 3 || true
+
+      - name: Record
+        env:
+          UDID: ${{ steps.sim.outputs.udid }}
+        run: |
+          mkdir -p media
+          log() { echo "$(date -u +%H:%M:%S) $*" | tee -a media/log.txt; }
+          launch() {
+            xcrun simctl terminate "$UDID" "$BUNDLE_ID" > /dev/null 2>&1 || true
+            sleep 1
+            xcrun simctl launch "$UDID" "$BUNDLE_ID" -homeStation OA -workStation UN "$@" > /dev/null
+          }
+          # A clip: recording starts a second before the app does, and runs `seconds`.
+          clip() {
+            name=$1; seconds=$2; shift 2
+            xcrun simctl terminate "$UDID" "$BUNDLE_ID" > /dev/null 2>&1 || true
+            sleep 1
+            xcrun simctl io "$UDID" recordVideo --codec=h264 --force "raw-$name.mp4" > /dev/null 2>&1 &
+            recorder=$!
+            sleep 1
+            log "clip $name: launched"
+            xcrun simctl launch "$UDID" "$BUNDLE_ID" -homeStation OA -workStation UN "$@" > /dev/null
+            sleep "$seconds"
+            kill -INT "$recorder" 2> /dev/null || true
+            wait "$recorder" || true
+            # About 500 by 1080 (full size is tens of MB), with macOS's own converter.
+            avconvert --source "raw-$name.mp4" --output "media/$name.mp4" --preset Preset1920x1080 > /dev/null 2>&1 \
+              || mv "raw-$name.mp4" "media/$name.mp4"
+            ls -l "media/$name.mp4" || true
+          }
+          shot() {
+            name=$1; wait=$2; shift 2
+            launch "$@"
+            sleep "$wait"
+            xcrun simctl io "$UDID" screenshot --type=png "media/$name.png" > /dev/null 2>&1
+            log "shot $name"
+          }
+          # The first launch warms up the map's tiles.
+          shot map 20 -debugScene map
+          # Every train running now, live, on the map (sped up afterwards).
+          shot trains 25 -debugScene allTrains -showsAllTrains YES
+          clip trains 45 -debugScene allTrains -showsAllTrains YES
+          # Union's board, then a train's stops over it.
+          shot board 12 -debugScene station
+          shot board-large 10 -debugScene stationLarge
+          shot board-sample 8 -debugScene boardSample
+          clip board 12 -debugScene station
+          shot trip 15 -debugScene trip
+          shot trip-late 15 -debugScene trip -debugLate 24 -debugTripAlert YES
+          shot trip-late-end 15 -debugScene trip -debugLate 24 -debugTripAlert YES -tripScrollToEnd YES
+          clip trip 18 -debugScene trip
+          # A train tracked from the home board: the map follows it.
+          shot tracked 25 -debugScene trackedTrip
+          clip tracked 45 -debugScene trackedTrip
+          # Trips planned from search, as on a weekday morning, and one tracked.
+          MORNING=$(python3 -c "
+          import datetime, zoneinfo
+          tz = zoneinfo.ZoneInfo('America/Toronto')
+          day = datetime.datetime.now(tz).date() + datetime.timedelta(days=1)
+          while day.weekday() >= 5:
+              day += datetime.timedelta(days=1)
+          print(datetime.datetime(day.year, day.month, day.day, 7, 50, tzinfo=tz).isoformat())")
+          shot plan 14 -debugScene tripPlan -debugNow "$MORNING"
+          shot plan-open 14 -debugScene tripPlan -debugNow "$MORNING" -planOpenFirst YES -planLarge YES
+          shot plan-change 14 -debugScene tripPlan -debugNow "$MORNING" -planTo UI -debugLocation 43.5560,-79.5869 \
+            -planOpenFirst YES
+          clip plan 14 -debugScene tripPlan -debugNow "$MORNING" -planOpenFirst YES
+          shot journey 22 -debugScene trackedJourney -debugNow "$MORNING" -debugLocation 43.5560,-79.5869
+          # The Live Activity: track a train, then switch to Settings; the island
+          # shows it, and expands with the app's alert a few seconds later.
+          xcrun simctl terminate "$UDID" "$BUNDLE_ID" > /dev/null 2>&1 || true
+          sleep 1
+          xcrun simctl launch "$UDID" "$BUNDLE_ID" -debugScene liveActivity -homeStation OA -workStation UN > /dev/null
+          log "live activity: launched"
+          sleep 22
+          xcrun simctl io "$UDID" recordVideo --codec=h264 --force raw-island.mp4 > /dev/null 2>&1 &
+          recorder=$!
+          sleep 1
+          xcrun simctl launch "$UDID" com.apple.Preferences > /dev/null
+          log "live activity: switched to Settings"
+          for i in 1 2 3 4 5 6 7 8 9 10; do
+            sleep 0.7
+            xcrun simctl io "$UDID" screenshot --type=png "media/island-$i.png" > /dev/null 2>&1
+          done
+          sleep 8
+          kill -INT "$recorder" 2> /dev/null || true
+          wait "$recorder" || true
+          avconvert --source raw-island.mp4 --output media/island.mp4 --preset Preset1920x1080 > /dev/null 2>&1 \
+            || mv raw-island.mp4 media/island.mp4
+          xcrun simctl terminate "$UDID" com.apple.Preferences > /dev/null 2>&1 || true
+          # Its views drawn in the app: Lock Screen, compact, minimal, expanded.
+          shot lock-screen 8 -debugScene activityGallery -galleryLockScreen YES
+          shot activity-gallery 8 -debugScene activityGallery
+          shot activity-journey 8 -debugScene activityGallery -gallerySection journey
+          # The map in light mode too.
+          xcrun simctl ui "$UDID" appearance light
+          shot map-light 12 -debugScene allTrains -showsAllTrains YES
+          shot board-light 12 -debugScene station
+          xcrun simctl ui "$UDID" appearance dark
+          ls -l media
+
+      - name: Publish
+        if: always() && steps.sim.outputs.udid != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NAME: ${{ steps.sim.outputs.name }}
+          RUNTIME: ${{ steps.sim.outputs.runtime }}
+        run: |
+          cd media
+          printf '# README media, as recorded\n\n%s (%s), commit %s (run %s), %s Toronto time.\n' \
+            "${NAME//_/ }" "${RUNTIME##*.}" "$GITHUB_SHA" "$GITHUB_RUN_ID" "$(TZ=America/Toronto date '+%a %Y-%m-%d %H:%M')" > README.md
+          git init -q -b readme-media-raw
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -qm "README media for ${GITHUB_SHA}"
+          git push -qf "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:readme-media-raw
+          echo "::notice title=README media::$(ls | wc -l | tr -d ' ') files pushed to readme-media-raw"
