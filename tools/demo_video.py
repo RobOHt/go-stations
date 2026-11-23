@@ -37,7 +37,7 @@ ENCODE = ["-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "y
 # pick them from the recording each time it's redone.
 SCENES = [
     {"kind": "title", "length": 3.2},
-    {"kind": "clip", "source": "union-trains", "start": 5, "length": 60, "speed": 10,
+    {"kind": "clip", "source": "union-trains", "start": 4, "length": 72, "speed": 12,
      "eyebrow": "Live map", "title": "Every GO train, live",
      "body": "Each train moves along the real track from GO's GPS feed, and fades out a minute after its last stop."},
     {"kind": "clip", "source": "trip", "start": 5, "length": 8.5, "speed": 1,

@@ -50,7 +50,7 @@ SCREENS = {
 # move slowly at the scale of the network.
 CLIPS = [
     ("trains", 5, 36, 8, 320, 12),
-    ("union-trains", 5, 80, 10, 320, 12),
+    ("union-trains", 4, 84, 10, 320, 12),
     ("trip", 5, 8, 1, 320, 12),
     ("tracked", 5.6, 4.6, 1, 320, 12),
     ("plan", 10.6, 5, 1, 320, 12),

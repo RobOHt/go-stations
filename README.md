@@ -42,18 +42,18 @@ The full tour, screen by screen: [docs/FEATURES.md](docs/FEATURES.md).
 
 <table>
   <tr>
+    <td align="center" width="33%"><img src="docs/media/union-trains.gif" alt="Rush hour around Union Station: GO trains moving along their lines, live"><br><b>Every train, live</b></td>
     <td align="center" width="33%"><img src="docs/media/trip.gif" alt="From the map to Union Station's board to a train's stops, with platforms"><br><b>Map, board, a train's stops</b></td>
     <td align="center" width="33%"><img src="docs/media/plan.gif" alt="A trip to Oakville planned from search, offered to track"><br><b>A trip planned from search</b></td>
-    <td align="center" width="33%"><img src="docs/media/tracked.gif" alt="A tracked train followed on the map along Lake Ontario"><br><b>A tracked train, followed</b></td>
   </tr>
   <tr>
+    <td align="center"><img src="docs/media/tracked.gif" alt="A tracked train followed on the map along Lake Ontario"><br><b>A tracked train, followed</b></td>
     <td align="center"><img src="docs/media/journey.png" alt="A trip with a change, tracked from search, offering alerts before each step"><br><b>A whole trip, tracked</b></td>
-    <td align="center"><img src="docs/media/plan-change.png" alt="A trip with a change at Union, with each train and how long to change"><br><b>Trips with changes</b></td>
     <td align="center"><img src="docs/media/map-light.png" alt="The network map in light mode, every line in its colour"><br><b>Light or dark</b></td>
   </tr>
 </table>
 
-<sub>Recorded at a weekday rush hour in the iOS simulator by the <a href=".github/workflows/readme-media.yml">README media workflow</a>, from GO's live data, with the made-up commuter the tests use (home Oakville, work Union) and, in the screenshots at the top, a made-up delay, cancellation and alert. Full quality: <a href="docs/media/trip.mp4">board and stops</a> · <a href="docs/media/plan.mp4">trip planning</a> · <a href="docs/media/tracked.mp4">tracking</a>.</sub>
+<sub>Recorded at a weekday rush hour in the iOS simulator by the <a href=".github/workflows/readme-media.yml">README media workflow</a>, from GO's live data, with the made-up commuter the tests use (home Oakville, work Union) and, in the screenshots at the top, a made-up delay, cancellation and alert. Full quality: <a href="docs/media/union-trains.mp4">every train</a> · <a href="docs/media/trip.mp4">board and stops</a> · <a href="docs/media/plan.mp4">trip planning</a> · <a href="docs/media/tracked.mp4">tracking</a>.</sub>
 
 ## How it's built
 
