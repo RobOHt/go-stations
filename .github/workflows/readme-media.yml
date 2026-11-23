@@ -54,6 +54,12 @@ jobs:
             build 2>&1 | tee build.log | grep -E "error:|BUILD (SUCCEEDED|FAILED)" || true
           test -d build/Build/Products/Debug-iphonesimulator/Departures.app
 
+      - name: Install ffmpeg
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: "1"
+          HOMEBREW_NO_INSTALL_CLEANUP: "1"
+        run: command -v ffmpeg || brew install ffmpeg
+
       - name: Boot a simulator
         id: sim
         run: |
@@ -98,10 +104,14 @@ jobs:
             sleep "$seconds"
             kill -INT "$recorder" 2> /dev/null || true
             wait "$recorder" || true
-            # About 500 by 1080 (full size is tens of MB), with macOS's own converter.
-            avconvert --source "raw-$name.mp4" --output "media/$name.mp4" --preset Preset1920x1080 > /dev/null 2>&1 \
-              || mv "raw-$name.mp4" "media/$name.mp4"
-            ls -l "media/$name.mp4" || true
+            shrink "$name"
+          }
+          # 600 wide (full size is about 1 MB a second, too much to push).
+          shrink() {
+            ffmpeg -v error -y -i "raw-$1.mp4" -vf "scale=600:-2:flags=lanczos" -an -c:v libx264 -preset veryfast \
+              -crf 26 -pix_fmt yuv420p -movflags +faststart "media/$1.mp4" || echo "::warning::couldn't shrink $1"
+            rm -f "raw-$1.mp4"
+            log "clip $1: $(ls -l "media/$1.mp4" 2> /dev/null | awk '{print $5}') bytes"
           }
           shot() {
             name=$1; wait=$2; shift 2
@@ -157,11 +167,11 @@ jobs:
             sleep 0.7
             xcrun simctl io "$UDID" screenshot --type=png "media/island-$i.png" > /dev/null 2>&1
           done
+          log "live activity: shots taken"
           sleep 8
           kill -INT "$recorder" 2> /dev/null || true
           wait "$recorder" || true
-          avconvert --source raw-island.mp4 --output media/island.mp4 --preset Preset1920x1080 > /dev/null 2>&1 \
-            || mv raw-island.mp4 media/island.mp4
+          shrink island
           xcrun simctl terminate "$UDID" com.apple.Preferences > /dev/null 2>&1 || true
           # Its views drawn in the app: Lock Screen, compact, minimal, expanded.
           shot lock-screen 8 -debugScene activityGallery -galleryLockScreen YES
