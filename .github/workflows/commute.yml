@@ -12,6 +12,13 @@ on:
       - "tools/commute_reference.py"
       - "tools/commute_check/**"
       - ".github/workflows/commute.yml"
+  pull_request:
+    paths:
+      - "Departures/Planner/**"
+      - "Departures/Resources/network.json"
+      - "tools/commute_reference.py"
+      - "tools/commute_check/**"
+      - ".github/workflows/commute.yml"
   workflow_dispatch:
 
 concurrency:

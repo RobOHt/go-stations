@@ -398,7 +398,8 @@ struct TripActivityGallery: View {
     }
 }
 
-/// A card that says how tall its content is, in red when that's over `limit`.
+/// A card that says how tall its content is, in red when that's over `limit`
+/// (`-galleryClean YES`: without saying, for the README's screenshots).
 private struct MeasuredCard<Content: View>: View {
     let limit: CGFloat
     @ViewBuilder let content: Content
@@ -408,13 +409,15 @@ private struct MeasuredCard<Content: View>: View {
         content
             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height = $0 }
             .overlay(alignment: .topTrailing) {
-                Text("\(Int(height.rounded())) pt")
-                    .font(.system(size: 10, weight: .bold).monospacedDigit())
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 5)
-                    .padding(.vertical, 1)
-                    .background(height > limit ? Color.red : Color.green.opacity(0.8), in: Capsule())
-                    .offset(x: 4, y: -6)
+                if !UserDefaults.standard.bool(forKey: "galleryClean") {
+                    Text("\(Int(height.rounded())) pt")
+                        .font(.system(size: 10, weight: .bold).monospacedDigit())
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 1)
+                        .background(height > limit ? Color.red : Color.green.opacity(0.8), in: Capsule())
+                        .offset(x: 4, y: -6)
+                }
             }
     }
 }

@@ -1,0 +1,33 @@
+name: Feature or design proposal
+description: Something the app could do for riders, or a change to how it looks or behaves.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Changes to how the app looks or behaves start here, as a proposal: agree on the design before writing the code. Please **leave out personal details** (no home or work stations, commutes or locations).
+  - type: textarea
+    id: problem
+    attributes:
+      label: The rider's problem
+      description: What's hard or missing today, and when it comes up.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: What the app should do. For anything visible, a sketch, mockup or simulator screenshots.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Other ways
+      description: Other designs you considered, and why this one.
+  - type: checkboxes
+    id: data
+    attributes:
+      label: Data
+      options:
+        - label: This needs no new requests to Metrolinx, or I've described the new ones above (which feed, how often).

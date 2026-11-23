@@ -31,6 +31,10 @@ on:
       - "DeparturesUITests/**"
       - ".github/workflows/tests.yml"
       - ".github/scripts/test_report.py"
+      - ".github/workflows/readme-media.yml"
+      - ".github/ISSUE_TEMPLATE/**"
+      - ".github/PULL_REQUEST_TEMPLATE.md"
+      - "docs/**"
   workflow_dispatch:
 
 concurrency:

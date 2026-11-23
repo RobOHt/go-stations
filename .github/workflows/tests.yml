@@ -2,8 +2,9 @@ name: Tests
 
 # The app's unit tests (DeparturesTests: GO's feeds failing, frozen or oddly shaped,
 # played by a stand-in, plus the self-checks) and UI tests (DeparturesUITests), on an
-# iOS simulator. Run by the TestFlight workflow before every upload, and here on
-# pushes to other branches, pull requests, or by hand.
+# iOS simulator; and the Worker's tests (worker/test). Run by the TestFlight
+# workflow before every upload, and here on pushes to other branches, pull
+# requests, or by hand.
 on:
   push:
     branches-ignore: [main]
@@ -13,6 +14,7 @@ on:
       - "DeparturesUITests/**"
       - "DeparturesWidgets/**"
       - "Departures.xcodeproj/**"
+      - "worker/**"
       - ".github/workflows/tests.yml"
       - ".github/scripts/test_report.py"
   pull_request:
@@ -29,6 +31,18 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  worker:
+    name: Worker tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Test
+        run: node --test worker/test/*.test.js
+
   test:
     name: Unit and UI tests (iOS Simulator)
     runs-on: xcode-27

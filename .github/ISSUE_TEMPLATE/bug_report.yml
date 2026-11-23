@@ -1,0 +1,51 @@
+name: Bug report
+description: Something in the app or the Worker doesn't work the way a rider would expect.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. Please **leave out personal details**: no home or work stations, commutes, locations or contact details, in the text or in screenshots. Use the made-up commuter from the tests (home Oakville, work Union) if you need an example, and crop or blur anything personal. Security problems go through [SECURITY.md](https://github.com/RobOHt/go-stations/blob/main/SECURITY.md), not here.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What goes wrong, in a sentence or two.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: What you did, step by step. Which screen, which station or train (a public station or trip number is fine), and when.
+      placeholder: |
+        1. Open Union Station's board
+        2. Tap the 17:13 Lakeshore West train
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected
+      description: What a rider should see.
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual
+      description: What happened instead. Screenshots or a screen recording help (no personal details).
+    validations:
+      required: true
+  - type: input
+    id: build
+    attributes:
+      label: Build and device
+      description: The TestFlight build number (Settings → About in TestFlight) or commit, the iPhone and iOS version.
+      placeholder: "Build 135, iPhone Air, iOS 27.1"
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything else
+      description: Was GO's own departures page or app showing the same thing? Likely code areas, if you know them.

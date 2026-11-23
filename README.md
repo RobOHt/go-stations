@@ -1,118 +1,140 @@
+<div align="center">
+
+<img src="docs/media/icon.png" width="104" alt="">
+
 # GO Stations
 
-A tiny native iOS app that puts the GO Transit station departure board in your pocket. (The Xcode project and target are named `Departures`; the app shows up as **GO Stations** on your home screen.) It runs on iOS 18 and later, in Liquid Glass from iOS 26; on iOS 18 the controls are frosted, as iOS drew them then.
+**GO Transit's departure boards, every train live on the map, and your train on the Lock Screen.**<br>
+A native iOS app for people who ride GO trains, with a small serverless backend.
 
-- **Map first.** Apple Maps with every GO rail line drawn thick in its official colour, and every station a dot with a pin standing on it, its name on a tag you tap to open it (home and work in blue and brown). Where the stations crowd together, the ones that matter most keep their pins: the one you have open, home, work, Union, then where lines meet and end, then the stations the most trains stop at. Pins are laid out for the whole network at each zoom, so they stay put as the map moves, coming on and off the screen with it like the map's own names, and change only as you zoom in or out, open a station, or move. They sit above the trains so a passing train never hides a name, and make way for your location: standing at a station, its pin hangs below the dot instead. Every change animates: pins pop up out of their dots and sink back in, slide aside with their point staying on the dot, and fade to a new look as you zoom or open a station; a pin keeps its side of the dot while it still fits there.
-- **Search for a station or where you're going.** Type a station or a place (anything Apple Maps finds) and pick it. A station opens its board, as on the map, with *Get here* in its bar at the bottom (left out when you're at the station or it's the one nearest you). *Get here*, a place, or a recent trip opens a card that shows how to get there by train, starting from the station you'd get there soonest from (on foot if one is within a 10-minute walk, otherwise by car, counting 5 minutes a change), or one you pick, with a week strip to plan another day. Today, near enough to set off, it offers the trip you'd make: "This trip will get you to Union Station in 1 h 5 min", track it or not. Below it, the day's trips, changes and all (up to two), each with its trains, how long to change, and for a place the walk at the end; the trips that leave earlier but get you there no sooner are left out, and today's go round trains GO has cancelled (or that won't stop where you'd get on or off). The map draws the trip you open in its lines' colours over the dimmed network, with its stations' names. Opened from a board, the card has a button back to it. Where you planned trips to lately is listed when you start typing.
-- **Tap a station, get the board.** A native bottom sheet opens with the departure screen as it looks in the station: same bilingual title, the Scheduled · Line · Platform headings as on GO's departures page, colours, line badges, ⚡ express marker, platform numbers with ♿, red cancellations, and Union's countdown to each train's platform, short as on GO's own departures page ("29m", "-" for a train over an hour away). Adapted for portrait so nothing scrolls sideways: each train's stops go on one line under where it's going, in a quieter grey so the time, line and platform stand out, and the board starts right under the station's name, so the next few trains show at half height. With your home or work set, every board can show just the trains going your way: *Toward work*, *Toward home* or *All directions*, picked from a menu in its bar. Your home board starts out toward work and your work board toward home; a station on the way between them toward work on weekday mornings and toward home otherwise (afternoons, evenings, weekends); any other station, all directions. The day, which way, and *Get here* sit in a bar at the bottom, where thumbs are: the day on the left, which way and *Get here* on the right, each in its own glass where iOS puts a toolbar's items (in from the screen's rounded corners), with the board scrolling under them through the soft scroll edge. The bar stays put as the sheet goes to full height and back (iOS's own bottom toolbar dropped off the screen on the way up).
-- **Opens to the right board.** Set a home and a work station. On launch the app opens the board you most likely want, worked out on the phone from the timetable, so it's instant:
-  - at home or work (within 1 km of the station), that station;
-  - on a train of your commute (judged from where the timetable puts the trains), where you get off it: the next station where you change (even going past home or work on the way there), or on the last train, home or work;
-  - near home or work otherwise, that station;
-  - anywhere else, the station you'd get home from soonest (on weekday mornings, to work), on foot if one is within a 10-minute walk, otherwise by car.
+[![TestFlight](https://github.com/RobOHt/go-stations/actions/workflows/testflight.yml/badge.svg?branch=main)](https://github.com/RobOHt/go-stations/actions/workflows/testflight.yml)
+[![Worker](https://github.com/RobOHt/go-stations/actions/workflows/worker.yml/badge.svg?branch=main)](https://github.com/RobOHt/go-stations/actions/workflows/worker.yml)
+[![Commute check](https://github.com/RobOHt/go-stations/actions/workflows/commute.yml/badge.svg?branch=main)](https://github.com/RobOHt/go-stations/actions/workflows/commute.yml)
+<br>
+![iOS 18+](https://img.shields.io/badge/iOS-18%2B-000000?logo=apple&logoColor=white)
+![Swift](https://img.shields.io/badge/Swift-SwiftUI%20%C2%B7%20MapKit%20%C2%B7%20ActivityKit-F05138?logo=swift&logoColor=white)
+![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers%20%C2%B7%20Durable%20Objects-F38020?logo=cloudflare&logoColor=white)
+![Dependencies](https://img.shields.io/badge/third--party%20dependencies-none-2EA44F)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-  With neither set, it opens the nearest station (up to 25 km away), and a hint on the board says how to make it home or work.
-- **Any day this week.** The day button in each board's bottom bar has today and the next seven days: pick one for that day's trains, all day, as timetabled. The day stays picked for every board you open after it, until you tap Today (or come back to the app later). Today's board runs on past the live trains to the rest of the day's. A day with more than ten trains can narrow to its morning (to 11:00), noon (to 14:00) or afternoon (to the last train), in the same menu.
-- **Your direction.** With home and work set, your home station's board shows only the trains toward work, and your work station's only the ones toward home (or toward where you change, like Union). The button in the board's bottom bar ("Toward work") switches to every direction.
-- **Track a train.** Tap *Track this train* on a train's stops. It moves along its line on the map where it really is, with a pointer showing which way it's going (one pin with your location when you're on it), a button bottom left opens it again, and a Live Activity on the Lock Screen and in the Dynamic Island counts down to its next stop, with the stops either side of it. Tracked from your station's board, it first counts down to the train getting to you ("Your Lakeshore East line 08:12 westbound train to Union Station will arrive in 6 minutes"). "Arrived" shows while the train actually stands at a station, from when it's seen pulling in to when it's seen leaving, and the stops ahead are as late as the train runs. A train's stops show how fast it's going: the speed the map draws it moving at. Running late, they say how late beside which way it goes ("25 min late") and each stop's new time, kept current while they're open (to the end of its run, where Metrolinx leaves the time blank), with GO's disruptions on its line after them ("Signal issue near Port Credit GO"), as on a station's board. With push set up (step 5 below), the Worker follows the train while it runs and pushes the Live Activity an update when it pulls in at a stop or leaves one, so it keeps up with the app closed. A trip tracked from search follows the whole trip in one Live Activity: where to change and to which train, then the next train once you're there. When GO cancels the train (or it won't stop where you get on or off), the Live Activity says *Cancelled* in place of the countdown, with the next train from your station to your stop once the app finds one, and you're told (unless you asked not to be): by the Worker with the Live Activity when the app is closed. It goes back to normal if GO puts the train back on, and ends a few minutes after the train was due. On a trip with changes, the train you'd change to is looked up too: cancelled (or not stopping where you change to it or get off it), the Live Activity's change line says so ("Your 08:10 from Union is cancelled"), you're told before you get there, and the trip card offers *Plan another way*: the trips from where you change, after you get there.
-- **Alerts.** Tracking a trip asks whether you want to be told: 5 minutes before your train leaves if you're not at the station yet (taken back once you get there, which needs Always location), and 5 minutes before you change and before your stop (sent by the Worker with the Live Activity, timed by where the train really is; scheduled on the phone by the timetable when it can't). Once you've said yes, trains tracked from a board get them too.
-- **Every train at once.** The map shows every train running now moving along its line (turn off *Show all trains* in Settings for just the one you track), from GO's live train positions (the timetable when those aren't available). Trains fade in as they set off and fade out a minute after their last stop. Tap one for its stops.
-- **No accounts, no ads.** Home/work sync through iCloud key-value storage. Live data comes from Metrolinx through a tiny Cloudflare Worker that holds the API key, so nothing secret ships in the app.
+<!-- SHOWCASE -->
 
-Trains only for now.
+</div>
 
-## Setup
+## What it does
 
-1. **Metrolinx API key** (free): <https://api.openmetrolinx.com/OpenDataAPI/Help/Registration/en>. Approval is manual and can take a few business days.
-2. **Cloudflare** (free): create an API token from the *Edit Cloudflare Workers* template. Add these GitHub repository secrets:
-   - `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`
-   - `METROLINX_API_KEY`, which the Worker workflow stores as a Worker secret
-3. **App Store Connect** (for TestFlight builds from GitHub): create an API key with the Admin role and add `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_P8` and `APPLE_TEAM_ID`.
-4. Point `ProxyConfig.baseURL` (in `Departures/API/MetrolinxClient.swift`) at your Worker.
-5. **Live Activity push updates** (optional): in your Apple Developer account, create a key with *Apple Push Notifications service* (Sandbox & Production, Team Scoped) and turn on *Push Notifications* for the app's identifier. Add `APNS_KEY_P8` (the whole .p8 file) and `APNS_KEY_ID`; the Worker workflow stores them as Worker secrets, and TestFlight builds then get push tokens. The Worker keeps a tracked trip's push token and stop times only until the trip ends.
+- **The board, as it looks in the station.** Tap a station for its departure screen in your pocket: GO's bilingual title, line colours, platforms with ♿, the ⚡ express marker, delays, red cancellations, and Union's countdown to each train's platform ("29m").
+- **Every train, live.** The map draws every GO train running now, moving along its real track from GO's GPS feed, and fading out a minute after its last stop. Tap one for its stops, how late it is, and how fast it's going.
+- **Track a train, even with the app closed.** A Live Activity on the Lock Screen and in the Dynamic Island counts down to your train, then to your stop, updated by push as the train pulls in and leaves each station. Alerts come 5 minutes before you change trains or get off.
+- **Plan a trip anywhere.** Search a station or any place Apple Maps knows: the card offers the trip you'd make right now, changes and all, starting from the station that gets you there soonest, and the rest of the day's trips.
+- **Opens to the right board.** With home and work set, launch opens the board you most likely want (at home, on your commute, near work), worked out on the phone from the timetable, so it's instant.
+- **Honest when GO's data isn't.** Cancellations come from two GO feeds read together; when live data is down or frozen, the app falls back to the timetable and says so.
 
-Every push to `main` builds the app and uploads it to TestFlight. Changes under `worker/` redeploy the Worker.
+The full tour, screen by screen: [docs/FEATURES.md](docs/FEATURES.md).
 
-To build locally instead, open `Departures.xcodeproj` in Xcode 26 or later, pick your team under *Signing & Capabilities*, and run.
+<!-- DEMOS -->
 
-## How it works
+## How it's built
 
-| What | Where it comes from |
+```mermaid
+flowchart LR
+    subgraph phone["iPhone"]
+        app["GO Stations app<br/>SwiftUI · MapKit"]
+        activity["Live Activity<br/>Lock Screen · Dynamic Island"]
+    end
+    subgraph cloudflare["Cloudflare"]
+        worker["Worker<br/>proxy · edge cache · rate limits"]
+        follower["Durable Object<br/>follows tracked trains"]
+    end
+    metrolinx[("Metrolinx Open Data<br/>REST · GTFS-Realtime")]
+    apns["Apple Push<br/>Notification service"]
+
+    app -- "boards, trips, live trains" --> worker
+    worker -- "adds the API key" --> metrolinx
+    app -- "track this train" --> follower
+    follower -- "where is it? every 20 s" --> metrolinx
+    follower -- "updates and alerts" --> apns
+    apns --> activity
+```
+
+The app does the planning and drawing on the phone. A Cloudflare Worker sits between it and Metrolinx: it holds the API key, caches answers at the edge so riders share requests, merges GO's position and delay feeds, and follows each tracked train to push its Live Activity. More in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+### Engineering highlights
+
+- **Live Activities that keep up with the app closed.** A Durable Object looks at each tracked train every 20 seconds, notes when it pulls in at a stop and leaves it, re-times the stops ahead from how late it's running, and pushes the Live Activity through APNs only when something changed, with an alert when you're 5 minutes from your change or stop. On a trip with changes, the next train takes over in the same Live Activity.
+- **Built for unreliable data.** Transit feeds freeze for days, answer with web pages, and change shape. Tests written from a rider's point of view, before reading the code, plus thousands of rounds of seeded random junk, turned up 38 failures in the existing code; all are fixed. One odd value no longer throws away a whole answer, and one broken trip can't hold up every rider's Live Activity.
+- **Trains that move like trains.** GO reports positions every ~20 seconds, 5 to 15 seconds late. The map draws each train 5 seconds behind now along the real track geometry, through its reported positions, braking for stations, so it never jumps or goes backwards.
+- **Checked against an independent model.** The start-up planner is written twice, in Swift for the app and in Python as a reference; CI compares them on thousands of random situations on the real timetable, daylight saving changes included.
+- **No secrets in the app, no third-party dependencies.** Keys live only in Worker and CI secrets. The app uses Apple's frameworks only, and the Worker only Cloudflare's runtime and Node's built-in test runner.
+- **Every push ships, once it's proven.** A push to `main` runs 49 app tests on a simulator (unit tests, UI tests driven with made-up feeds, an accessibility audit), and only then archives and uploads to TestFlight. The Worker deploys after its 72 tests pass.
+
+### Tech stack
+
+| | |
 | --- | --- |
-| Lines, colours, track shapes, stations | `Departures/Resources/network.json`, generated from the official GO GTFS feed |
-| Live data | the Worker in `worker/`, which forwards to Metrolinx Open Data with the key and caches answers for 20 s to 10 min |
-| Live train positions | GO's GTFS vehicle positions (every ~20 s: where each train is, and whether it's standing at a station) with Service at a Glance's delays, merged by the Worker (`/v1/live/trains`, cached 5 s). The map draws each train 5 seconds behind now: on a smooth curve through the places it was reported along the track, and past the latest report (GO's come about every 20 s, 5 to 15 s after the fact) carried on at its pace, braking for the station ahead. The drawn train eases from one guess to the next, speeding up and slowing down no harder than a train does, so it never jumps or goes back |
-| Union Station board | `ServiceUpdate/UnionDepartures/All` (platforms, "Express To" stop lists) |
-| Other stations | `Stop/NextService/{station}` plus `Schedule/Trip/{date}/{trip}` for the stop list (cached per day) |
-| Delays | `ComputedDepartureTime` vs `ScheduledDepartureTime` from NextService |
-| Cancellations | GO's GTFS trip updates (trips cancelled, stations skipped) and `ServiceUpdate/Exceptions/Train`, read together by the Worker (`/v1/live/cancelled`, cached 30 s), since either has had a cancellation the other hadn't; a station's own board too (`NextService`). Reasons from `ServiceUpdate/ServiceAlert/All`. A train's stops mark the stations it won't stop at |
-| Station alerts under the board | `ServiceUpdate/ServiceAlert/All`, filtered to the station's lines |
-| Fallback when live data is unavailable | `schedule.json`: the next 14 days of trains from GO's GTFS, rebuilt daily on the `schedule-data` branch and bundled into each build (`tools/build_schedule.py`) |
+| **App** | Swift, SwiftUI, MapKit, ActivityKit and WidgetKit (Live Activity, Dynamic Island), Core Location, iCloud key-value storage |
+| **Backend** | Cloudflare Workers, Durable Objects with alarms, edge caching, rate limiting, APNs with token auth |
+| **Data** | Metrolinx Open Data API, GO GTFS and GTFS-Realtime (vehicle positions, trip updates) |
+| **Testing** | Swift Testing, XCTest and XCUITest, Node's test runner, a Python reference model |
+| **Delivery** | GitHub Actions, App Store Connect API, TestFlight |
 
-The board refreshes every 20 seconds while it's open (matching the Worker's cache) and right away when you come back to the app. Live train positions refresh every 5 seconds while the map shows the tracked train or all trains (every 15 seconds while a train's stops are open), so each report is in soon after GO has it. It stops when you close it, so the app makes no requests in the background (apart from one check, a while after a tracked train is due at your stop, to end its Live Activity). Metrolinx has no push feed, so polling is as fresh as it gets.
-
-Express trips are detected from the trip's stop list: if it skips two or more stations in a row that the line's all-stops pattern serves, it gets the ⚡. At Union the feed marks them directly.
-
-## Updating the network data
-
-GTFS changes every few weeks, but tracks and stations rarely do. When a line or station changes:
+## Getting started
 
 ```sh
-python3 tools/build_network.py            # downloads the official GO-GTFS.zip
-# or
-python3 tools/build_network.py --input path/to/GO-GTFS.zip
+git clone https://github.com/RobOHt/go-stations.git
+cd go-stations
+open Departures.xcodeproj    # Xcode 26 or later: pick your team, then Run
 ```
 
-## Tests
+The app works out of the box against the project's Worker. To run your own Worker, push updates and TestFlight builds, see [docs/SETUP.md](docs/SETUP.md).
 
-GO's feeds aren't always right, so most tests are about what a rider should see
-when they aren't: a feed down, frozen for days, sending a web page or half an
-answer, the same thing in another shape (a number where there's usually text, one
-train where there's usually a list, junk among the trains), trains twice or out of
-order, positions stale or impossible.
+### Running the tests
 
 ```sh
-node --test worker/test/*.test.js   # the worker, in a few seconds, no network
+node --test worker/test/*.test.js    # the Worker: 72 tests, a few seconds, no network
 ```
 
-- `worker/test/robustness.test.js`: the proxy, the live trains and cancellations, and
-  following a tracked train, with bad data; then thousands of seeded rounds of random
-  junk, checking every train, cancellation and push is one the app can read and show.
-- `DeparturesTests/` (in Xcode, Product → Test): the app's boards, a train's stops,
-  live positions, cancellations and alerts, read through a stand-in for the worker
-  (`FakeNetwork`), plus the self-checks of the tracking logic.
-- `DeparturesUITests/`: the app driven like a rider, with made-up feeds the app
-  serves itself in debug builds (`GO_FIXTURES`, see `GOFixtures`), and an
-  accessibility audit.
+In Xcode, **Product → Test** runs the app's 49 unit and UI tests. Most of them are about what a rider should see when GO's data is wrong: a feed down or frozen, a web page instead of data, numbers where there's usually text, one train where there's usually a list, trains twice or out of order, impossible positions.
 
-The Tests workflow runs the app's tests on a simulator for other branches and pull
-requests; the TestFlight workflow runs them before every upload, and uploads only
-when they pass.
-
-## Project layout
+## Repository layout
 
 ```
-Departures/
-  App/          entry point
-  API/          Metrolinx client, response types, board assembly
-  Board/        the departure board view, theme, refresh model
-  Model/        bundled rail network, board row types, time helpers
-  Settings/     iCloud KV + Keychain settings
-  Location/     one-shot location
-  Planner/      which board to open on launch, and trips planned from search
-  Tracking/     the tracked train or trip: its button, alerts, its Live Activity (views shared with the widget extension)
-  Views/        map, search, trip card, station sheet, settings
-  Resources/    network.json, asset catalog
-DeparturesWidgets/   widget extension that draws the Live Activity
-DeparturesTests/     unit tests (GO's feeds played by FakeNetwork)
-DeparturesUITests/   UI tests (made-up feeds served by the app)
-worker/              the Cloudflare Worker: proxy, live trains, Live Activity pushes; its tests in worker/test
-tools/build_network.py
-tools/commute_reference.py   the launch logic again in Python; CI checks the app against it
+Departures/            the iOS app (the Xcode target is named Departures)
+  API/                 Metrolinx client, board assembly, live trains, cancellations, timetable
+  Board/               the departure board
+  Planner/             which board to open on launch; trips planned from search
+  Tracking/            the tracked train or trip, its alerts and Live Activity
+  Views/               map, search, trip card, station sheet, settings
+  Model/  App/  Settings/  Location/  Resources/
+DeparturesWidgets/     widget extension that draws the Live Activity
+DeparturesTests/       unit tests (GO's feeds played by FakeNetwork)
+DeparturesUITests/     UI tests (made-up feeds the app serves itself)
+worker/                the Cloudflare Worker and its tests
+tools/                 GTFS → network and timetable; the planner's Python reference
+docs/                  features, architecture, setup, README media
 ```
 
-## Licence
+## Contributing
 
-Code: MIT (see `LICENSE`).
+Contributions are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) first; in short:
 
-Contains information licensed under the [Open Government Licence – Ontario](https://www.ontario.ca/page/open-government-licence-ontario) (Metrolinx GTFS and Open Data API). This project is not affiliated with or endorsed by Metrolinx or GO Transit.
+- **Open an issue first**, and for anything that changes how the app looks or behaves, agree on the design before writing the code.
+- **No personal data and no keys**, anywhere: use the made-up commuter from the tests (home Oakville, work Union) in code, tests and screenshots.
+- **Expect GO's data to be wrong**: for anything that reads it, write the test first, from what a rider should see.
+- **`main` is always releasable**: every merge runs the tests and ships a TestFlight build.
+
+Report security problems privately, as [SECURITY.md](SECURITY.md) describes. Everyone taking part follows the [code of conduct](CODE_OF_CONDUCT.md).
+
+## License
+
+The code is released under the [MIT License](LICENSE).
+
+Contains information licensed under the [Open Government Licence – Ontario](https://www.ontario.ca/page/open-government-licence-ontario) (Metrolinx GTFS and Open Data API). GO Stations is an independent project, not affiliated with or endorsed by Metrolinx or GO Transit.
+
+---
+
+<div align="center">
+
+Built by [Robin Zhong](https://github.com/RobOHt)
+
+</div>

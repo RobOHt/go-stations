@@ -174,9 +174,9 @@ jobs:
           shrink island
           xcrun simctl terminate "$UDID" com.apple.Preferences > /dev/null 2>&1 || true
           # Its views drawn in the app: Lock Screen, compact, minimal, expanded.
-          shot lock-screen 8 -debugScene activityGallery -galleryLockScreen YES
-          shot activity-gallery 8 -debugScene activityGallery
-          shot activity-journey 8 -debugScene activityGallery -gallerySection journey
+          shot lock-screen 8 -debugScene activityGallery -galleryLockScreen YES -galleryClean YES
+          shot activity-gallery 8 -debugScene activityGallery -galleryClean YES
+          shot activity-journey 8 -debugScene activityGallery -gallerySection journey -galleryClean YES
           # The map in light mode too.
           xcrun simctl ui "$UDID" appearance light
           shot map-light 12 -debugScene allTrains -showsAllTrains YES
