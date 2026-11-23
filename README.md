@@ -120,7 +120,7 @@ In Xcode, **Product → Test** runs the app's 49 unit and UI tests. Most of them
 
 ```
 Departures/            the iOS app (the Xcode target is named Departures)
-  API/                 Metrolinx client, board assembly, live trains, cancellations, timetable
+  API/                 Metrolinx client, boards, live trains, cancellations, timetable
   Board/               the departure board
   Planner/             which board to open on launch; trips planned from search
   Tracking/            the tracked train or trip, its alerts and Live Activity
