@@ -711,10 +711,11 @@ struct RootView: View {
             }
             return
         }
-        if let drawn = mapController.trackedTrain {
+        if let drawn = mapController.trackedTrain, drawn.onBoard || mapController.you != nil {
             showTrackedTrain(trip, at: drawn.coordinate, onBoard: drawn.onBoard, reached: drawn.reached)
         } else {
-            // Not drawn yet (just launched, or back after a while away).
+            // Not drawn yet, or the map doesn't have you yet (just launched, or back
+            // after a while away): once the live trains and where you are are in.
             Task { await goToTrackedTrain(trip) }
         }
         openTrip(TripSelection(row: trip.row, station: station, fromBoard: trip.hasStartingStop))

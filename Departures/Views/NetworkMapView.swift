@@ -78,6 +78,30 @@ enum StationRole {
 
 // MARK: - Camera control from SwiftUI
 
+/// Whether you're on the tracked train, by where you are against where the map has it.
+enum OnBoard {
+    /// - wasOn: you were on it at the last look (you stay on through station stops
+    ///   until you leave its line, or it's well away from you).
+    /// - onTrack: you're on its line, within your fix's error.
+    /// - gap: metres along the line between you and where it's drawn.
+    /// - speed: yours, in metres a second (negative: not known); aligned: going its way.
+    /// - pastBoarding: metres along the line you are past where you get on.
+    /// - leftBoarding: it has left where you get on, by its reports.
+    static func check(wasOn: Bool, onTrack: Bool, gap: Double, speed: Double, aligned: Bool,
+                      pastBoarding: Double?, leftBoarding: Bool) -> Bool {
+        guard onTrack else { return false }
+        if wasOn { return gap <= 8000 }
+        guard gap <= 4000 else { return false }
+        // Moving like it, its way.
+        if speed >= 5 { return speed <= 60 && aligned }
+        // Standing still (at a station along the way, or held at a signal) once it has
+        // left where you get on, and well past there: tracking already has you on it,
+        // so where you are is where it is. GO's reports can trail the train by half a
+        // minute or more, so it would otherwise be drawn still coming in behind you.
+        return leftBoarding && (pastBoarding ?? 0) > 500
+    }
+}
+
 /// The tracked train as the map draws it.
 struct DrawnTrain {
     /// Where: with you, when you're on it.
@@ -1617,18 +1641,22 @@ struct NetworkMapView: UIViewRepresentable {
             }
             let onTrack = hit.distance <= 250 + min(max(location.horizontalAccuracy, 0), 300)
             let gap = abs(hit.along - train.along)
-            if isOnBoard {
-                setOnBoard(onTrack && gap <= 8000, in: mapView)
-                return
-            }
-            let speed = location.speed
-            let moving = speed >= 5 && speed <= 60
             var aligned = true
             if location.course >= 0, let bearing = TrackGeometry.bearing(on: fullRoute, at: hit.along) {
                 let difference = abs((location.course - bearing + 540).truncatingRemainder(dividingBy: 360) - 180)
                 aligned = difference <= 60
             }
-            setOnBoard(onTrack && gap <= 4000 && moving && aligned, in: mapView)
+            // How far past where you get on you are, along its line.
+            var pastBoarding: Double?
+            if let trip, let station = RailNetwork.shared.station(trip.boardingCode),
+               let boarding = TrackGeometry.locate(TrackGeometry.Point(latitude: station.latitude,
+                                                                       longitude: station.longitude), on: fullRoute) {
+                pastBoarding = hit.along - boarding.along
+            }
+            let left = trip.map { $0.hasLeftBoarding || (trackedSpot?.reached ?? -1) > $0.boardingIndex } ?? false
+            setOnBoard(OnBoard.check(wasOn: isOnBoard, onTrack: onTrack, gap: gap, speed: location.speed,
+                                     aligned: aligned, pastBoarding: pastBoarding, leftBoarding: left),
+                       in: mapView)
         }
 
         private func setOnBoard(_ value: Bool, in mapView: MKMapView) {

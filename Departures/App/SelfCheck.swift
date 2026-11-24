@@ -29,6 +29,7 @@ enum SelfCheck {
         boardWays()
         runningLate()
         stationWithTheTrain()
+        onBoard()
         lines.append("done")
         write()
         NSLog("SelfCheck: done")
@@ -558,6 +559,30 @@ enum SelfCheck {
         // its live reports, before its times catch up.
         check("station with the train: drawn past where you get on, the next one ahead",
               trip.stationToShow(onBoard: false, reached: 6) == "LO")
+    }
+
+    /// Whether you're on the tracked train. Standing still at a station along the way
+    /// counts once it has left where you get on: GO's reports can trail the train by
+    /// half a minute, and it was drawn still coming in a kilometre behind you.
+    private static func onBoard() {
+        func on(wasOn: Bool = false, onTrack: Bool = true, gap: Double = 900, speed: Double, aligned: Bool = true,
+                past: Double? = 30_000, left: Bool = true) -> Bool {
+            OnBoard.check(wasOn: wasOn, onTrack: onTrack, gap: gap, speed: speed, aligned: aligned,
+                          pastBoarding: past, leftBoarding: left)
+        }
+        check("on board: moving with it", on(speed: 30))
+        check("on board: moving the other way, not", !on(speed: 30, aligned: false))
+        check("on board: faster than any train, not", !on(speed: 80))
+        check("on board: standing at a station along the way, the train drawn coming in behind", on(speed: 0))
+        check("on board: speed not known, standing at a station along the way", on(speed: -1))
+        check("on board: still on the platform where you get on once it has gone, not",
+              !on(speed: 0, past: 120))
+        check("on board: standing still before it has left where you get on, not", !on(speed: 0, past: 30_000,
+                                                                                         left: false))
+        check("on board: standing still with it drawn far off, not", !on(speed: 0, gap: 5_000))
+        check("on board: off its line, not", !on(onTrack: false, speed: 30))
+        check("on board: on it, stays on through a stop", on(wasOn: true, gap: 6_000, speed: 0))
+        check("on board: on it, off once it's well away", !on(wasOn: true, gap: 9_000, speed: 0))
     }
 
     /// A live report of the train: standing at a station ("at"), or on its way to it ("to").
