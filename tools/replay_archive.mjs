@@ -20,9 +20,13 @@ if (!positionals.length) {
 }
 
 const lines = [];
+let stored = 0;
+let raw = 0;
 for (const path of positionals) {
   const bytes = readFileSync(path);
+  stored += bytes.length;
   const text = (bytes[0] === 0x1f && bytes[1] === 0x8b ? gunzipSync(bytes) : bytes).toString("utf8");
+  raw += text.length;
   for (const row of text.split("\n")) {
     if (!row.trim()) continue;
     try {
@@ -137,7 +141,8 @@ const result = {
 if (values.json) {
   console.log(JSON.stringify(result, null, 2));
 } else {
-  console.log(`${result.looks} looks over ${result.minutes} min, ${result.trains} trains scored, ${result.points} data points`);
+  console.log(`${result.looks} looks over ${result.minutes} min, ${result.trains} trains scored, ${result.points} data points; ` +
+    `${lines.length} lines, ${(raw / 1e6).toFixed(1)} MB (${(stored / 1e6).toFixed(2)} MB as stored)`);
   const row = (name, f, extra = "") =>
     console.log(`${name.padEnd(22)} ${String(f.seconds).padStart(7)} s  off: median ${String(f.medianOff).padStart(4)} m, ` +
       `90% ${String(f.p90Off).padStart(4)} m, worst ${String(f.worstOff).padStart(5)} m;  median behind ${String(f.medianBehind).padStart(4)} m;  ` +

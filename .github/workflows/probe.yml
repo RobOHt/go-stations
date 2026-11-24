@@ -80,6 +80,7 @@ jobs:
             # The feeds as the Worker's watcher keeps them, scored as it would score them.
             node tools/record_feeds.mjs --minutes "${MINUTES:-20}" --out feeds.ndjson
             gzip -9 feeds.ndjson
+            ls -l feeds.ndjson.gz
             node tools/replay_archive.mjs feeds.ndjson.gz
             exit 0
           fi

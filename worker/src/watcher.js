@@ -228,7 +228,9 @@ export class Watcher extends DurableObject {
       this.stats.looks++;
     } catch (failure) {
       this.stats.errors++;
-      this.stats.lastError = `${new Date().toISOString().slice(0, 19)} ${String(failure?.stack ?? failure).slice(0, 300)}`;
+      // (Shown by /health: never the key, should an error ever carry it.)
+      const text = String(failure?.stack ?? failure).replaceAll(this.env.METROLINX_API_KEY || "\u0000", "");
+      this.stats.lastError = `${new Date().toISOString().slice(0, 19)} ${text.slice(0, 300)}`;
       console.log("watcher:", failure);
     } finally {
       this.stats.took = Date.now() - started;

@@ -23,6 +23,7 @@ const { track, along, drawn } = await import("../src/replay.js");
 const { Scoreboard, tripCodes, direction, point: dataPoint, MODELS } = await import("../src/watch.js");
 const { Recorder, Player } = await import("../src/record.js");
 const { Watcher, network, archiveKey, nextLook } = await import("../src/watcher.js");
+const { default: worker } = await import("../src/index.js");
 
 // --- A made-up line: due east from AA through BB to CC, 0.05° of longitude apart ---
 
@@ -350,4 +351,15 @@ test("the watcher looks every 5 seconds, keeps what it saw for R2 an hour at a t
     globalThis.fetch = realFetch;
     Date.now = realNow;
   }
+});
+
+test("every minute, the Worker makes sure the watcher is running", async () => {
+  let started = 0;
+  const waits = [];
+  const env = { WATCHER: { idFromName: (name) => name, get: (id) => ({ start: async () => { started++; return id === "all"; } }) } };
+  await worker.scheduled({ cron: "* * * * *" }, env, { waitUntil: (promise) => waits.push(promise) });
+  assert.deepEqual(await Promise.all(waits), [true]);
+  assert.equal(started, 1);
+  // Without a watcher bound, nothing to do.
+  await worker.scheduled({}, {}, { waitUntil: () => assert.fail("nothing to wait for") });
 });
