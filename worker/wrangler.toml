@@ -30,3 +30,32 @@ class_name = "LiveActivities"
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["LiveActivities"]
+
+# The watcher: GO's live feeds every 5 seconds, all day (see src/watcher.js).
+[[durable_objects.bindings]]
+name = "WATCHER"
+class_name = "Watcher"
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["Watcher"]
+
+# Every minute: the watcher is still running (an alarm that keeps failing stops being retried).
+[triggers]
+crons = ["* * * * *"]
+
+# Every change in the live feeds the watcher sees, an hour to a file (positions/YYYY/MM/DD/HH.ndjson.gz, UTC).
+# The deploy workflow creates the bucket if it isn't there.
+[[r2_buckets]]
+binding = "POSITIONS"
+bucket_name = "go-stations-positions"
+
+# How far each way of drawing a train is from the real one, a data point per train,
+# minute, phase and model (see `point` in src/watch.js). Grafana reads it: docs/WATCHER.md.
+[[analytics_engine_datasets]]
+binding = "SCORES"
+dataset = "go_stations_scores"
+
+[vars]
+# "off" stops the watcher (it stops at its next look); the app doesn't need it.
+WATCH = "on"

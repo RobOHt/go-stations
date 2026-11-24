@@ -11,14 +11,22 @@ name: Worker
 #                           with APPLE_TEAM_ID)
 #
 # Until the Cloudflare secrets exist, runs stop at a "not configured" notice.
+# Only main deploys: run by hand on another branch (or with dry_run), it tests
+# and builds the Worker without deploying it.
 
 on:
   push:
     branches: [main]
     paths:
       - "worker/**"
+      # (The Worker places trains on the app's own track shapes.)
+      - "Departures/Resources/network.json"
       - ".github/workflows/worker.yml"
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "true: test and build only, don't deploy"
+        default: "false"
 
 concurrency:
   group: worker
@@ -36,12 +44,19 @@ jobs:
       APNS_KEY_P8: ${{ secrets.APNS_KEY_P8 }}
       APNS_KEY_ID: ${{ secrets.APNS_KEY_ID }}
       APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      DRY_RUN: ${{ inputs.dry_run }}
     steps:
       - name: Check configuration
         id: config
         run: |
           if [ -n "$CLOUDFLARE_API_TOKEN" ] && [ -n "$CLOUDFLARE_ACCOUNT_ID" ]; then
             echo "ready=true" >> "$GITHUB_OUTPUT"
+            if [ "$GITHUB_REF" = "refs/heads/main" ] && [ "$DRY_RUN" != "true" ]; then
+              echo "deploy=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "deploy=false" >> "$GITHUB_OUTPUT"
+              echo "::notice title=Worker::Not main (or a dry run): tested and built, not deployed."
+            fi
           else
             echo "ready=false" >> "$GITHUB_OUTPUT"
             echo "::notice title=Worker::Not configured yet. Add CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID secrets."
@@ -59,8 +74,24 @@ jobs:
         if: steps.config.outputs.ready == 'true'
         run: node --test worker/test/*.test.js
 
+      - name: Build only
+        if: steps.config.outputs.ready == 'true' && steps.config.outputs.deploy != 'true'
+        working-directory: worker
+        run: npx --yes wrangler@4 deploy --dry-run --outdir "$RUNNER_TEMP/dist"
+
+      # The watcher keeps what it sees in this R2 bucket (wrangler.toml); made once.
+      - name: Positions bucket
+        if: steps.config.outputs.deploy == 'true'
+        working-directory: worker
+        run: |
+          if npx --yes wrangler@4 r2 bucket list 2>/dev/null | grep -q "go-stations-positions"; then
+            echo "The bucket is there."
+          else
+            npx --yes wrangler@4 r2 bucket create go-stations-positions
+          fi
+
       - name: Deploy
-        if: steps.config.outputs.ready == 'true'
+        if: steps.config.outputs.deploy == 'true'
         working-directory: worker
         run: |
           set -o pipefail
@@ -70,7 +101,7 @@ jobs:
           echo "::notice title=Worker URL::${url:-not found in deploy output}"
 
       - name: Store Metrolinx key
-        if: steps.config.outputs.ready == 'true' && env.METROLINX_API_KEY != ''
+        if: steps.config.outputs.deploy == 'true' && env.METROLINX_API_KEY != ''
         working-directory: worker
         run: printf '%s' "$METROLINX_API_KEY" | tr -d ' \r\n\t' | npx --yes wrangler@4 secret put METROLINX_API_KEY
 
@@ -103,7 +134,7 @@ jobs:
           $ok
 
       - name: Store Apple push key
-        if: steps.config.outputs.ready == 'true' && env.APNS_KEY_P8 != '' && env.APNS_KEY_ID != '' && env.APPLE_TEAM_ID != ''
+        if: steps.config.outputs.deploy == 'true' && env.APNS_KEY_P8 != '' && env.APNS_KEY_ID != '' && env.APPLE_TEAM_ID != ''
         working-directory: worker
         run: |
           printf '%s' "$APNS_KEY_P8" | npx --yes wrangler@4 secret put APNS_KEY_P8
@@ -111,11 +142,11 @@ jobs:
           printf '%s' "$APPLE_TEAM_ID" | npx --yes wrangler@4 secret put APPLE_TEAM_ID
 
       - name: Health check
-        if: steps.config.outputs.ready == 'true' && env.WORKER_URL != ''
+        if: steps.config.outputs.deploy == 'true' && env.WORKER_URL != ''
         run: |
           # A brand-new workers.dev hostname can take a minute to start answering.
           for i in $(seq 1 12); do
-            if body=$(curl -fsS "$WORKER_URL/health?check=push,metrolinx,live" 2>/dev/null); then
+            if body=$(curl -fsS "$WORKER_URL/health?check=push,metrolinx,live,watch" 2>/dev/null); then
               echo "::notice title=Worker health::$body"
               exit 0
             fi
