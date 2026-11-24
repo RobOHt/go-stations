@@ -1,0 +1,1195 @@
+getpwuid_r did not find a match for uid 501
+Timestamp               Ty Process[PID:TID]
+2026-11-24 15:06:14.556 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:14.781 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:14.982 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:15.199 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:15.431 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:15.625 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:15.845 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:16.067 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:16.270 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:16.491 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:16.691 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:16.890 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:17.101 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:17.336 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:17.565 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:17.764 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:17.968 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:18.167 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:18.370 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:18.585 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:18.801 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:19.055 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:19.265 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:19.499 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:19.679 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:20.016 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:20.658 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:21.568 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:21.595 E  launchd_sim[4135:bf2a] [pid/7745 [Preferences]:] Failed to bootstrap path: path = /private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.2.8117.0.vPi9xo/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.2.simruntime/Contents/Resources/RuntimeRoot/System/Library/PrivateFrameworks/PrintKit.framework/XPCServices/com.apple.printactivityservice.xpc, error = 128: The specified path is not a bundle
+2026-11-24 15:06:21.823 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:22.187 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:22.433 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:22.682 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:22.972 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:23.591 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:23.852 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:24.117 Df UserEventAgent[4139:8b9c] [com.apple.xpc.activity:Activities] Completed: com.apple.siri.xpc_activity.service_boot_maintenance (0x1061e2800)
+2026-11-24 15:06:24.440 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:24.648 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:24.809 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:25.271 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:25.620 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:26.148 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:26.563 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:26.767 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:26.948 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:27.164 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:27.366 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:27.584 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:27.831 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:28.057 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:28.299 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:28.552 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:28.746 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:28.951 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:29.179 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:29.357 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:29.534 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:29.731 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:29.927 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:30.129 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:30.342 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:30.553 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:30.747 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:30.942 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:31.131 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:31.403 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:31.621 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:32.003 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:32.267 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:32.493 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:32.732 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:32.923 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:33.171 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:33.374 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:33.598 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:33.816 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:34.035 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:34.291 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:34.498 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:34.691 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:34.883 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:35.108 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:35.298 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:35.489 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:35.683 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:35.897 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:36.126 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:36.396 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:36.581 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:36.691 Df UserEventAgent[4139:8b9c] [com.apple.xpc.activity:Activities] Running (PID 4312): com.apple.ClipServices.clipserviced.xpc.cleanupActivity (0x10620e080)
+2026-11-24 15:06:36.835 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:37.061 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:37.299 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:37.546 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:38.237 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:38.974 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:39.323 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:39.399 Df UserEventAgent[4139:c2e6] [com.apple.xpc.activity:Activities] Unregistered on XPC remove event: com.apple.siri.xpc_activity.siri-information-clear-cache (0x1062917c0)
+2026-11-24 15:06:39.638 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:39.869 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:40.239 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:40.686 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:40.884 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:41.108 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:41.381 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:41.655 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:41.886 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:42.129 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:42.374 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:42.586 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:42.800 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:43.014 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:43.250 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:43.443 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:43.717 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:44.114 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:44.481 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:44.816 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:45.156 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:45.503 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:45.815 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:46.080 Df suggestd[4659:6bfe] [com.apple.proactive.ProactiveHarvesting:Default] HVQueue<SearchableUserActivities>: deleteContentWithRequest: clearing queue
+2026-11-24 15:06:46.080 Df suggestd[4659:6bfe] [com.apple.proactive.ProactiveHarvesting:Default] HVQueue<SearchableUserActivities>: deleteContentWithRequest: clearing queue
+2026-11-24 15:06:46.332 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:46.761 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:47.024 Df log[16190:0] [com.apple.log:] log run noninteractively, parent: 4135 (launchd_sim), args: 'log' 'show' '--style' 'compact' '--last' '3m' '--predicate' 'eventMessage CONTAINS[c] "activit"'
+2026-11-24 15:06:47.218 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:47.466 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:47.755 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:47.971 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:48.172 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:48.363 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:48.583 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:48.847 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:49.062 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:49.331 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:49.620 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:49.851 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:50.074 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:50.290 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:50.517 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:50.706 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:50.900 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:51.104 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:51.299 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:51.499 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:51.772 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:51.978 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:52.189 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:52.401 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:52.618 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:52.829 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:53.013 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:53.219 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:53.451 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:53.650 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:53.854 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:54.087 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:54.338 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:54.569 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:54.782 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:54.991 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:55.201 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:55.404 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:55.637 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:55.858 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:56.127 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:56.339 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:56.536 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:56.773 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:56.985 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:57.204 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:57.392 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:57.619 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:57.829 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:58.099 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:58.334 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:58.542 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:58.821 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:59.112 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:59.330 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:59.555 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:06:59.805 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:00.068 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:00.418 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:00.630 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:00.815 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:01.028 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:01.220 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:01.412 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:01.647 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:01.851 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:01.965 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:02.073 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:02.189 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:02.281 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:02.356 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:02.449 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:02.563 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:02.673 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:02.769 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:02.871 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:02.997 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:03.103 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:03.245 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:03.405 Df chronod[4239:8b72] [com.apple.chrono:activityscheduler] [F9237066]: activity added
+2026-11-24 15:07:03.405 Df chronod[4239:8b72] [com.apple.chrono:activityscheduler] [F9237066]: immediate activity enqueued (ClassA >= ClassD)
+2026-11-24 15:07:03.405 Df chronod[4239:c86e] [com.apple.chrono:activityscheduler] [F9237066]: activityHandler began
+2026-11-24 15:07:03.417 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:03.418 Df chronod[4239:c86e] [com.apple.chrono:activityscheduler] [F9237066]: activityHandler ended
+2026-11-24 15:07:03.506 Df chronod[4239:8b72] [com.apple.chrono:activityscheduler] [6088326D]: activity added
+2026-11-24 15:07:03.506 Df chronod[4239:8b72] [com.apple.chrono:activityscheduler] [6088326D]: immediate activity enqueued (ClassA >= ClassD)
+2026-11-24 15:07:03.506 Df chronod[4239:c86c] [com.apple.chrono:activityscheduler] [6088326D]: activityHandler began
+2026-11-24 15:07:03.512 Df chronod[4239:c86c] [com.apple.chrono:activityscheduler] [6088326D]: activityHandler ended
+2026-11-24 15:07:03.554 Df chronod[4239:8b72] [com.apple.chrono:activityscheduler] [F67D7A2B]: activity added
+2026-11-24 15:07:03.554 Df chronod[4239:8b72] [com.apple.chrono:activityscheduler] [F67D7A2B]: immediate activity enqueued (ClassA >= ClassD)
+2026-11-24 15:07:03.554 Df chronod[4239:c86c] [com.apple.chrono:activityscheduler] [F67D7A2B]: activityHandler began
+2026-11-24 15:07:03.568 Df chronod[4239:c86c] [com.apple.chrono:activityscheduler] [F67D7A2B]: activityHandler ended
+2026-11-24 15:07:03.621 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:03.752 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:03.764 Df chronod[4239:8b72] [com.apple.chrono:activityscheduler] [AC9E26A9]: activity added
+2026-11-24 15:07:03.764 Df chronod[4239:8b72] [com.apple.chrono:activityscheduler] [AC9E26A9]: immediate activity enqueued (ClassA >= ClassD)
+2026-11-24 15:07:03.764 Df chronod[4239:c86c] [com.apple.chrono:activityscheduler] [AC9E26A9]: activityHandler began
+2026-11-24 15:07:03.764 Df chronod[4239:c86c] [com.apple.chrono:activityscheduler] [AC9E26A9]: activityHandler ended
+2026-11-24 15:07:03.796 Df chronod[4239:8b72] [com.apple.chrono:activityscheduler] [AC10B488]: activity added
+2026-11-24 15:07:03.796 Df chronod[4239:8b72] [com.apple.chrono:activityscheduler] [AC10B488]: immediate activity enqueued (ClassA >= ClassD)
+2026-11-24 15:07:03.797 Df chronod[4239:c87b] [com.apple.chrono:activityscheduler] [AC10B488]: activityHandler began
+2026-11-24 15:07:03.797 Df chronod[4239:c87b] [com.apple.chrono:activityscheduler] [AC10B488]: activityHandler ended
+2026-11-24 15:07:03.840 Df chronod[4239:8b72] [com.apple.chrono:activityscheduler] [A4B17D7E]: activity added
+2026-11-24 15:07:03.840 Df chronod[4239:8b72] [com.apple.chrono:activityscheduler] [A4B17D7E]: immediate activity enqueued (ClassA >= ClassD)
+2026-11-24 15:07:03.840 Df chronod[4239:c87b] [com.apple.chrono:activityscheduler] [A4B17D7E]: activityHandler began
+2026-11-24 15:07:03.855 Df chronod[4239:8b72] [com.apple.chrono:activityscheduler] [9D2A9614]: activity added
+2026-11-24 15:07:03.855 Df chronod[4239:8b72] [com.apple.chrono:activityscheduler] [9D2A9614]: immediate activity enqueued (ClassA >= ClassD)
+2026-11-24 15:07:03.855 Df chronod[4239:c87b] [com.apple.chrono:activityscheduler] [A4B17D7E]: activityHandler ended
+2026-11-24 15:07:03.855 Df chronod[4239:c87b] [com.apple.chrono:activityscheduler] [9D2A9614]: activityHandler began
+2026-11-24 15:07:03.855 Df chronod[4239:c87b] [com.apple.chrono:activityscheduler] [9D2A9614]: activityHandler ended
+2026-11-24 15:07:04.090 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:04.135 Df chronod[4239:8b72] [com.apple.chrono:activityscheduler] [1B5A7709]: activity added
+2026-11-24 15:07:04.135 Df chronod[4239:8b72] [com.apple.chrono:activityscheduler] [1B5A7709]: immediate activity enqueued (ClassA >= ClassD)
+2026-11-24 15:07:04.135 Df chronod[4239:c87d] [com.apple.chrono:activityscheduler] [1B5A7709]: activityHandler began
+2026-11-24 15:07:04.136 Df chronod[4239:c87d] [com.apple.chrono:activityscheduler] [1B5A7709]: activityHandler ended
+2026-11-24 15:07:04.171 Df chronod[4239:8b72] [com.apple.chrono:activityscheduler] [22730872]: activity added
+2026-11-24 15:07:04.171 Df chronod[4239:8b72] [com.apple.chrono:activityscheduler] [22730872]: immediate activity enqueued (ClassA >= ClassD)
+2026-11-24 15:07:04.171 Df chronod[4239:c87d] [com.apple.chrono:activityscheduler] [22730872]: activityHandler began
+2026-11-24 15:07:04.228 Df chronod[4239:8b72] [com.apple.chrono:activityscheduler] [4D90BF4B]: activity added
+2026-11-24 15:07:04.228 Df chronod[4239:8b72] [com.apple.chrono:activityscheduler] [4D90BF4B]: immediate activity enqueued (ClassA >= ClassD)
+2026-11-24 15:07:04.228 Df chronod[4239:c87d] [com.apple.chrono:activityscheduler] [22730872]: activityHandler ended
+2026-11-24 15:07:04.229 Df chronod[4239:c87d] [com.apple.chrono:activityscheduler] [4D90BF4B]: activityHandler began
+2026-11-24 15:07:04.229 Df chronod[4239:c87d] [com.apple.chrono:activityscheduler] [4D90BF4B]: activityHandler ended
+2026-11-24 15:07:04.501 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:04.728 Df chronod[4239:8b72] [com.apple.chrono:activityscheduler] [7603F134]: activity added
+2026-11-24 15:07:04.728 Df chronod[4239:8b72] [com.apple.chrono:activityscheduler] [7603F134]: immediate activity enqueued (ClassA >= ClassD)
+2026-11-24 15:07:04.729 Df chronod[4239:8b72] [com.apple.chrono:activityscheduler] [7603F134]: activityHandler began
+2026-11-24 15:07:04.748 Df chronod[4239:8b72] [com.apple.chrono:activityscheduler] [7603F134]: activityHandler ended
+2026-11-24 15:07:04.803 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:05.371 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:05.733 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:06.026 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:06.376 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:06.528 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:06.896 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:07.241 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:07.487 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:07.780 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:08.088 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:08.282 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:08.539 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:08.741 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:08.933 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:09.199 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:09.401 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:09.738 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:10.084 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:10.306 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:10.504 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:10.705 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:10.755 Df chronod[4239:c86f] [com.apple.chrono:descriptor] [com.apple.news::com.apple.news.widget] query returned 1 widget descriptors, 10 controls, 0 activities
+2026-11-24 15:07:10.756 Df chronod[4239:c8b5] [com.apple.chrono:activityscheduler] [F67D7A2B]: activity completed
+2026-11-24 15:07:11.253 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:11.315 Df chronod[4239:c8b4] [com.apple.chrono:descriptor] [com.apple.ScreenTimeWidgetApplication::com.apple.ScreenTimeWidgetApplication.ScreenTimeWidgetExtension] query returned 1 widget descriptors, 0 controls, 0 activities
+2026-11-24 15:07:11.315 Df chronod[4239:c8b6] [com.apple.chrono:activityscheduler] [A4B17D7E]: activity completed
+2026-11-24 15:07:11.461 Df chronod[4239:4117] [com.apple.chrono:descriptor] Publishing changed activity descriptors - count = 0 (total = 4, pending = [com.apple.BarcodeScanner::com.apple.BarcodeScanner.BarcodeScannerWidgetExtension, com.apple.news::com.apple.news.tag, com.apple.Fitness::com.apple.Fitness.MirroredWidget, com.apple.shortcuts::com.apple.shortcuts.ShortcutsWidget, com.apple.ScreenTimeWidgetApplication::com.apple.ScreenTimeWidgetApplication.ScreenTimeWidgetExtension, com.apple.reminders::com.apple.reminders.WidgetExtension, com.apple.PassbookStub::com.apple.PassbookStub.PassbookWidgets, com.apple.mobilecal::com.apple.mobilecal.CalendarWidgetExtension, com.apple.Health::com.apple.Health.HealthBalanceWidgetExtension, com.apple.mobileslideshow::com.apple.mobileslideshow.PhotosReliveWidget])
+2026-11-24 15:07:12.234 Df chronod[4239:c8cc] [com.apple.chrono:descriptor] [com.apple.mobilecal::com.apple.mobilecal.CalendarWidgetExtension] query returned 5 widget descriptors, 12 controls, 0 activities
+2026-11-24 15:07:12.237 Df chronod[4239:c8c8] [com.apple.chrono:activityscheduler] [22730872]: activity completed
+2026-11-24 15:07:12.332 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:13.097 Df chronod[4239:c8ce] [com.apple.chrono:activityscheduler] [4D90BF4B]: activity completed
+2026-11-24 15:07:13.098 Df chronod[4239:c8b4] [com.apple.chrono:descriptor] [com.apple.mobileslideshow::com.apple.mobileslideshow.PhotosReliveWidget] query returned 2 widget descriptors, 0 controls, 0 activities
+2026-11-24 15:07:13.485 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:13.622 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:14.596 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:15.495 Df locationd[4164:4e12] [com.apple.locationd.Core:Client] {"msg":"InUseAssertion/kCLConnectionMessage", "event":activity, "this":"0x10ac16ee0"}
+2026-11-24 15:07:15.495 Df locationd[4164:4e12] [com.apple.locationd.Core:Client] {"msg":"CLDaemonInUseAssertion::handleMessageInUseAssertion", "event":activity, "this":"0x10ac16ee0", "message":"0x107fc52e8"}
+2026-11-24 15:07:16.197 Df chronod[4239:c8cc] [com.apple.chrono:activityscheduler] [F9237066]: activity completed
+2026-11-24 15:07:16.382 Df chronod[4239:4117] [com.apple.chrono:descriptor] Publishing changed activity descriptors - count = 0 (total = 4, pending = [com.apple.ScreenTimeWidgetApplication::com.apple.ScreenTimeWidgetApplication.ScreenTimeWidgetExtension, com.apple.BarcodeScanner::com.apple.BarcodeScanner.BarcodeScannerWidgetExtension, com.apple.mobilecal::com.apple.mobilecal.CalendarWidgetExtension, com.apple.PassbookStub::com.apple.PassbookStub.PassbookWidgets, com.apple.reminders::com.apple.reminders.WidgetExtension, com.apple.Health::com.apple.Health.HealthBalanceWidgetExtension, com.apple.shortcuts::com.apple.shortcuts.ShortcutsWidget, com.apple.news::com.apple.news.tag, com.apple.Fitness::com.apple.Fitness.MirroredWidget])
+2026-11-24 15:07:16.638 Df chronod[4239:c8db] [com.apple.chrono:activityscheduler] [6088326D]: activity completed
+2026-11-24 15:07:16.638 E  launchd_sim[4135:c8fe] [pid/17013 [ScreenTimeWidge]:] Failed to bootstrap path: path = /private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.2.8117.0.vPi9xo/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.2.simruntime/Contents/Resources/RuntimeRoot/System/Library/PrivateFrameworks/PrintKit.framework/XPCServices/com.apple.printactivityservice.xpc, error = 128: The specified path is not a bundle
+2026-11-24 15:07:16.642 Df chronod[4239:c8db] [com.apple.chrono:activityscheduler] [AC10B488]: activity completed
+2026-11-24 15:07:16.663 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:16.735 Df chronod[4239:c8cc] [com.apple.chrono:activityscheduler] [AC9E26A9]: activity completed
+2026-11-24 15:07:16.904 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:17.085 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:17.185 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:17.355 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:17.500 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:17.721 Df chronod[4239:c8c8] [com.apple.chrono:activityscheduler] [4F961004]: activity added
+2026-11-24 15:07:17.721 Df chronod[4239:c8c8] [com.apple.chrono:activityscheduler] [4F961004]: immediate activity enqueued (ClassA >= ClassD)
+2026-11-24 15:07:17.721 Df chronod[4239:c8db] [com.apple.chrono:activityscheduler] [4F961004]: activityHandler began
+2026-11-24 15:07:17.721 Df chronod[4239:c8db] [com.apple.chrono:activityscheduler] [4F961004]: activityHandler ended
+2026-11-24 15:07:17.795 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:18.236 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:18.619 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:18.905 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:19.097 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:19.271 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:19.419 Df chronod[4239:c8b7] [com.apple.chrono:activityscheduler] [58A10386]: activity added
+2026-11-24 15:07:19.419 Df chronod[4239:c8b7] [com.apple.chrono:activityscheduler] [58A10386]: immediate activity enqueued (ClassA >= ClassD)
+2026-11-24 15:07:19.419 Df chronod[4239:c8b7] [com.apple.chrono:activityscheduler] [58A10386]: activityHandler began
+2026-11-24 15:07:19.421 Df chronod[4239:c8b7] [com.apple.chrono:activityscheduler] [58A10386]: activityHandler ended
+2026-11-24 15:07:19.536 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:19.698 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:19.755 Df chronod[4239:c86f] [com.apple.chrono:activityscheduler] [FF3FE257]: activity added
+2026-11-24 15:07:19.756 Df chronod[4239:c86f] [com.apple.chrono:activityscheduler] [FF3FE257]: immediate activity enqueued (ClassA >= ClassD)
+2026-11-24 15:07:19.756 Df chronod[4239:c8b7] [com.apple.chrono:activityscheduler] [FF3FE257]: activityHandler began
+2026-11-24 15:07:19.781 Df chronod[4239:c86f] [com.apple.chrono:activityscheduler] [55EB4E6D]: activity added
+2026-11-24 15:07:19.781 Df chronod[4239:c86f] [com.apple.chrono:activityscheduler] [55EB4E6D]: immediate activity enqueued (ClassA >= ClassD)
+2026-11-24 15:07:19.781 Df chronod[4239:c8b7] [com.apple.chrono:activityscheduler] [FF3FE257]: activityHandler ended
+2026-11-24 15:07:19.781 Df chronod[4239:c8b7] [com.apple.chrono:activityscheduler] [55EB4E6D]: activityHandler began
+2026-11-24 15:07:19.794 Df chronod[4239:c86f] [com.apple.chrono:activityscheduler] [8DB7C281]: activity added
+2026-11-24 15:07:19.794 Df chronod[4239:c86f] [com.apple.chrono:activityscheduler] [8DB7C281]: immediate activity enqueued (ClassA >= ClassD)
+2026-11-24 15:07:19.795 Df chronod[4239:c8b7] [com.apple.chrono:activityscheduler] [55EB4E6D]: activityHandler ended
+2026-11-24 15:07:19.795 Df chronod[4239:c8b7] [com.apple.chrono:activityscheduler] [8DB7C281]: activityHandler began
+2026-11-24 15:07:19.797 Df chronod[4239:c8b7] [com.apple.chrono:activityscheduler] [8DB7C281]: activityHandler ended
+2026-11-24 15:07:20.168 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:20.501 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:20.668 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:21.048 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:21.272 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:21.535 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:21.707 Df chronod[4239:4117] [com.apple.chrono:descriptor] Publishing changed activity descriptors - count = 0 (total = 4, pending = [com.apple.shortcuts::com.apple.shortcuts.ShortcutsWidget, com.apple.PassbookStub::com.apple.PassbookStub.PassbookWidgets, com.apple.BarcodeScanner::com.apple.BarcodeScanner.BarcodeScannerWidgetExtension, com.apple.news::com.apple.news.tag, com.apple.mobilecal::com.apple.mobilecal.CalendarWidgetExtension, com.apple.Health::com.apple.Health.HealthBalanceWidgetExtension, com.apple.reminders::com.apple.reminders.WidgetExtension, com.apple.Fitness::com.apple.Fitness.MirroredWidget])
+2026-11-24 15:07:21.903 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:22.147 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:22.296 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:22.359 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:22.449 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:22.537 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:22.567 Df chronod[4239:4117] [com.apple.chrono:descriptor] Publishing changed activity descriptors - count = 0 (total = 4, pending = [com.apple.PassbookStub::com.apple.PassbookStub.PassbookWidgets, com.apple.news::com.apple.news.tag, com.apple.shortcuts::com.apple.shortcuts.ShortcutsWidget, com.apple.reminders::com.apple.reminders.WidgetExtension, com.apple.Fitness::com.apple.Fitness.MirroredWidget, com.apple.Health::com.apple.Health.HealthBalanceWidgetExtension, com.apple.BarcodeScanner::com.apple.BarcodeScanner.BarcodeScannerWidgetExtension])
+2026-11-24 15:07:22.632 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:23.076 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:23.171 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:23.229 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:23.416 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:24.277 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:24.565 Df locationd[4164:41a3] [com.apple.locationd.Core:Client] {"msg":"InUseAssertion/kCLConnectionMessage", "event":activity, "this":"0x10ac16f80"}
+2026-11-24 15:07:24.565 Df locationd[4164:41a3] [com.apple.locationd.Core:Client] {"msg":"CLDaemonInUseAssertion::handleMessageInUseAssertion", "event":activity, "this":"0x10ac16f80", "message":"0x107fc5588"}
+2026-11-24 15:07:24.605 Df locationd[4164:41a3] [com.apple.locationd.Core:Client] {"msg":"InUseAssertion/kCLConnectionMessage", "event":activity, "this":"0x10ac170c0"}
+2026-11-24 15:07:24.605 Df locationd[4164:41a3] [com.apple.locationd.Core:Client] {"msg":"CLDaemonInUseAssertion::handleMessageInUseAssertion", "event":activity, "this":"0x10ac170c0", "message":"0x107fc73b8"}
+2026-11-24 15:07:24.639 Df locationd[4164:4e12] [com.apple.locationd.Core:Client] {"msg":"InUseAssertion/kCLConnectionMessage", "event":activity, "this":"0x10ac16e90"}
+2026-11-24 15:07:24.639 Df locationd[4164:4e12] [com.apple.locationd.Core:Client] {"msg":"CLDaemonInUseAssertion::handleMessageInUseAssertion", "event":activity, "this":"0x10ac16e90", "message":"0x107fc5668"}
+2026-11-24 15:07:24.905 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:25.020 E  launchd_sim[4135:c8fe] [pid/17020 [IntentsExtensio]:] Failed to bootstrap path: path = /private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.2.8117.0.vPi9xo/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.2.simruntime/Contents/Resources/RuntimeRoot/System/Library/PrivateFrameworks/PrintKit.framework/XPCServices/com.apple.printactivityservice.xpc, error = 128: The specified path is not a bundle
+2026-11-24 15:07:25.128 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:25.307 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:25.468 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:25.751 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:25.891 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:26.003 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:26.123 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:26.302 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:26.485 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:26.655 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:26.785 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:26.895 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:27.018 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:27.164 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:27.181 Df chronod[4239:c86f] [com.apple.chrono:activityscheduler] [9D2A9614]: activity completed
+2026-11-24 15:07:27.372 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:27.530 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:27.618 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:27.907 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:27.930 Df chronod[4239:c8cc] [com.apple.chrono:activityscheduler] [8D5B1D22]: activity added
+2026-11-24 15:07:27.930 Df chronod[4239:c8cc] [com.apple.chrono:activityscheduler] [8D5B1D22]: immediate activity enqueued (ClassA >= ClassD)
+2026-11-24 15:07:27.930 Df chronod[4239:c8b7] [com.apple.chrono:activityscheduler] [8D5B1D22]: activityHandler began
+2026-11-24 15:07:27.931 Df chronod[4239:c8b7] [com.apple.chrono:activityscheduler] [8D5B1D22]: activityHandler ended
+2026-11-24 15:07:27.994 Df chronod[4239:c86f] [com.apple.chrono:activityscheduler] [1B5A7709]: activity completed
+2026-11-24 15:07:28.110 Df chronod[4239:c8b6] [com.apple.chrono:activityscheduler] [CC888E2A]: activity added
+2026-11-24 15:07:28.110 Df chronod[4239:c8b6] [com.apple.chrono:activityscheduler] [CC888E2A]: immediate activity enqueued (ClassA >= ClassD)
+2026-11-24 15:07:28.110 Df chronod[4239:c8cc] [com.apple.chrono:activityscheduler] [CC888E2A]: activityHandler began
+2026-11-24 15:07:28.111 Df chronod[4239:c8cc] [com.apple.chrono:activityscheduler] [CC888E2A]: activityHandler ended
+2026-11-24 15:07:28.129 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:28.323 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:28.439 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:28.606 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:28.734 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:28.846 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:28.946 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:29.139 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:29.249 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:29.449 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:29.556 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:29.638 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:29.749 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:29.904 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:30.009 Df chronod[4239:c8c8] [com.apple.chrono:activityscheduler] [7603F134]: activity completed
+2026-11-24 15:07:30.071 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:30.203 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:30.315 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:30.391 Df chronod[4239:c8b6] [com.apple.chrono:activityscheduler] [CDB63934]: activity added
+2026-11-24 15:07:30.391 Df chronod[4239:c8b6] [com.apple.chrono:activityscheduler] [CDB63934]: immediate activity enqueued (ClassA >= ClassD)
+2026-11-24 15:07:30.391 Df chronod[4239:c8b6] [com.apple.chrono:activityscheduler] [CDB63934]: activityHandler began
+2026-11-24 15:07:30.392 Df chronod[4239:c8b6] [com.apple.chrono:activityscheduler] [CDB63934]: activityHandler ended
+2026-11-24 15:07:30.416 Df chronod[4239:c8cc] [com.apple.chrono:activityscheduler] [58A10386]: activity completed
+2026-11-24 15:07:30.560 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:30.781 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:30.872 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:31.016 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:31.203 Df chronod[4239:c8b6] [com.apple.chrono:activityscheduler] [EC07B8C3]: activity added
+2026-11-24 15:07:31.203 Df chronod[4239:c8b6] [com.apple.chrono:activityscheduler] [EC07B8C3]: immediate activity enqueued (ClassA >= ClassD)
+2026-11-24 15:07:31.203 Df chronod[4239:c86f] [com.apple.chrono:activityscheduler] [EC07B8C3]: activityHandler began
+2026-11-24 15:07:31.204 Df chronod[4239:c86f] [com.apple.chrono:activityscheduler] [EC07B8C3]: activityHandler ended
+2026-11-24 15:07:31.240 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:31.404 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:31.503 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:31.636 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:31.749 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:31.884 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:32.039 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:32.188 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:32.321 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:32.461 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:32.611 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:32.722 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:32.801 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:32.947 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:33.050 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:33.172 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:33.219 Df chronod[4239:c86f] [com.apple.chrono:activityscheduler] [35B1C2D3]: activity added
+2026-11-24 15:07:33.219 Df chronod[4239:c86f] [com.apple.chrono:activityscheduler] [35B1C2D3]: immediate activity enqueued (ClassA >= ClassD)
+2026-11-24 15:07:33.219 Df chronod[4239:c8db] [com.apple.chrono:activityscheduler] [35B1C2D3]: activityHandler began
+2026-11-24 15:07:33.219 Df chronod[4239:c8db] [com.apple.chrono:activityscheduler] [35B1C2D3]: activityHandler ended
+2026-11-24 15:07:33.419 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:33.631 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:33.734 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:33.940 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:34.081 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:34.321 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:34.551 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:34.671 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:34.800 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:34.949 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:35.145 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:35.418 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:35.551 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:35.647 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:35.789 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:35.872 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:36.014 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:36.113 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:36.254 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:36.391 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:36.634 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:36.759 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:36.870 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:36.984 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:37.087 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:37.222 Df chronod[4239:c8cc] [com.apple.chrono:activityscheduler] [75B60638]: activity added
+2026-11-24 15:07:37.222 Df chronod[4239:c8cc] [com.apple.chrono:activityscheduler] [75B60638]: immediate activity enqueued (ClassA >= ClassD)
+2026-11-24 15:07:37.223 Df chronod[4239:c86f] [com.apple.chrono:activityscheduler] [75B60638]: activityHandler began
+2026-11-24 15:07:37.223 Df chronod[4239:c86f] [com.apple.chrono:activityscheduler] [75B60638]: activityHandler ended
+2026-11-24 15:07:37.236 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:37.438 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:37.722 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:37.879 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:37.968 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:38.087 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:38.300 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:38.453 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:38.667 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:38.820 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:38.951 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:39.123 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:39.265 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:39.366 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:39.487 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:39.623 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:39.771 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:39.887 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:39.968 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:40.081 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:40.189 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:40.335 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:40.468 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:40.569 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:40.788 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:40.948 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:41.082 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:41.200 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:41.404 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:41.477 Df chronod[4239:c8c8] [com.apple.chrono:activityscheduler] [C6112B94]: activity added
+2026-11-24 15:07:41.477 Df chronod[4239:c8c8] [com.apple.chrono:activityscheduler] [C6112B94]: immediate activity enqueued (ClassA >= ClassD)
+2026-11-24 15:07:41.478 Df chronod[4239:c8cd] [com.apple.chrono:activityscheduler] [C6112B94]: activityHandler began
+2026-11-24 15:07:41.479 Df chronod[4239:c8cd] [com.apple.chrono:activityscheduler] [C6112B94]: activityHandler ended
+2026-11-24 15:07:41.496 Df chronod[4239:c8c8] [com.apple.chrono:activityscheduler] [C192010E]: activity added
+2026-11-24 15:07:41.496 Df chronod[4239:c8c8] [com.apple.chrono:activityscheduler] [C192010E]: immediate activity enqueued (ClassA >= ClassD)
+2026-11-24 15:07:41.496 Df chronod[4239:c8cd] [com.apple.chrono:activityscheduler] [C192010E]: activityHandler began
+2026-11-24 15:07:41.497 Df chronod[4239:c8cd] [com.apple.chrono:activityscheduler] [C192010E]: activityHandler ended
+2026-11-24 15:07:41.586 Df chronod[4239:c8c8] [com.apple.chrono:activityscheduler] [CC1CABDD]: activity added
+2026-11-24 15:07:41.586 Df chronod[4239:c8c8] [com.apple.chrono:activityscheduler] [CC1CABDD]: immediate activity enqueued (ClassA >= ClassD)
+2026-11-24 15:07:41.586 Df chronod[4239:c8cd] [com.apple.chrono:activityscheduler] [CC1CABDD]: activityHandler began
+2026-11-24 15:07:41.587 Df chronod[4239:c8cd] [com.apple.chrono:activityscheduler] [CC1CABDD]: activityHandler ended
+2026-11-24 15:07:41.605 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:41.691 Df chronod[4239:c8c8] [com.apple.chrono:activityscheduler] [D9438D67]: activity added
+2026-11-24 15:07:41.691 Df chronod[4239:c8c8] [com.apple.chrono:activityscheduler] [D9438D67]: immediate activity enqueued (ClassA >= ClassD)
+2026-11-24 15:07:41.691 Df chronod[4239:c8cd] [com.apple.chrono:activityscheduler] [D9438D67]: activityHandler began
+2026-11-24 15:07:41.693 Df chronod[4239:c8cd] [com.apple.chrono:activityscheduler] [D9438D67]: activityHandler ended
+2026-11-24 15:07:41.783 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:41.949 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:42.104 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:42.186 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:42.282 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:42.363 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:42.469 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:42.598 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:42.720 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:42.870 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:42.991 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:43.071 Df chronod[4239:c8c8] [com.apple.chrono:activityscheduler] [FF3FE257]: activity completed
+2026-11-24 15:07:43.122 Df chronod[4239:ca4a] [com.apple.chrono:descriptor] [com.apple.ScreenTimeWidgetApplication::com.apple.ScreenTimeWidgetApplication.ScreenTimeWidgetExtension] query returned 1 widget descriptors, 0 controls, 0 activities
+2026-11-24 15:07:43.122 Df chronod[4239:c86f] [com.apple.chrono:activityscheduler] [C6112B94]: activity completed
+2026-11-24 15:07:43.175 Df locationd[4164:4e12] [com.apple.locationd.Core:Client] {"msg":"InUseAssertion/kCLConnectionMessage", "event":activity, "this":"0x10ac17250"}
+2026-11-24 15:07:43.175 Df locationd[4164:4e12] [com.apple.locationd.Core:Client] {"msg":"CLDaemonInUseAssertion::handleMessageInUseAssertion", "event":activity, "this":"0x10ac17250", "message":"0x107fc7268"}
+2026-11-24 15:07:43.242 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:43.246 Df chronod[4239:ca4b] [com.apple.chrono:descriptor] [com.apple.mobilecal::com.apple.mobilecal.CalendarWidgetExtension] query returned 5 widget descriptors, 12 controls, 0 activities
+2026-11-24 15:07:43.247 Df chronod[4239:c8cc] [com.apple.chrono:activityscheduler] [C192010E]: activity completed
+2026-11-24 15:07:43.338 Df chronod[4239:ca4f] [com.apple.chrono:activityscheduler] [2B0E3A06]: activity added
+2026-11-24 15:07:43.338 Df chronod[4239:ca4f] [com.apple.chrono:activityscheduler] [2B0E3A06]: immediate activity enqueued (ClassA >= ClassD)
+2026-11-24 15:07:43.338 Df chronod[4239:c86f] [com.apple.chrono:activityscheduler] [2B0E3A06]: activityHandler began
+2026-11-24 15:07:43.339 Df chronod[4239:c86f] [com.apple.chrono:activityscheduler] [2B0E3A06]: activityHandler ended
+2026-11-24 15:07:43.353 Df locationd[4164:4e12] [com.apple.locationd.Core:Client] {"msg":"InUseAssertion/kCLConnectionMessage", "event":activity, "this":"0x10ac16ee0"}
+2026-11-24 15:07:43.353 Df locationd[4164:4e12] [com.apple.locationd.Core:Client] {"msg":"CLDaemonInUseAssertion::handleMessageInUseAssertion", "event":activity, "this":"0x10ac16ee0", "message":"0x107fc52e8"}
+2026-11-24 15:07:43.389 Df locationd[4164:4e12] [com.apple.locationd.Core:Client] {"msg":"InUseAssertion/kCLConnectionMessage", "event":activity, "this":"0x10ac16fd0"}
+2026-11-24 15:07:43.395 Df locationd[4164:4e12] [com.apple.locationd.Core:Client] {"msg":"CLDaemonInUseAssertion::handleMessageInUseAssertion", "event":activity, "this":"0x10ac16fd0", "message":"0x107fc52e8"}
+2026-11-24 15:07:43.423 Df locationd[4164:4e12] [com.apple.locationd.Core:Client] {"msg":"InUseAssertion/kCLConnectionMessage", "event":activity, "this":"0x10ac16760"}
+2026-11-24 15:07:43.423 Df locationd[4164:4e12] [com.apple.locationd.Core:Client] {"msg":"CLDaemonInUseAssertion::handleMessageInUseAssertion", "event":activity, "this":"0x10ac16760", "message":"0x107fc52e8"}
+2026-11-24 15:07:43.646 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:43.747 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:43.819 Df chronod[4239:4117] [com.apple.chrono:descriptor] Publishing changed activity descriptors - count = 0 (total = 4, pending = [com.apple.AdaptiveMusicApp::com.apple.AdaptiveMusicApp.AdaptiveMusicControl, com.apple.PassbookStub::com.apple.PassbookStub.PassbookWidgets, com.apple.reminders::com.apple.reminders.WidgetExtension, com.apple.Health::com.apple.Health.HealthBalanceWidgetExtension, com.apple.news::com.apple.news.tag, com.apple.shortcuts::com.apple.shortcuts.ShortcutsWidget, com.apple.ScreenTimeWidgetApplication::com.apple.ScreenTimeWidgetApplication.ScreenTimeWidgetExtension, com.apple.Fitness::com.apple.Fitness.MirroredWidget, com.apple.AdaptiveMusicApp::com.apple.AdaptiveMusicApp.AdaptiveMusicWidget, com.apple.BarcodeScanner::com.apple.BarcodeScanner.BarcodeScannerWidgetExtension])
+2026-11-24 15:07:43.921 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:44.185 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:44.305 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:44.517 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:44.670 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:44.756 Df chronod[4239:c86f] [com.apple.chrono:activityscheduler] [8DB7C281]: activity completed
+2026-11-24 15:07:44.823 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:44.991 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:45.121 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:45.323 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:45.503 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:45.696 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:45.874 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:46.036 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:46.182 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:46.317 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:46.367 Df chronod[4239:ca53] [com.apple.chrono:activityscheduler] [55EB4E6D]: activity completed
+2026-11-24 15:07:46.471 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:46.567 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:46.705 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:46.897 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:47.051 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:47.276 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:47.383 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:47.482 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:47.609 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:47.732 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:48.197 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:48.350 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:48.529 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:48.805 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:48.941 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:49.099 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:49.211 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:49.418 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:49.526 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:49.662 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:49.780 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:49.906 Df chronod[4239:c8cd] [com.apple.chrono:activityscheduler] [4F961004]: activity completed
+2026-11-24 15:07:49.939 Df chronod[4239:ca4f] [com.apple.chrono:activityscheduler] [1D431B08]: activity added
+2026-11-24 15:07:49.940 Df chronod[4239:ca4f] [com.apple.chrono:activityscheduler] [1D431B08]: immediate activity enqueued (ClassA >= ClassD)
+2026-11-24 15:07:49.941 Df chronod[4239:ca4f] [com.apple.chrono:activityscheduler] [1D431B08]: activityHandler began
+2026-11-24 15:07:49.941 Df chronod[4239:ca4f] [com.apple.chrono:activityscheduler] [1D431B08]: activityHandler ended
+2026-11-24 15:07:49.971 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:50.090 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:50.233 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:50.366 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:50.488 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:50.615 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:50.720 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:50.848 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:50.956 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:51.118 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:51.265 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:51.352 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:51.504 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:51.615 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:51.730 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:51.848 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:51.949 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:52.088 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:52.185 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:52.299 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:52.420 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:52.571 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:52.731 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:52.906 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:53.067 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:53.170 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:53.322 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:53.407 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:53.530 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:53.734 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:53.884 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:53.997 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:54.124 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:54.351 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:54.530 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:54.644 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:54.751 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:54.886 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:55.086 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:55.239 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:55.410 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:55.695 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:55.915 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:55.932 Df chronod[4239:c8c8] [com.apple.chrono:activityscheduler] [CDB63934]: activity completed
+2026-11-24 15:07:56.153 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:56.385 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:56.600 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:56.921 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:57.165 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:57.423 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:57.632 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:57.832 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:57.880 Df chronod[4239:c8cd] [com.apple.chrono:activityscheduler] [EC07B8C3]: activity completed
+2026-11-24 15:07:57.974 Df chronod[4239:ca4a] [com.apple.chrono:descriptor] [com.apple.AdaptiveMusicApp::com.apple.AdaptiveMusicApp.AdaptiveMusicWidget] query returned 2 widget descriptors, 0 controls, 0 activities
+2026-11-24 15:07:57.976 Df chronod[4239:c86f] [com.apple.chrono:activityscheduler] [CC1CABDD]: activity completed
+2026-11-24 15:07:58.084 Df chronod[4239:caf7] [com.apple.chrono:descriptor] [com.apple.AdaptiveMusicApp::com.apple.AdaptiveMusicApp.AdaptiveMusicControl] query returned 0 widget descriptors, 4 controls, 0 activities
+2026-11-24 15:07:58.084 Df chronod[4239:c8c8] [com.apple.chrono:activityscheduler] [D9438D67]: activity completed
+2026-11-24 15:07:58.095 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:58.323 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:58.535 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:58.741 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:58.990 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:59.203 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:59.335 Df chronod[4239:c86f] [com.apple.chrono:activityscheduler] [8D5B1D22]: activity completed
+2026-11-24 15:07:59.458 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:59.668 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:59.862 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:07:59.998 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:00.143 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:00.274 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:00.435 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:00.546 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:00.718 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:00.857 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:00.986 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:01.104 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:01.203 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:01.322 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:01.414 Df chronod[4239:c8c8] [com.apple.chrono:activityscheduler] [35B1C2D3]: activity completed
+2026-11-24 15:08:01.444 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:01.547 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:01.631 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:01.724 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:01.811 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:01.933 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:02.045 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:02.156 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:02.289 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:02.488 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:02.631 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:02.767 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:02.888 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:02.986 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:03.109 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:03.263 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:03.432 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:03.534 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:03.653 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:03.767 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:03.888 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:03.984 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:04.106 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:04.248 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:04.349 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:04.444 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:04.533 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:04.633 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:04.739 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:04.845 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:04.938 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:05.030 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:05.111 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:05.212 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:05.353 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:05.499 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:05.618 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:05.779 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:05.869 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:05.990 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:06.071 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:06.192 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:06.275 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:06.385 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:06.543 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:06.646 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:06.746 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:06.852 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:06.954 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:07.064 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:07.168 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:07.267 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:07.349 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:07.431 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:07.535 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:07.664 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:07.769 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:07.900 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:08.006 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:08.130 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:08.259 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:08.367 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:08.461 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:08.569 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:08.666 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:08.749 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:08.851 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:08.947 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:09.065 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:09.190 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:09.301 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:09.408 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:09.522 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:09.620 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:09.713 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:09.809 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:09.935 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:10.028 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:10.144 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:10.283 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:10.385 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:10.489 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:10.574 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:10.669 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:10.768 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:10.905 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:11.023 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:11.138 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:11.247 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:11.353 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:11.464 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:11.576 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:11.680 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:11.829 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:11.939 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:12.033 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:12.189 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:12.297 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:12.432 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:12.551 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:12.639 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:12.736 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:12.864 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:13.018 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:13.151 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:13.267 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:13.385 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:13.541 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:13.620 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:13.734 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:13.963 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:14.144 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:14.253 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:14.377 Df chronod[4239:caf7] [com.apple.chrono:activityscheduler] [75B60638]: activity completed
+2026-11-24 15:08:14.482 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:14.606 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:14.705 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:14.795 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:14.948 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:15.053 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:15.167 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:15.272 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:15.383 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:15.498 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:15.588 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:15.689 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:15.784 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:15.886 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:15.989 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:16.078 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:16.171 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:16.253 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:16.352 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:16.443 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:16.585 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:16.663 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:16.769 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:16.887 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:16.995 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:17.128 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:17.244 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:17.367 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:17.478 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:17.632 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:17.738 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:17.827 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:17.916 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:18.047 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:18.146 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:18.264 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:18.379 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:18.474 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:18.596 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:18.690 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:18.803 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:18.899 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:19.009 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:19.133 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:19.222 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:19.333 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:19.421 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:19.512 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:19.597 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:19.685 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:19.798 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:19.889 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:19.953 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:20.031 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:20.120 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:20.215 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:20.302 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:20.400 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:20.488 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:20.598 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:20.699 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:20.812 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:20.902 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:21.036 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:21.166 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:21.255 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:21.349 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:21.423 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:21.516 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:21.601 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:21.702 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:21.781 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:21.853 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:21.938 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:22.018 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:22.100 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:22.172 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:22.253 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:22.349 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:22.437 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:22.518 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:22.597 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:22.683 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:22.766 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:22.853 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:22.924 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:23.016 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:23.098 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:23.170 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:23.252 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:23.332 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:23.404 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:23.514 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:23.619 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:23.704 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:23.787 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:23.899 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:23.998 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:24.118 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:24.215 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:24.319 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:24.413 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:24.514 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:24.606 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:24.699 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:24.794 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:24.881 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:25.015 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:25.166 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:25.260 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:25.335 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:25.420 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:25.517 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:25.612 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:25.690 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:25.776 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:25.856 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:25.939 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:26.032 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:26.146 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:26.247 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:26.352 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:26.403 Df chronod[4239:ce3e] [com.apple.chrono:activityscheduler] [1D431B08]: activity completed
+2026-11-24 15:08:26.423 Df chronod[4239:ce6e] [com.apple.chrono:activityscheduler] [A46B01AD]: activity added
+2026-11-24 15:08:26.423 Df chronod[4239:ce6e] [com.apple.chrono:activityscheduler] [A46B01AD]: immediate activity enqueued (ClassA >= ClassD)
+2026-11-24 15:08:26.423 Df chronod[4239:ce3e] [com.apple.chrono:activityscheduler] [A46B01AD]: activityHandler began
+2026-11-24 15:08:26.424 Df chronod[4239:ce3e] [com.apple.chrono:activityscheduler] [A46B01AD]: activityHandler ended
+2026-11-24 15:08:26.473 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:26.568 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:26.640 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:26.756 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:26.845 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:26.923 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:27.012 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:27.090 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:27.171 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:27.253 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:27.447 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:27.590 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:27.717 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:27.890 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:28.094 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:28.214 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:28.396 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:28.848 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:29.144 Df chronod[4239:ce6e] [com.apple.chrono:activityscheduler] [97F6576C]: activityHandler began
+2026-11-24 15:08:29.145 Df chronod[4239:ce6e] [com.apple.chrono:activityscheduler] [97F6576C]: activityHandler ended
+2026-11-24 15:08:29.145 Df chronod[4239:ce6e] [com.apple.chrono:activityscheduler] [19F86AC2]: activityHandler began
+2026-11-24 15:08:29.147 Df chronod[4239:ce6e] [com.apple.chrono:activityscheduler] [19F86AC2]: activityHandler ended
+2026-11-24 15:08:29.253 Df chronod[4239:ce3e] [com.apple.chrono:location] [ext:com.apple.Maps::com.apple.Maps.GeneralMapsWidget] acquired new underlying activity assertion
+2026-11-24 15:08:29.256 Df locationd[4164:c94e] [com.apple.locationd.Core:Client] {"msg":"InUseAssertion/kCLConnectionMessage", "event":activity, "this":"0x10ac16f80"}
+2026-11-24 15:08:29.256 Df locationd[4164:c94e] [com.apple.locationd.Core:Client] {"msg":"CLDaemonInUseAssertion::handleMessageInUseAssertion", "event":activity, "this":"0x10ac16f80", "message":"0x107fc7268"}
+2026-11-24 15:08:29.270 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:29.447 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:29.587 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:29.951 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:30.256 Df locationd[4164:c94e] [com.apple.locationd.Core:Client] {"msg":"Incoming message", "event":activity, "name":kCLConnectionMessagePausesLocationUpdatesAutomatically, "this":"0x10ad08e00", "registrationReceived":1}
+2026-11-24 15:08:30.301 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:30.497 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:30.569 Df locationd[4164:c94e] [com.apple.locationd.Core:Client] {"msg":"Incoming message", "event":activity, "name":kCLConnectionMessagePausesLocationUpdatesAutomatically, "this":"0x10ad0b2c0", "registrationReceived":1}
+2026-11-24 15:08:30.569 Df locationd[4164:c94e] [com.apple.locationd.Core:Client] {"msg":"Incoming message", "event":activity, "name":kCLConnectionMessageLocation, "this":"0x10ad0b2c0", "registrationReceived":1}
+2026-11-24 15:08:30.635 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:30.810 Df chronod[4239:c8c8] [com.apple.chrono:activityscheduler] [CC888E2A]: activity completed
+2026-11-24 15:08:30.834 Df chronod[4239:cead] [com.apple.chrono:activityscheduler] [80A70EC2]: activity added
+2026-11-24 15:08:30.834 Df chronod[4239:cead] [com.apple.chrono:activityscheduler] [80A70EC2]: immediate activity enqueued (ClassA >= ClassD)
+2026-11-24 15:08:30.835 Df chronod[4239:ce3e] [com.apple.chrono:activityscheduler] [80A70EC2]: activityHandler began
+2026-11-24 15:08:30.837 Df chronod[4239:ce3e] [com.apple.chrono:activityscheduler] [80A70EC2]: activityHandler ended
+2026-11-24 15:08:31.115 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:31.423 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:31.763 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:31.815 Df locationd[4164:8b81] [com.apple.locationd.Core:Client] {"msg":"Incoming message", "event":activity, "name":kCLConnectionMessagePausesLocationUpdatesAutomatically, "this":"0x10ad09f80", "registrationReceived":1}
+2026-11-24 15:08:31.983 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:32.049 Df chronod[4239:cead] [com.apple.chrono:activityscheduler] [97F6576C]: activity completed
+2026-11-24 15:08:32.065 Df chronod[4239:ce70] [com.apple.chrono:activityscheduler] [494F1F92]: activity added
+2026-11-24 15:08:32.066 Df chronod[4239:ce70] [com.apple.chrono:activityscheduler] [494F1F92]: scheduled activity enqueued after: 2026-11-24T15:13:30Z before: 2026-11-24T15:28:30Z with data class (ClassC)
+2026-11-24 15:08:32.066 Df chronod[4239:ce70] [com.apple.chrono:localActivityScheduler] [494F1F92]: scheduled activity with local scheduler
+2026-11-24 15:08:32.321 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:32.451 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:32.691 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:32.856 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:33.135 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:33.364 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:33.428 Df locationd[4164:4e12] [com.apple.locationd.Core:Client] {"msg":"Incoming message", "event":activity, "name":kCLConnectionMessageLocation, "this":"0x10ad09f80", "registrationReceived":1}
+2026-11-24 15:08:33.585 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:33.939 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:34.335 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:34.616 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:35.140 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:35.336 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:35.564 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:35.633 Df locationd[4164:c94e] [com.apple.locationd.Core:Client] {"msg":"Incoming message", "event":activity, "name":kCLConnectionMessageLocation, "this":"0x10ad09f80", "registrationReceived":1}
+2026-11-24 15:08:35.692 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:35.983 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:36.182 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:36.522 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:36.705 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:37.021 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:37.454 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:37.619 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:37.864 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:38.422 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:38.803 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:38.968 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:39.560 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:39.697 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:39.851 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:40.129 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:40.245 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:40.500 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:40.655 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:40.866 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:41.115 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:41.334 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:41.648 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:41.926 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:42.031 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:42.203 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:42.337 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:42.539 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:42.715 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:42.968 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:43.166 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:43.581 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:43.696 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:43.885 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:44.040 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:44.185 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:44.417 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:44.656 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:44.831 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:45.079 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:45.275 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:45.541 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:45.623 Df chronod[4239:ce6e] [com.apple.chrono:activityscheduler] [2B0E3A06]: activity completed
+2026-11-24 15:08:45.655 Df chronod[4239:c8c8] [com.apple.chrono:activityscheduler] [28136271]: activity added
+2026-11-24 15:08:45.655 Df chronod[4239:c8c8] [com.apple.chrono:activityscheduler] [28136271]: immediate activity enqueued (ClassA >= ClassD)
+2026-11-24 15:08:45.658 Df chronod[4239:ce6e] [com.apple.chrono:activityscheduler] [28136271]: activityHandler began
+2026-11-24 15:08:45.662 Df chronod[4239:ce6e] [com.apple.chrono:activityscheduler] [28136271]: activityHandler ended
+2026-11-24 15:08:45.888 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:46.115 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:46.389 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:46.626 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:47.084 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:47.471 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:47.914 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:48.198 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:48.438 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:48.664 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:49.057 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:49.228 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:49.454 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:49.877 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:50.322 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:50.914 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:51.260 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:51.603 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:51.738 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:52.020 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:52.281 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:52.421 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:52.581 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:52.685 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:52.810 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:52.915 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:52.990 Df locationd[4164:8b81] [com.apple.locationd.Core:Client] {"msg":"Incoming message", "event":activity, "name":kCLConnectionMessagePausesLocationUpdatesAutomatically, "this":"0x10ad0bd40", "registrationReceived":1}
+2026-11-24 15:08:53.022 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:53.076 Df locationd[4164:8b81] [com.apple.locationd.Core:Client] {"msg":"Incoming message", "event":activity, "name":kCLConnectionMessageLocation, "this":"0x10ad0bd40", "registrationReceived":1}
+2026-11-24 15:08:53.144 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:53.299 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:53.421 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:53.530 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:53.666 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:53.771 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:53.856 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:53.961 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:54.053 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:54.160 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:54.269 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:54.401 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:54.507 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:54.619 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:54.762 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:54.896 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:55.034 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:55.103 Df locationd[4164:41b3] [com.apple.locationd.Core:Client] {"msg":"Incoming message", "event":activity, "name":kCLConnectionMessageLocation, "this":"0x10ad0bd40", "registrationReceived":1}
+2026-11-24 15:08:55.143 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:55.268 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:55.434 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:55.575 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:55.847 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:56.033 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:56.172 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:56.629 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:56.894 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:57.059 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:57.408 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:57.516 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:57.743 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:57.919 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:58.117 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:58.265 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:58.497 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:58.696 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:58.807 Df chronod[4239:d041] [com.apple.chrono:activityscheduler] [A46B01AD]: activity completed
+2026-11-24 15:08:58.938 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:59.076 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:59.172 Df chronod[4239:d061] [com.apple.chrono:activityscheduler] [F4761DB4]: activity added
+2026-11-24 15:08:59.172 Df chronod[4239:d061] [com.apple.chrono:activityscheduler] [F4761DB4]: immediate activity enqueued (ClassA >= ClassD)
+2026-11-24 15:08:59.172 Df chronod[4239:d03a] [com.apple.chrono:activityscheduler] [F4761DB4]: activityHandler began
+2026-11-24 15:08:59.173 Df chronod[4239:d03a] [com.apple.chrono:activityscheduler] [F4761DB4]: activityHandler ended
+2026-11-24 15:08:59.210 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:59.312 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:59.413 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:59.499 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:59.603 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:59.711 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:59.794 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:08:59.910 Df chronod[4239:d03a] [com.apple.chrono:location] [ext:com.apple.Maps::com.apple.Maps.GeneralMapsWidget] invalidating underlying activity assertion
+2026-11-24 15:08:59.912 Df chronod[4239:d061] [com.apple.chrono:activityscheduler] [19F86AC2]: activity completed
+2026-11-24 15:08:59.932 Df chronod[4239:ce6e] [com.apple.chrono:activityscheduler] [DAE1B2CF]: activity added
+2026-11-24 15:08:59.932 Df chronod[4239:ce6e] [com.apple.chrono:activityscheduler] [DAE1B2CF]: scheduled activity enqueued after: 2026-11-24T15:13:46Z before: 2026-11-24T15:28:46Z with data class (ClassC)
+2026-11-24 15:08:59.933 Df chronod[4239:ce6e] [com.apple.chrono:localActivityScheduler] [DAE1B2CF]: scheduled activity with local scheduler
+2026-11-24 15:08:59.991 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:00.255 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:00.378 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:00.508 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:00.633 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:00.797 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:00.928 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:01.082 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:01.205 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:01.447 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:01.686 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:01.831 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:02.002 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:02.199 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:02.378 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:02.525 Df chronod[4239:ce6e] [com.apple.chrono:activityscheduler] [80A70EC2]: activity completed
+2026-11-24 15:09:02.684 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:02.795 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:02.906 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:03.134 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:03.313 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:03.463 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:03.666 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:03.889 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:03.988 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:04.138 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:04.296 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:04.446 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:04.623 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:04.721 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:04.860 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:04.996 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:05.139 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:05.285 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:05.495 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:05.667 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:05.868 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:06.003 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:06.170 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:06.251 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:06.364 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:06.458 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:06.656 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:06.852 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:06.977 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:07.104 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:07.252 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:07.437 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:07.500 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:07.725 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:07.839 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:07.949 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:08.065 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:08.140 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:08.226 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:08.326 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:08.432 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:08.557 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:08.665 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:08.785 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:08.890 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:09.053 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:09.202 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:09.333 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:09.394 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:09.469 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:09.568 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:09.655 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:09.764 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:09.983 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:10.097 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:10.228 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:10.350 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:10.537 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:10.766 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:10.938 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:11.123 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:11.228 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:11.316 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:11.387 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:11.567 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:11.764 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:11.877 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:11.973 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:12.084 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:12.173 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:12.297 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>
+2026-11-24 15:09:12.421 Df apsd[4205:4011] [com.apple.apsd:activityTracking] Attempting to roll activity presence salt. Self:<APSUserCourier 0x10391c500 development 0>

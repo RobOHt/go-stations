@@ -1,0 +1,5 @@
+14:59:50 live activity: launched
+15:00:21 live activity: switched to Settings
+15:02:41 live activity: shots taken
+15:06:17 clip island: 2587699 bytes
+15:09:34 live activity: 1193 log lines
