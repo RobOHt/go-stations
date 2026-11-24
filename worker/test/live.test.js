@@ -36,13 +36,54 @@ test("merges vehicle positions with Service at a Glance, trains only", () => {
   };
   const { trains } = mergeTrains(vehicles, glance, now);
   assert.deepEqual(trains.map((t) => t.trip), ["1033", "1034", "3034"]);
+  // Service at a Glance's fix of it, 26 s older, goes along with it.
   assert.deepEqual(trains[0], { trip: "1033", line: "LW", lat: 43.456177, lon: -79.68119, time: at("21:00:07"),
-                                status: "at", stop: "OA", delay: -20, moving: false, course: 229 });
+                                status: "at", stop: "OA", delay: -20, moving: false, course: 229,
+                                fixes: [{ lat: 43.456176, lon: -79.68119, time: at("20:59:41") }] });
   assert.equal(trains[1].status, "to");
   assert.equal(trains[1].delay, undefined);
   // Only in Service at a Glance: kept where it says, with its time as real time.
   assert.equal(trains[2].time, at("21:00:21"));
   assert.equal(trains[2].status, null);
+});
+
+test("Service at a Glance's GPS fix goes along when it's another one: older or newer, not too far apart", () => {
+  const now = at("21:01:20");
+  const vehicle = (trip, time, latitude) => ({
+    vehicle: { trip: { trip_id: `20261106-LW-${trip}` }, position: { latitude, longitude: -79.47 }, timestamp: time,
+               current_status: "IN_TRANSIT_TO", stop_id: "EX" },
+  });
+  const glanceTrip = (trip, modified, latitude) => ({
+    TripNumber: trip, LineCode: "LW", Latitude: latitude, Longitude: -79.47, IsInMotion: true, DelaySeconds: 30,
+    AtStationCode: null, NextStopCode: "EX", ModifiedDate: `2026-11-06 ${modified}`,
+  });
+  const vehicles = { entity: [
+    vehicle("1001", at("21:01:08"), 43.6391),
+    vehicle("1002", at("21:01:08"), 43.6391),
+    vehicle("1003", at("21:00:53"), 43.6391),
+    vehicle("1004", at("21:01:08"), 43.6391),
+    vehicle("1005", at("21:01:08"), 43.6391),
+  ] };
+  const glance = {
+    Metadata: { TimeStamp: "2026-11-06 21:01:20", ErrorCode: "200" },
+    Trips: { Trip: [
+      glanceTrip("1001", "21:00:53", 43.6359),  // 15 s older
+      glanceTrip("1002", "21:01:08", 43.6391),  // the same fix
+      glanceTrip("1003", "21:01:08", 43.6402),  // 15 s newer
+      glanceTrip("1004", "20:59:38", 43.6318),  // 90 s older: says nothing of how fast it's going now
+      glanceTrip("1005", "21:00:53", 0),         // no position given
+    ] },
+  };
+  const byTrip = Object.fromEntries(mergeTrains(vehicles, glance, now).trains.map((train) => [train.trip, train]));
+  assert.deepEqual(byTrip[1001].fixes, [{ lat: 43.6359, lon: -79.47, time: at("21:00:53") }]);
+  assert.equal(byTrip[1002].fixes, undefined);
+  assert.deepEqual(byTrip[1003].fixes, [{ lat: 43.6402, lon: -79.47, time: at("21:01:08") }]);
+  assert.equal(byTrip[1004].fixes, undefined);
+  assert.equal(byTrip[1005].fixes, undefined);
+  // The train itself stays as the vehicle positions have it: where, when, at or heading for which stop.
+  assert.deepEqual([byTrip[1003].lat, byTrip[1003].time, byTrip[1003].status, byTrip[1003].stop],
+                   [43.6391, at("21:00:53"), "to", "EX"]);
+  assert.equal(byTrip[1003].delay, 30);
 });
 
 test("Toronto's offset from the feed's own clock, and without it", () => {

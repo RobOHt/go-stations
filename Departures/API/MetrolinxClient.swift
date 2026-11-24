@@ -343,6 +343,8 @@ struct FeedList<Item: Decodable>: Decodable {
 
 extension FeedList: Sendable where Item: Sendable {}
 
+extension FeedList: Equatable where Item: Equatable {}
+
 /// A part of an answer that's left out when it isn't what it should be, rather
 /// than losing the whole answer.
 @propertyWrapper

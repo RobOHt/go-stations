@@ -2,8 +2,8 @@ import Foundation
 import Observation
 
 /// One GO train's latest live report, from the worker's /live/trains: GO's GTFS
-/// vehicle positions (about every 20 seconds), with how late it runs from Service
-/// at a Glance.
+/// vehicle positions (a GPS fix about every 10 to 15 seconds), with how late it
+/// runs from Service at a Glance.
 struct LiveTrain: Decodable, Equatable, Sendable {
     let trip: String
     let line: String?
@@ -19,8 +19,33 @@ struct LiveTrain: Decodable, Equatable, Sendable {
     let delay: Double?
     let moving: Bool?
     let course: Double?
+    /// GO's other GPS fixes of the train, each with its own time: Service at a
+    /// Glance's, when it has a different one (most of the time one 5 to 45 seconds
+    /// older than this report's, now and then a newer one). With them there are two
+    /// positions to tell the train's speed by the moment the app opens.
+    @FeedList var fixes: [Fix]? = nil
+
+    /// Where GO's GPS had the train, and when.
+    struct Fix: Decodable, Equatable, Sendable {
+        let lat: Double
+        let lon: Double
+        let time: Date
+    }
 
     var isAtStop: Bool { status == "at" }
+
+    /// This report and its other fixes (see `fixes`) as reports of their own, to
+    /// place the train by. A newer fix goes with what this report says of the stop
+    /// it's at or heading for (GO's latest word on that); an older one leaves that
+    /// to its position.
+    var reports: [LiveTrain] {
+        [self] + (fixes ?? []).map { fix in
+            let newer = fix.time > time
+            return LiveTrain(trip: trip, line: line, lat: fix.lat, lon: fix.lon, time: fix.time,
+                             status: newer ? status : nil, stop: newer ? stop : nil, delay: delay,
+                             moving: nil, course: nil)
+        }
+    }
 
     var coordinate: TrackGeometry.Coordinate { .init(latitude: lat, longitude: lon) }
 
@@ -211,7 +236,7 @@ final class LiveTrains {
             }
             next[train.trip] = train
             var reports = history[train.trip] ?? []
-            if reports.last.map({ train.time > $0.time }) ?? true { reports.append(train) }
+            for report in train.reports { Self.add(report, to: &reports) }
             history[train.trip] = Array(reports.suffix(12))
         }
         history = history.compactMapValues { reports in
@@ -223,5 +248,15 @@ final class LiveTrains {
         TripTracker.shared.follow(self)
         // The map draws each train where its new report has it straight away.
         NotificationCenter.default.post(name: .liveTrainsUpdated, object: nil)
+    }
+
+    /// Puts `report` among a train's reports (oldest first) in its place by time:
+    /// a fix can come in after a newer one (Service at a Glance lags). One within
+    /// a second of a report already there is the same fix.
+    static func add(_ report: LiveTrain, to reports: inout [LiveTrain]) {
+        guard report.isOnEarth, !reports.contains(where: { abs($0.time.timeIntervalSince(report.time)) < 1 })
+        else { return }
+        let index = reports.firstIndex { $0.time > report.time } ?? reports.count
+        reports.insert(report, at: index)
     }
 }

@@ -17,6 +17,11 @@ export const DWELL = 60;
 export const FRESH = 120;
 /** A train not heard from in this long isn't running. */
 const GONE = 300;
+/**
+ * Service at a Glance's GPS fix of a train is sent along with the vehicle
+ * positions' while it's no more than this many seconds older or newer.
+ */
+const OTHER_FIX = 45;
 /** Delay changes smaller than this don't re-time the stops ahead. */
 const DELAY_STEP = 30;
 /**
@@ -35,8 +40,16 @@ const TRIP_ID = /^(\d{8})-([A-Z]{2})-([A-Za-z0-9]{1,12})$/;
  * knows about is kept at its position there. Trains not heard from in five
  * minutes are left out.
  *
+ * Service at a Glance carries GO's GPS fixes too, each with its own time: most
+ * of the time one 5 to 45 seconds older than the vehicle positions' (it's updated
+ * less often), now and then a newer one. When it's a different fix, it goes
+ * along as `fixes`, so the app has two positions to tell a train's speed by the
+ * moment it opens, and the newest one wherever it came from. The train's own
+ * position, time, status and stop stay the vehicle positions' (what the
+ * Live Activity is re-timed by).
+ *
  *   { at, trains: [{ trip, line, lat, lon, time, status: "at" | "to" | null,
- *                    stop, delay?, moving?, course? }] }
+ *                    stop, delay?, moving?, course?, fixes?: [{ lat, lon, time }] }] }
  */
 export function mergeTrains(vehicles, glance, now) {
   const trains = new Map();
@@ -75,13 +88,17 @@ export function mergeTrains(vehicles, glance, now) {
     if (moving != null) extra.moving = moving;
     const course = numberFrom(train.Course);
     if (course != null) extra.course = course;
+    const lat = Number(train.Latitude);
+    const lon = Number(train.Longitude);
     const known = trains.get(trip);
     if (known) {
       Object.assign(known, extra);
+      const apart = Math.abs(time - known.time);
+      if (onEarth(lat, lon) && apart >= 1 && apart <= OTHER_FIX) {
+        known.fixes = [{ lat: round(lat), lon: round(lon), time }];
+      }
       continue;
     }
-    const lat = Number(train.Latitude);
-    const lon = Number(train.Longitude);
     const line = String(train.LineCode ?? "").trim().toUpperCase();
     if (!onEarth(lat, lon) || !/^[A-Z]{2}$/.test(line)) continue;
     // Its "station" can be a signal or junction along the line; the app checks.

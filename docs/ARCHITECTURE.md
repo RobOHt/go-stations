@@ -75,8 +75,14 @@ One rule decides where a train is drawn: while it has a live position (the GPS
 positions GO reports for it), those alone place it. Not the timetable, and not your
 phone's GPS, even on the train you're riding: you're your own blue dot.
 
-GO reports each train every 15 seconds or so (some every 5), and a report is 5 to
-15 seconds old by the time the app has it. Each report is put at the nearest point
+GO reports each train every 10 to 15 seconds (some every 5), and a report is 2 to
+16 seconds old by the time the app has it (8 typically). Service at a Glance, GO's
+other feed, carries the same GPS fixes with their own times, usually an older one
+than the vehicle positions (by 15 seconds or so, three times in four) and now and
+then a newer one: the Worker sends that fix along when it's a different one, so the
+app has two positions to tell a train's speed by the moment it opens (with only one,
+the train stands at it until the next comes in), and the newest wherever it came
+from. Each report is put at the nearest point
 of the train's track (or just where it says, when that's well off the line: a
 yard, a detour). A run's track starts and ends at its first and last stations' own
 spots on the line, and a train's GPS stands a little way from those: at Union,
@@ -162,7 +168,7 @@ One Worker (`worker/src/index.js`, `worker/src/live.js`), no dependencies:
 | Endpoint | What it does |
 | --- | --- |
 | `GET /v1/{Metrolinx path}` | Forwards the five read-only Metrolinx endpoints the app uses, with the key. Only GO's data goes back, never its error pages; good answers are cached at the edge for 20 s to 10 min |
-| `GET /v1/live/trains` | Every train running now: GTFS vehicle positions merged with Service at a Glance (delays, motion, heading), cached 5 s |
+| `GET /v1/live/trains` | Every train running now: GTFS vehicle positions merged with Service at a Glance (delays, motion, heading, and its GPS fix of the train when that's another one), cached 5 s |
 | `GET /v1/live/cancelled` | Cancelled trains and skipped stations from GO's two cancellation feeds together, cached 30 s |
 | `POST /v1/activity` | Starts following a tracked trip for its Live Activity (and `/v1/activity/end` stops) |
 

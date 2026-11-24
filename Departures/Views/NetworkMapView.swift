@@ -1185,21 +1185,22 @@ struct NetworkMapView: UIViewRepresentable {
         }
 
         /// Each train's reports as placed along its run: worked out once per report
-        /// (they come every 5 to 15 seconds; the map draws every second).
-        private var placements: [String: (time: Date, codes: [String], track: TrainReplay.Track?)] = [:]
+        /// (they come every 5 to 15 seconds; the map draws every second), and again
+        /// when an older fix comes in among them.
+        private var placements: [String: (times: [Date], codes: [String], track: TrainReplay.Track?)] = [:]
 
         /// Where a train is along its run now by its live reports, gliding through
         /// them (see TrainReplay): nil without a report that still says where it is
         /// (see `LiveTrains.reports(of:at:)`), and then its times are the backup.
         private func reported(_ number: String, on run: TrainRun, at now: Date) -> TrainReplay.Position? {
-            guard let reports = LiveTrains.shared.reports(of: number, at: now), let newest = reports.last
-            else { return nil }
+            guard let reports = LiveTrains.shared.reports(of: number, at: now) else { return nil }
+            let times = reports.map(\.time)
             let track: TrainReplay.Track?
-            if let known = placements[number], known.time == newest.time, known.codes == run.codes {
+            if let known = placements[number], known.times == times, known.codes == run.codes {
                 track = known.track
             } else {
                 track = TrainReplay.track(of: reports, on: run)
-                placements[number] = (newest.time, run.codes, track)
+                placements[number] = (times, run.codes, track)
             }
             return track.map { TrainReplay.position(on: $0, of: run, at: now) }
         }

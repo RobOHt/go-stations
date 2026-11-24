@@ -753,16 +753,18 @@ enum TrainGlide {
 }
 
 /// A train's reports as placed along its stops' track, kept from one second to the
-/// next: worked out once per report. (Only ever used by the view that holds it.)
+/// next: worked out once per report (and again when an older fix comes in among
+/// them). (Only ever used by the view that holds it.)
 final class PlacedReports {
-    private var newest: Date?
+    private var times: [Date] = []
     private var codes: [String] = []
     private var track: TrainReplay.Track?
 
     func track(of reports: [LiveTrain], on run: TrainRun) -> TrainReplay.Track? {
-        if let newest, newest == reports.last?.time, codes == run.codes { return track }
+        let times = reports.map(\.time)
+        if times == self.times, codes == run.codes { return track }
         track = TrainReplay.track(of: reports, on: run)
-        newest = reports.last?.time
+        self.times = times
         codes = run.codes
         return track
     }

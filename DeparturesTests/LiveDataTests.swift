@@ -35,6 +35,40 @@ extension GOFeeds {
             #expect(LiveTrains.shared.reports(of: "4041", at: Date().addingTimeInterval(45)) == nil)
         }
 
+        @Test("GO's other GPS fix of a train goes with it, in its place by time: two positions to go by at once")
+        func otherFixes() async {
+            let now = Date().timeIntervalSince1970
+            // Service at a Glance's fix 15 s older than the vehicle positions'.
+            var older = GO.train("4061", seconds: 10)
+            older["fixes"] = [["lat": 43.45, "lon": -79.69, "time": now - 25]]
+            // ...and one 15 s newer.
+            var newer = GO.train("4062", seconds: 25)
+            newer["fixes"] = [["lat": 43.46, "lon": -79.67, "time": now - 10]]
+            // ...and junk where it should be: the train is still read.
+            var junk = GO.train("4063", seconds: 10)
+            junk["fixes"] = "not a list"
+            await load([older, newer, junk])
+            let first = LiveTrains.shared.reports(of: "4061") ?? []
+            #expect(first.map(\.lat) == [43.45, 43.4561], "\(first.map(\.lat))")
+            // (An older fix leaves which stop it's at or heading for to its position.)
+            #expect(first.first?.status == nil && first.first?.stop == nil)
+            let second = LiveTrains.shared.reports(of: "4062") ?? []
+            #expect(second.map(\.lat) == [43.4561, 43.46], "\(second.map(\.lat))")
+            // (A newer one goes with what the vehicle positions last said of that.)
+            #expect(second.last?.status == "at" && second.last?.stop == "OA")
+            // The train's latest report is still the vehicle positions' own.
+            #expect(LiveTrains.shared.train("4062")?.lat == 43.4561)
+            #expect(LiveTrains.shared.train("4063") != nil && LiveTrains.shared.reports(of: "4063")?.count == 1)
+
+            // A fix that comes in after a newer report goes in before it; the same fix twice, once.
+            var again = GO.train("4061", seconds: 10)
+            again["time"] = older["time"]
+            again["fixes"] = [["lat": 43.44, "lon": -79.70, "time": now - 40], ["lat": 43.45, "lon": -79.69, "time": now - 25]]
+            await load([again])
+            #expect((LiveTrains.shared.reports(of: "4061") ?? []).map(\.lat) == [43.44, 43.45, 43.4561],
+                    "\((LiveTrains.shared.reports(of: "4061") ?? []).map(\.lat))")
+        }
+
         @Test("one train the app can't read doesn't lose it the others")
         func oneOdd() async {
             var odd = GO.train("4011")
