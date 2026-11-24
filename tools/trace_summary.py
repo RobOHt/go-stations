@@ -14,8 +14,9 @@ the next is in, and is put right in one quick slide when a new report shows it
 drawn in the wrong place. So this says how often it was drawn each way, that it
 never went by its times with a live position to hand, how it moved from second to
 second (evenly, or put right: how often and how far, and whether ever back), how
-far from its latest report it was drawn, how old the reports were, and how far it
-went at once whenever it changed between its times and its reports.
+far from its latest report it was drawn, how old the reports were, how far it went
+at once whenever it changed between its times and its reports, and each time its
+reports had it standing: that it was drawn where they had it, never carried on.
 
 Usage: python3 tools/trace_summary.py train-trace.tsv
 """
@@ -63,9 +64,29 @@ def main(path):
         if a["source"] != b["source"]:
             print(f"at {b['time'] - t0:.0f} s: from {a['source']} to {b['source']}, "
                   f"{abs(b['drawn'] - a['drawn']):.0f} m at once")
-    # From one second to the next by its reports: evenly, or put right.
+    # While its reports have it standing (its speed by them is 0): drawn where
+    # they have it, or still coming up to there, never carried on past it.
+    stands, current = [], []
+    for row in rows:
+        if row["source"] == "report" and row["drawn_speed"] == 0:
+            current.append(row)
+        elif current:
+            stands.append(current)
+            current = []
+    if current:
+        stands.append(current)
+    for stand in stands:
+        lead = [r["drawn"] - r["target"] for r in stand]
+        print(f"at {stand[0]['time'] - t0:.0f} s: standing by its reports for {stand[-1]['time'] - stand[0]['time']:.0f} s "
+              f"({stand[0]['stop']}): drawn at most {max(max(lead), 0):.0f} m past where they had it, "
+              f"at most {max(-min(lead), 0):.0f} m short of it")
+    # From one second to the next by its reports: evenly, or put right. (The map
+    # also draws the moment a new list of trains is in: a draw less than half a
+    # second before the next goes with it.)
+    paced = [row for row, after in zip(rows, rows[1:] + [None])
+             if after is None or after["time"] - row["time"] >= 0.5]
     even, back, jumps, still = [], [], [], 0
-    for a, b in zip(rows, rows[1:]):
+    for a, b in zip(paced, paced[1:]):
         if a["source"] != "report" or b["source"] != "report" or b["time"] - a["time"] > 2.5:
             continue
         step = b["drawn"] - a["drawn"]
