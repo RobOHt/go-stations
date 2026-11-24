@@ -187,6 +187,7 @@ jobs:
           if wanted island; then
           xcrun simctl terminate "$UDID" "$BUNDLE_ID" > /dev/null 2>&1 || true
           sleep 1
+          since=$(date '+%Y-%m-%d %H:%M:%S')
           xcrun simctl launch "$UDID" "$BUNDLE_ID" -debugScene liveActivity -homeStation OA -workStation UN > /dev/null
           log "live activity: launched"
           sleep 22
@@ -206,7 +207,8 @@ jobs:
           stop "$recorder" island
           shrink island
           # What ActivityKit and the app said meanwhile: whether the activity started.
-          xcrun simctl spawn "$UDID" log show --style compact --last 3m \
+          # (The simulator's island shows it in some screenshots and not others.)
+          xcrun simctl spawn "$UDID" log show --style compact --start "$since" \
             --predicate 'eventMessage CONTAINS[c] "activit"' > media/island-log.txt 2>&1 || true
           log "live activity: $(grep -ci "activit" media/island-log.txt) log lines" 
           xcrun simctl terminate "$UDID" com.apple.Preferences > /dev/null 2>&1 || true
