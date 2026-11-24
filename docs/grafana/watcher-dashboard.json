@@ -1,0 +1,1874 @@
+{
+  "__inputs": [
+    {
+      "name": "DS_GO_STATIONS",
+      "label": "Cloudflare Analytics Engine",
+      "description": "The Altinity ClickHouse data source pointed at Analytics Engine's SQL API (docs/WATCHER.md)",
+      "type": "datasource",
+      "pluginId": "vertamedia-clickhouse-datasource",
+      "pluginName": "Altinity plugin for ClickHouse"
+    }
+  ],
+  "__requires": [
+    {
+      "type": "datasource",
+      "id": "vertamedia-clickhouse-datasource",
+      "name": "Altinity plugin for ClickHouse",
+      "version": "3.0.0"
+    },
+    {
+      "type": "grafana",
+      "id": "grafana",
+      "name": "Grafana",
+      "version": "10.0.0"
+    },
+    {
+      "type": "panel",
+      "id": "timeseries",
+      "name": "Time series",
+      "version": ""
+    },
+    {
+      "type": "panel",
+      "id": "stat",
+      "name": "Stat",
+      "version": ""
+    },
+    {
+      "type": "panel",
+      "id": "barchart",
+      "name": "Bar chart",
+      "version": ""
+    },
+    {
+      "type": "panel",
+      "id": "table",
+      "name": "Table",
+      "version": ""
+    }
+  ],
+  "uid": "go-stations-watch",
+  "title": "GO Stations: how close trains are drawn",
+  "description": "The watcher's scoreboard (worker/src/watch.js): each way of drawing a train, against where the train really was.",
+  "tags": [
+    "go-stations"
+  ],
+  "timezone": "America/Toronto",
+  "editable": true,
+  "graphTooltip": 1,
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "refresh": "5m",
+  "schemaVersion": 39,
+  "version": 1,
+  "templating": {
+    "list": [
+      {
+        "type": "custom",
+        "name": "line",
+        "label": "Line",
+        "query": "LW,LE,KI,MI,BR,RH,ST",
+        "includeAll": true,
+        "allValue": "%",
+        "multi": false,
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "options": [
+          {
+            "text": "All",
+            "value": "$__all",
+            "selected": true
+          },
+          {
+            "text": "LW",
+            "value": "LW",
+            "selected": false
+          },
+          {
+            "text": "LE",
+            "value": "LE",
+            "selected": false
+          },
+          {
+            "text": "KI",
+            "value": "KI",
+            "selected": false
+          },
+          {
+            "text": "MI",
+            "value": "MI",
+            "selected": false
+          },
+          {
+            "text": "BR",
+            "value": "BR",
+            "selected": false
+          },
+          {
+            "text": "RH",
+            "value": "RH",
+            "selected": false
+          },
+          {
+            "text": "ST",
+            "value": "ST",
+            "selected": false
+          }
+        ],
+        "hide": 0
+      },
+      {
+        "type": "custom",
+        "name": "phase",
+        "label": "Doing",
+        "query": "stand,in,out,run",
+        "includeAll": true,
+        "allValue": "%",
+        "multi": false,
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "options": [
+          {
+            "text": "All",
+            "value": "$__all",
+            "selected": true
+          },
+          {
+            "text": "stand",
+            "value": "stand",
+            "selected": false
+          },
+          {
+            "text": "in",
+            "value": "in",
+            "selected": false
+          },
+          {
+            "text": "out",
+            "value": "out",
+            "selected": false
+          },
+          {
+            "text": "run",
+            "value": "run",
+            "selected": false
+          }
+        ],
+        "hide": 0
+      }
+    ]
+  },
+  "annotations": {
+    "list": []
+  },
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Today: metres off",
+      "description": "Build 148's drawing (10 s behind): how far, on average, from where the train really was.",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "vertamedia-clickhouse-datasource",
+            "uid": "${DS_GO_STATIONS}"
+          },
+          "query": "SELECT SUM(_sample_interval * double2) / SUM(_sample_interval * double1) AS value FROM go_stations_scores WHERE $timeFilter AND blob1 = 'today' AND blob2 LIKE '${line}' AND blob3 LIKE '${phase}'",
+          "rawQuery": "SELECT SUM(_sample_interval * double2) / SUM(_sample_interval * double1) AS value FROM go_stations_scores WHERE $timeFilter AND blob1 = 'today' AND blob2 LIKE '${line}' AND blob3 LIKE '${phase}'",
+          "format": "table",
+          "dateTimeColDataType": "timestamp",
+          "dateTimeType": "DATETIME",
+          "round": "0s",
+          "intervalFactor": 1,
+          "extrapolate": false,
+          "skip_comments": true,
+          "database": "",
+          "table": "go_stations_scores"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "lengthm",
+          "decimals": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#8f8f8f"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^value$/",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center"
+      },
+      "id": 1,
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "datasource": {
+        "type": "vertamedia-clickhouse-datasource",
+        "uid": "${DS_GO_STATIONS}"
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Option A: metres off",
+      "description": "Guessed on from each GPS fix's own time, gliding to each new fix in 2 s.",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "vertamedia-clickhouse-datasource",
+            "uid": "${DS_GO_STATIONS}"
+          },
+          "query": "SELECT SUM(_sample_interval * double2) / SUM(_sample_interval * double1) AS value FROM go_stations_scores WHERE $timeFilter AND blob1 = 'from_fix' AND blob2 LIKE '${line}' AND blob3 LIKE '${phase}'",
+          "rawQuery": "SELECT SUM(_sample_interval * double2) / SUM(_sample_interval * double1) AS value FROM go_stations_scores WHERE $timeFilter AND blob1 = 'from_fix' AND blob2 LIKE '${line}' AND blob3 LIKE '${phase}'",
+          "format": "table",
+          "dateTimeColDataType": "timestamp",
+          "dateTimeType": "DATETIME",
+          "round": "0s",
+          "intervalFactor": 1,
+          "extrapolate": false,
+          "skip_comments": true,
+          "database": "",
+          "table": "go_stations_scores"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "lengthm",
+          "decimals": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#3274d9"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^value$/",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center"
+      },
+      "id": 2,
+      "gridPos": {
+        "x": 6,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "datasource": {
+        "type": "vertamedia-clickhouse-datasource",
+        "uid": "${DS_GO_STATIONS}"
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Option A: time ahead of the train",
+      "description": "Share of seconds drawn more than 1 m ahead of the real train.",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "vertamedia-clickhouse-datasource",
+            "uid": "${DS_GO_STATIONS}"
+          },
+          "query": "SELECT 100 * SUM(_sample_interval * double5) / SUM(_sample_interval * double1) AS value FROM go_stations_scores WHERE $timeFilter AND blob1 = 'from_fix' AND blob2 LIKE '${line}' AND blob3 LIKE '${phase}'",
+          "rawQuery": "SELECT 100 * SUM(_sample_interval * double5) / SUM(_sample_interval * double1) AS value FROM go_stations_scores WHERE $timeFilter AND blob1 = 'from_fix' AND blob2 LIKE '${line}' AND blob3 LIKE '${phase}'",
+          "format": "table",
+          "dateTimeColDataType": "timestamp",
+          "dateTimeType": "DATETIME",
+          "round": "0s",
+          "intervalFactor": 1,
+          "extrapolate": false,
+          "skip_comments": true,
+          "database": "",
+          "table": "go_stations_scores"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#3274d9"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^value$/",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center"
+      },
+      "id": 3,
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "datasource": {
+        "type": "vertamedia-clickhouse-datasource",
+        "uid": "${DS_GO_STATIONS}"
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Newest fix only: metres off",
+      "description": "Where the newest GPS fix has the train: how stale the raw data is.",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "vertamedia-clickhouse-datasource",
+            "uid": "${DS_GO_STATIONS}"
+          },
+          "query": "SELECT SUM(_sample_interval * double2) / SUM(_sample_interval * double1) AS value FROM go_stations_scores WHERE $timeFilter AND blob1 = 'newest' AND blob2 LIKE '${line}' AND blob3 LIKE '${phase}'",
+          "rawQuery": "SELECT SUM(_sample_interval * double2) / SUM(_sample_interval * double1) AS value FROM go_stations_scores WHERE $timeFilter AND blob1 = 'newest' AND blob2 LIKE '${line}' AND blob3 LIKE '${phase}'",
+          "format": "table",
+          "dateTimeColDataType": "timestamp",
+          "dateTimeType": "DATETIME",
+          "round": "0s",
+          "intervalFactor": 1,
+          "extrapolate": false,
+          "skip_comments": true,
+          "database": "",
+          "table": "go_stations_scores"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "lengthm",
+          "decimals": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#e0b400"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^value$/",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center"
+      },
+      "id": 4,
+      "gridPos": {
+        "x": 18,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "datasource": {
+        "type": "vertamedia-clickhouse-datasource",
+        "uid": "${DS_GO_STATIONS}"
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "How far off each way of drawing a train is",
+      "description": "Mean distance along the track between where each model draws a train and where the train really was (read off all its GPS fixes afterwards).",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "vertamedia-clickhouse-datasource",
+            "uid": "${DS_GO_STATIONS}"
+          },
+          "query": "SELECT $timeSeries AS t, blob1 AS model, SUM(_sample_interval * double2) / SUM(_sample_interval * double1) AS value FROM go_stations_scores WHERE $timeFilter AND blob2 LIKE '${line}' AND blob3 LIKE '${phase}' GROUP BY t, model ORDER BY t",
+          "rawQuery": "SELECT $timeSeries AS t, blob1 AS model, SUM(_sample_interval * double2) / SUM(_sample_interval * double1) AS value FROM go_stations_scores WHERE $timeFilter AND blob2 LIKE '${line}' AND blob3 LIKE '${phase}' GROUP BY t, model ORDER BY t",
+          "format": "time_series",
+          "dateTimeColDataType": "timestamp",
+          "dateTimeType": "DATETIME",
+          "round": "0s",
+          "intervalFactor": 1,
+          "extrapolate": false,
+          "skip_comments": true,
+          "database": "",
+          "table": "go_stations_scores"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "lengthm",
+          "decimals": 1,
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 0,
+            "spanNulls": true,
+            "showPoints": "never"
+          },
+          "min": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "today"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Today: 10 s behind (build 148)"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#8f8f8f"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "from_fix"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Option A: from each fix's time"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#3274d9"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "newest"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Newest fix only"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#e0b400"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "id": 5,
+      "gridPos": {
+        "x": 0,
+        "y": 4,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "vertamedia-clickhouse-datasource",
+        "uid": "${DS_GO_STATIONS}"
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Behind (below 0) or ahead (above 0)",
+      "description": "Mean signed error: negative is behind the real train, positive ahead.",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "vertamedia-clickhouse-datasource",
+            "uid": "${DS_GO_STATIONS}"
+          },
+          "query": "SELECT $timeSeries AS t, blob1 AS model, SUM(_sample_interval * double3) / SUM(_sample_interval * double1) AS value FROM go_stations_scores WHERE $timeFilter AND blob2 LIKE '${line}' AND blob3 LIKE '${phase}' GROUP BY t, model ORDER BY t",
+          "rawQuery": "SELECT $timeSeries AS t, blob1 AS model, SUM(_sample_interval * double3) / SUM(_sample_interval * double1) AS value FROM go_stations_scores WHERE $timeFilter AND blob2 LIKE '${line}' AND blob3 LIKE '${phase}' GROUP BY t, model ORDER BY t",
+          "format": "time_series",
+          "dateTimeColDataType": "timestamp",
+          "dateTimeType": "DATETIME",
+          "round": "0s",
+          "intervalFactor": 1,
+          "extrapolate": false,
+          "skip_comments": true,
+          "database": "",
+          "table": "go_stations_scores"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "lengthm",
+          "decimals": 1,
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 0,
+            "spanNulls": true,
+            "showPoints": "never"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "today"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Today: 10 s behind (build 148)"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#8f8f8f"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "from_fix"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Option A: from each fix's time"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#3274d9"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "newest"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Newest fix only"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#e0b400"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "id": 6,
+      "gridPos": {
+        "x": 12,
+        "y": 4,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "vertamedia-clickhouse-datasource",
+        "uid": "${DS_GO_STATIONS}"
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Time ahead of the train",
+      "description": "Share of seconds drawn more than 1 m ahead of where the train really was.",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "vertamedia-clickhouse-datasource",
+            "uid": "${DS_GO_STATIONS}"
+          },
+          "query": "SELECT $timeSeries AS t, blob1 AS model, 100 * SUM(_sample_interval * double5) / SUM(_sample_interval * double1) AS value FROM go_stations_scores WHERE $timeFilter AND blob2 LIKE '${line}' AND blob3 LIKE '${phase}' GROUP BY t, model ORDER BY t",
+          "rawQuery": "SELECT $timeSeries AS t, blob1 AS model, 100 * SUM(_sample_interval * double5) / SUM(_sample_interval * double1) AS value FROM go_stations_scores WHERE $timeFilter AND blob2 LIKE '${line}' AND blob3 LIKE '${phase}' GROUP BY t, model ORDER BY t",
+          "format": "time_series",
+          "dateTimeColDataType": "timestamp",
+          "dateTimeType": "DATETIME",
+          "round": "0s",
+          "intervalFactor": 1,
+          "extrapolate": false,
+          "skip_comments": true,
+          "database": "",
+          "table": "go_stations_scores"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1,
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 0,
+            "spanNulls": true,
+            "showPoints": "never"
+          },
+          "min": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "today"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Today: 10 s behind (build 148)"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#8f8f8f"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "from_fix"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Option A: from each fix's time"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#3274d9"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "newest"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Newest fix only"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#e0b400"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "id": 7,
+      "gridPos": {
+        "x": 0,
+        "y": 13,
+        "w": 8,
+        "h": 8
+      },
+      "datasource": {
+        "type": "vertamedia-clickhouse-datasource",
+        "uid": "${DS_GO_STATIONS}"
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Time off by over 100 m",
+      "description": "Share of seconds drawn more than 100 m from the real train, either way.",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "vertamedia-clickhouse-datasource",
+            "uid": "${DS_GO_STATIONS}"
+          },
+          "query": "SELECT $timeSeries AS t, blob1 AS model, 100 * SUM(_sample_interval * double13) / SUM(_sample_interval * double1) AS value FROM go_stations_scores WHERE $timeFilter AND blob2 LIKE '${line}' AND blob3 LIKE '${phase}' GROUP BY t, model ORDER BY t",
+          "rawQuery": "SELECT $timeSeries AS t, blob1 AS model, 100 * SUM(_sample_interval * double13) / SUM(_sample_interval * double1) AS value FROM go_stations_scores WHERE $timeFilter AND blob2 LIKE '${line}' AND blob3 LIKE '${phase}' GROUP BY t, model ORDER BY t",
+          "format": "time_series",
+          "dateTimeColDataType": "timestamp",
+          "dateTimeType": "DATETIME",
+          "round": "0s",
+          "intervalFactor": 1,
+          "extrapolate": false,
+          "skip_comments": true,
+          "database": "",
+          "table": "go_stations_scores"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1,
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 0,
+            "spanNulls": true,
+            "showPoints": "never"
+          },
+          "min": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "today"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Today: 10 s behind (build 148)"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#8f8f8f"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "from_fix"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Option A: from each fix's time"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#3274d9"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "newest"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Newest fix only"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#e0b400"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "id": 8,
+      "gridPos": {
+        "x": 8,
+        "y": 13,
+        "w": 8,
+        "h": 8
+      },
+      "datasource": {
+        "type": "vertamedia-clickhouse-datasource",
+        "uid": "${DS_GO_STATIONS}"
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Moves back, per hour of a train in view",
+      "description": "How often a drawn train moves backwards (a correction a rider can see), per hour of train time.",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "vertamedia-clickhouse-datasource",
+            "uid": "${DS_GO_STATIONS}"
+          },
+          "query": "SELECT $timeSeries AS t, blob1 AS model, 3600 * SUM(_sample_interval * double9) / SUM(_sample_interval * double1) AS value FROM go_stations_scores WHERE $timeFilter AND blob2 LIKE '${line}' AND blob3 LIKE '${phase}' GROUP BY t, model ORDER BY t",
+          "rawQuery": "SELECT $timeSeries AS t, blob1 AS model, 3600 * SUM(_sample_interval * double9) / SUM(_sample_interval * double1) AS value FROM go_stations_scores WHERE $timeFilter AND blob2 LIKE '${line}' AND blob3 LIKE '${phase}' GROUP BY t, model ORDER BY t",
+          "format": "time_series",
+          "dateTimeColDataType": "timestamp",
+          "dateTimeType": "DATETIME",
+          "round": "0s",
+          "intervalFactor": 1,
+          "extrapolate": false,
+          "skip_comments": true,
+          "database": "",
+          "table": "go_stations_scores"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 1,
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 0,
+            "spanNulls": true,
+            "showPoints": "never"
+          },
+          "min": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "today"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Today: 10 s behind (build 148)"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#8f8f8f"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "from_fix"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Option A: from each fix's time"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#3274d9"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "newest"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Newest fix only"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#e0b400"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "id": 9,
+      "gridPos": {
+        "x": 16,
+        "y": 13,
+        "w": 8,
+        "h": 8
+      },
+      "datasource": {
+        "type": "vertamedia-clickhouse-datasource",
+        "uid": "${DS_GO_STATIONS}"
+      }
+    },
+    {
+      "type": "barchart",
+      "title": "By hour of the day (Toronto): metres off",
+      "description": "Mean metres off by the hour of the day, Toronto time.",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "vertamedia-clickhouse-datasource",
+            "uid": "${DS_GO_STATIONS}"
+          },
+          "query": "SELECT blob7 AS hour, sumIf(_sample_interval * double2, blob1 = 'today') / sumIf(_sample_interval * double1, blob1 = 'today') AS today, sumIf(_sample_interval * double2, blob1 = 'from_fix') / sumIf(_sample_interval * double1, blob1 = 'from_fix') AS from_fix, sumIf(_sample_interval * double2, blob1 = 'newest') / sumIf(_sample_interval * double1, blob1 = 'newest') AS newest FROM go_stations_scores WHERE $timeFilter AND blob2 LIKE '${line}' AND blob3 LIKE '${phase}' GROUP BY hour ORDER BY hour",
+          "rawQuery": "SELECT blob7 AS hour, sumIf(_sample_interval * double2, blob1 = 'today') / sumIf(_sample_interval * double1, blob1 = 'today') AS today, sumIf(_sample_interval * double2, blob1 = 'from_fix') / sumIf(_sample_interval * double1, blob1 = 'from_fix') AS from_fix, sumIf(_sample_interval * double2, blob1 = 'newest') / sumIf(_sample_interval * double1, blob1 = 'newest') AS newest FROM go_stations_scores WHERE $timeFilter AND blob2 LIKE '${line}' AND blob3 LIKE '${phase}' GROUP BY hour ORDER BY hour",
+          "format": "table",
+          "dateTimeColDataType": "timestamp",
+          "dateTimeType": "DATETIME",
+          "round": "0s",
+          "intervalFactor": 1,
+          "extrapolate": false,
+          "skip_comments": true,
+          "database": "",
+          "table": "go_stations_scores"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "lengthm",
+          "decimals": 0,
+          "custom": {
+            "fillOpacity": 80,
+            "lineWidth": 0
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "today"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Today: 10 s behind (build 148)"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#8f8f8f"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "from_fix"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Option A: from each fix's time"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#3274d9"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "newest"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Newest fix only"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#e0b400"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "xField": "hour",
+        "orientation": "vertical",
+        "groupWidth": 0.75,
+        "barWidth": 0.9,
+        "showValue": "never",
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "id": 10,
+      "gridPos": {
+        "x": 0,
+        "y": 21,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "vertamedia-clickhouse-datasource",
+        "uid": "${DS_GO_STATIONS}"
+      }
+    },
+    {
+      "type": "barchart",
+      "title": "By what the train is doing: metres off",
+      "description": "stand: standing; in: within 1.5 km of a station it stops at; out: within 1.5 km after leaving one; run: in between.",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "vertamedia-clickhouse-datasource",
+            "uid": "${DS_GO_STATIONS}"
+          },
+          "query": "SELECT blob3 AS phase, sumIf(_sample_interval * double2, blob1 = 'today') / sumIf(_sample_interval * double1, blob1 = 'today') AS today, sumIf(_sample_interval * double2, blob1 = 'from_fix') / sumIf(_sample_interval * double1, blob1 = 'from_fix') AS from_fix, sumIf(_sample_interval * double2, blob1 = 'newest') / sumIf(_sample_interval * double1, blob1 = 'newest') AS newest FROM go_stations_scores WHERE $timeFilter AND blob2 LIKE '${line}' GROUP BY phase ORDER BY phase",
+          "rawQuery": "SELECT blob3 AS phase, sumIf(_sample_interval * double2, blob1 = 'today') / sumIf(_sample_interval * double1, blob1 = 'today') AS today, sumIf(_sample_interval * double2, blob1 = 'from_fix') / sumIf(_sample_interval * double1, blob1 = 'from_fix') AS from_fix, sumIf(_sample_interval * double2, blob1 = 'newest') / sumIf(_sample_interval * double1, blob1 = 'newest') AS newest FROM go_stations_scores WHERE $timeFilter AND blob2 LIKE '${line}' GROUP BY phase ORDER BY phase",
+          "format": "table",
+          "dateTimeColDataType": "timestamp",
+          "dateTimeType": "DATETIME",
+          "round": "0s",
+          "intervalFactor": 1,
+          "extrapolate": false,
+          "skip_comments": true,
+          "database": "",
+          "table": "go_stations_scores"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "lengthm",
+          "decimals": 0,
+          "custom": {
+            "fillOpacity": 80,
+            "lineWidth": 0
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "today"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Today: 10 s behind (build 148)"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#8f8f8f"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "from_fix"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Option A: from each fix's time"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#3274d9"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "newest"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Newest fix only"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#e0b400"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "xField": "phase",
+        "orientation": "vertical",
+        "groupWidth": 0.75,
+        "barWidth": 0.9,
+        "showValue": "never",
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "id": 11,
+      "gridPos": {
+        "x": 12,
+        "y": 21,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "vertamedia-clickhouse-datasource",
+        "uid": "${DS_GO_STATIONS}"
+      }
+    },
+    {
+      "type": "table",
+      "title": "By line",
+      "description": "Each line, each model, over the time range.",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "vertamedia-clickhouse-datasource",
+            "uid": "${DS_GO_STATIONS}"
+          },
+          "query": "SELECT blob2 AS line, blob1 AS model, SUM(_sample_interval * double2) / SUM(_sample_interval * double1) AS metres_off, SUM(_sample_interval * double3) / SUM(_sample_interval * double1) AS signed, 100 * SUM(_sample_interval * double5) / SUM(_sample_interval * double1) AS ahead_pct, 100 * SUM(_sample_interval * double13) / SUM(_sample_interval * double1) AS over_100m_pct, 3600 * SUM(_sample_interval * double9) / SUM(_sample_interval * double1) AS back_per_hour, SUM(_sample_interval * double1) / 3600 AS train_hours FROM go_stations_scores WHERE $timeFilter AND blob3 LIKE '${phase}' GROUP BY line, model ORDER BY line, model",
+          "rawQuery": "SELECT blob2 AS line, blob1 AS model, SUM(_sample_interval * double2) / SUM(_sample_interval * double1) AS metres_off, SUM(_sample_interval * double3) / SUM(_sample_interval * double1) AS signed, 100 * SUM(_sample_interval * double5) / SUM(_sample_interval * double1) AS ahead_pct, 100 * SUM(_sample_interval * double13) / SUM(_sample_interval * double1) AS over_100m_pct, 3600 * SUM(_sample_interval * double9) / SUM(_sample_interval * double1) AS back_per_hour, SUM(_sample_interval * double1) / 3600 AS train_hours FROM go_stations_scores WHERE $timeFilter AND blob3 LIKE '${phase}' GROUP BY line, model ORDER BY line, model",
+          "format": "table",
+          "dateTimeColDataType": "timestamp",
+          "dateTimeType": "DATETIME",
+          "round": "0s",
+          "intervalFactor": 1,
+          "extrapolate": false,
+          "skip_comments": true,
+          "database": "",
+          "table": "go_stations_scores"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "metres_off"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "lengthm"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "signed"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "lengthm"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ahead_pct"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "over_100m_pct"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "back_per_hour"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "train_hours"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "id": 12,
+      "gridPos": {
+        "x": 0,
+        "y": 30,
+        "w": 12,
+        "h": 10
+      },
+      "datasource": {
+        "type": "vertamedia-clickhouse-datasource",
+        "uid": "${DS_GO_STATIONS}"
+      }
+    },
+    {
+      "type": "table",
+      "title": "Stations where today's model is furthest off",
+      "description": "By the station each train was heading for (or standing at), with at least 12 minutes of train time.",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "vertamedia-clickhouse-datasource",
+            "uid": "${DS_GO_STATIONS}"
+          },
+          "query": "SELECT blob4 AS station, SUM(_sample_interval * double2) / SUM(_sample_interval * double1) AS metres_off, SUM(_sample_interval * double3) / SUM(_sample_interval * double1) AS signed, 100 * SUM(_sample_interval * double5) / SUM(_sample_interval * double1) AS ahead_pct, 100 * SUM(_sample_interval * double13) / SUM(_sample_interval * double1) AS over_100m_pct, 3600 * SUM(_sample_interval * double9) / SUM(_sample_interval * double1) AS back_per_hour, SUM(_sample_interval * double1) / 3600 AS train_hours FROM go_stations_scores WHERE $timeFilter AND blob2 LIKE '${line}' AND blob3 LIKE '${phase}' AND blob1 = 'today' GROUP BY station HAVING train_hours > 0.2 ORDER BY metres_off DESC LIMIT 15",
+          "rawQuery": "SELECT blob4 AS station, SUM(_sample_interval * double2) / SUM(_sample_interval * double1) AS metres_off, SUM(_sample_interval * double3) / SUM(_sample_interval * double1) AS signed, 100 * SUM(_sample_interval * double5) / SUM(_sample_interval * double1) AS ahead_pct, 100 * SUM(_sample_interval * double13) / SUM(_sample_interval * double1) AS over_100m_pct, 3600 * SUM(_sample_interval * double9) / SUM(_sample_interval * double1) AS back_per_hour, SUM(_sample_interval * double1) / 3600 AS train_hours FROM go_stations_scores WHERE $timeFilter AND blob2 LIKE '${line}' AND blob3 LIKE '${phase}' AND blob1 = 'today' GROUP BY station HAVING train_hours > 0.2 ORDER BY metres_off DESC LIMIT 15",
+          "format": "table",
+          "dateTimeColDataType": "timestamp",
+          "dateTimeType": "DATETIME",
+          "round": "0s",
+          "intervalFactor": 1,
+          "extrapolate": false,
+          "skip_comments": true,
+          "database": "",
+          "table": "go_stations_scores"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "metres_off"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "lengthm"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "signed"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "lengthm"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ahead_pct"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "over_100m_pct"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "back_per_hour"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "train_hours"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "id": 13,
+      "gridPos": {
+        "x": 12,
+        "y": 30,
+        "w": 12,
+        "h": 10
+      },
+      "datasource": {
+        "type": "vertamedia-clickhouse-datasource",
+        "uid": "${DS_GO_STATIONS}"
+      }
+    },
+    {
+      "type": "table",
+      "title": "Worst minutes: furthest behind (today's model)",
+      "description": "The train-minutes where today's model fell furthest behind. (Each row lands about a minute after the minute it scores.)",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "vertamedia-clickhouse-datasource",
+            "uid": "${DS_GO_STATIONS}"
+          },
+          "query": "SELECT timestamp, blob5 AS trip, blob2 AS line, blob4 AS station, blob3 AS phase, double8 AS most_behind, double2 / double1 AS metres_off, double1 AS seconds FROM go_stations_scores WHERE $timeFilter AND blob2 LIKE '${line}' AND blob3 LIKE '${phase}' AND blob1 = 'today' ORDER BY most_behind DESC LIMIT 20",
+          "rawQuery": "SELECT timestamp, blob5 AS trip, blob2 AS line, blob4 AS station, blob3 AS phase, double8 AS most_behind, double2 / double1 AS metres_off, double1 AS seconds FROM go_stations_scores WHERE $timeFilter AND blob2 LIKE '${line}' AND blob3 LIKE '${phase}' AND blob1 = 'today' ORDER BY most_behind DESC LIMIT 20",
+          "format": "table",
+          "dateTimeColDataType": "timestamp",
+          "dateTimeType": "DATETIME",
+          "round": "0s",
+          "intervalFactor": 1,
+          "extrapolate": false,
+          "skip_comments": true,
+          "database": "",
+          "table": "go_stations_scores"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "most_behind"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "lengthm"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "most_ahead"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "lengthm"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "metres_off"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "lengthm"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "seconds"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "id": 14,
+      "gridPos": {
+        "x": 0,
+        "y": 40,
+        "w": 12,
+        "h": 10
+      },
+      "datasource": {
+        "type": "vertamedia-clickhouse-datasource",
+        "uid": "${DS_GO_STATIONS}"
+      }
+    },
+    {
+      "type": "table",
+      "title": "Worst minutes: furthest ahead (any model)",
+      "description": "The train-minutes where a model drew a train furthest ahead of where it really was.",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "vertamedia-clickhouse-datasource",
+            "uid": "${DS_GO_STATIONS}"
+          },
+          "query": "SELECT timestamp, blob1 AS model, blob5 AS trip, blob2 AS line, blob4 AS station, blob3 AS phase, double7 AS most_ahead, double2 / double1 AS metres_off, double1 AS seconds FROM go_stations_scores WHERE $timeFilter AND blob2 LIKE '${line}' AND blob3 LIKE '${phase}' ORDER BY most_ahead DESC LIMIT 20",
+          "rawQuery": "SELECT timestamp, blob1 AS model, blob5 AS trip, blob2 AS line, blob4 AS station, blob3 AS phase, double7 AS most_ahead, double2 / double1 AS metres_off, double1 AS seconds FROM go_stations_scores WHERE $timeFilter AND blob2 LIKE '${line}' AND blob3 LIKE '${phase}' ORDER BY most_ahead DESC LIMIT 20",
+          "format": "table",
+          "dateTimeColDataType": "timestamp",
+          "dateTimeType": "DATETIME",
+          "round": "0s",
+          "intervalFactor": 1,
+          "extrapolate": false,
+          "skip_comments": true,
+          "database": "",
+          "table": "go_stations_scores"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "most_behind"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "lengthm"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "most_ahead"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "lengthm"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "metres_off"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "lengthm"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "seconds"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "id": 15,
+      "gridPos": {
+        "x": 12,
+        "y": 40,
+        "w": 12,
+        "h": 10
+      },
+      "datasource": {
+        "type": "vertamedia-clickhouse-datasource",
+        "uid": "${DS_GO_STATIONS}"
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "How old the newest fix is, as the app has it",
+      "description": "Mean age of the newest GPS fix the app had, in seconds (including the app's own lag).",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "vertamedia-clickhouse-datasource",
+            "uid": "${DS_GO_STATIONS}"
+          },
+          "query": "SELECT $timeSeries AS t, 'fix age' AS series, SUM(_sample_interval * double14) / SUM(_sample_interval * double1) AS value FROM go_stations_scores WHERE $timeFilter AND blob2 LIKE '${line}' AND blob3 LIKE '${phase}' AND blob1 = 'newest' GROUP BY t, series ORDER BY t",
+          "rawQuery": "SELECT $timeSeries AS t, 'fix age' AS series, SUM(_sample_interval * double14) / SUM(_sample_interval * double1) AS value FROM go_stations_scores WHERE $timeFilter AND blob2 LIKE '${line}' AND blob3 LIKE '${phase}' AND blob1 = 'newest' GROUP BY t, series ORDER BY t",
+          "format": "time_series",
+          "dateTimeColDataType": "timestamp",
+          "dateTimeType": "DATETIME",
+          "round": "0s",
+          "intervalFactor": 1,
+          "extrapolate": false,
+          "skip_comments": true,
+          "database": "",
+          "table": "go_stations_scores"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "decimals": 1,
+          "min": 0,
+          "custom": {
+            "lineWidth": 2,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "id": 16,
+      "gridPos": {
+        "x": 0,
+        "y": 50,
+        "w": 12,
+        "h": 7
+      },
+      "datasource": {
+        "type": "vertamedia-clickhouse-datasource",
+        "uid": "${DS_GO_STATIONS}"
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Trains being scored",
+      "description": "Trains scored at once, on average over each bucket (train-seconds scored / seconds).",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "vertamedia-clickhouse-datasource",
+            "uid": "${DS_GO_STATIONS}"
+          },
+          "query": "SELECT $timeSeries AS t, 'trains' AS series, SUM(_sample_interval * double1) / ($interval) AS value FROM go_stations_scores WHERE $timeFilter AND blob2 LIKE '${line}' AND blob3 LIKE '${phase}' AND blob1 = 'today' GROUP BY t, series ORDER BY t",
+          "rawQuery": "SELECT $timeSeries AS t, 'trains' AS series, SUM(_sample_interval * double1) / ($interval) AS value FROM go_stations_scores WHERE $timeFilter AND blob2 LIKE '${line}' AND blob3 LIKE '${phase}' AND blob1 = 'today' GROUP BY t, series ORDER BY t",
+          "format": "time_series",
+          "dateTimeColDataType": "timestamp",
+          "dateTimeType": "DATETIME",
+          "round": "0s",
+          "intervalFactor": 1,
+          "extrapolate": false,
+          "skip_comments": true,
+          "database": "",
+          "table": "go_stations_scores"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "min": 0,
+          "custom": {
+            "lineWidth": 2,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "id": 17,
+      "gridPos": {
+        "x": 12,
+        "y": 50,
+        "w": 12,
+        "h": 7
+      },
+      "datasource": {
+        "type": "vertamedia-clickhouse-datasource",
+        "uid": "${DS_GO_STATIONS}"
+      }
+    }
+  ]
+}

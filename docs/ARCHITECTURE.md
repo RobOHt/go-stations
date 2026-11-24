@@ -2,8 +2,9 @@
 
 GO Stations is a native iOS app with a small serverless backend. The app does all
 the planning and drawing on the phone; a Cloudflare Worker sits between it and
-Metrolinx's feeds (holding the API key, caching, merging feeds), and follows
-tracked trains to push their Live Activities while the app is closed.
+Metrolinx's feeds (holding the API key, caching, merging feeds), follows
+tracked trains to push their Live Activities while the app is closed, and watches
+every train all day to score how close the app draws them.
 
 ```mermaid
 flowchart LR
@@ -13,7 +14,11 @@ flowchart LR
         direction TB
         worker["Worker<br/>proxy · edge cache · rate limits"]
         follower["LiveActivities<br/>Durable Object"]
+        watcher["Watcher<br/>Durable Object"]
+        archive[("R2<br/>every GPS fix")]
+        scores[("Analytics Engine<br/>scores")]
     end
+    grafana["Grafana<br/>dashboard"]
     metrolinx[("Metrolinx Open Data<br/>REST · GTFS-Realtime")]
     apns["Apple Push<br/>Notification service"]
     activity["Live Activity<br/>Lock Screen · Dynamic Island"]
@@ -25,6 +30,10 @@ flowchart LR
     follower -- "where is it? every 20 s" --> metrolinx
     follower -- "updates and alerts" --> apns
     apns --> activity
+    watcher -- "both feeds, every 5 s" --> metrolinx
+    watcher -- "an hour to a file" --> archive
+    watcher -- "per train-minute" --> scores
+    scores -- "SQL" --> grafana
 ```
 
 ## The app
@@ -175,6 +184,22 @@ One Worker (`worker/src/index.js`, `worker/src/live.js`), no dependencies:
 Requests that reach Metrolinx are rate-limited per IP. The Metrolinx and Apple push
 keys are Worker secrets; nothing secret ships in the app.
 
+## Watching every train
+
+The `Watcher` Durable Object (`worker/src/watcher.js`) looks at both live feeds
+every 5 seconds, all day, and keeps every change in them in R2, one gzipped file
+an hour: GO's GPS history, which nobody publishes. For every train, second by
+second, it also replays where the app would have drawn it (`worker/src/replay.js`
+is the app's `TrainReplay`, ported line for line and tested against the app's own
+self-checks), and compares that with where the train really was, read off all its
+fixes afterwards. The errors go to Workers Analytics Engine as one data point per
+train, minute, phase and model, and a Grafana dashboard shows them. Besides
+today's model, it scores option A (drawn from each fix's own time, with no delay)
+and the newest fix alone, so a change to how trains are drawn is measured on every
+train before riders see it. A Cron Trigger restarts the watcher if its alarm ever
+stops. See [WATCHER.md](WATCHER.md) for what it records, the data points, and
+setting up the dashboard.
+
 ## Following a tracked train
 
 The `LiveActivities` Durable Object keeps each tracked trip (its push token, stops
@@ -235,12 +260,13 @@ from what a rider should see before looking at how the code handles it:
 | Workflow | When | What it does |
 | --- | --- | --- |
 | TestFlight | Every push to `main` that touches the app | Runs the app's unit and UI tests on a simulator; only if they pass, archives and uploads to TestFlight (build number = run number + 10) |
-| Worker | Changes under `worker/` | Runs the Worker's tests, then deploys it |
+| Worker | Changes under `worker/` (or the network file it places trains on) | Runs the Worker's tests, creates the watcher's R2 bucket if it isn't there, then deploys it (by hand on another branch: tests and builds only) |
 | Tests | Pull requests, other branches | The app's unit and UI tests |
 | Build | Pull requests | Compiles the app for the simulator, listing every warning |
 | Commute check | Changes to the planner | The start-up planner against its Python reference (`tools/commute_reference.py`) on the current timetable: thousands of random situations must give the same station for the same reason |
 | Timetable | Daily | Rebuilds `schedule.json` from GO's GTFS on the `schedule-data` branch |
 | Screenshots | `preview/**` branches, or by hand | Simulator screenshots of set-up scenes, for review by eye |
+| Probe | By hand | What Metrolinx's live feeds return (`tools/probe_live.py`); in `record` mode, a stretch of them kept and scored as the watcher would (`tools/record_feeds.mjs`, `tools/replay_archive.mjs`) |
 | README media | By hand | Records the README's clips and screenshots (`tools/readme_media.py` makes `docs/media` from them, and `tools/demo_video.py` a short demo video) |
 
 ## Updating the network data
