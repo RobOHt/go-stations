@@ -161,7 +161,7 @@ test("the scoreboard: a train at a steady 20 m/s, each model where it should be"
   // Drawn 10 s behind: 200 m behind the train. Option A: on it. The newest fix: 5 to 15 s old, plus the app's lag.
   assert.ok(Math.abs(mean(by("today")) + 200) < 5, `today ${mean(by("today"))}`);
   assert.ok(Math.abs(mean(by("from_fix"))) < 5, `from_fix ${mean(by("from_fix"))}`);
-  assert.ok(mean(by("newest")) < -250 && mean(by("newest")) > -400, `newest ${mean(by("newest"))}`);
+  assert.ok(mean(by("newest")) < -150 && mean(by("newest")) > -400, `newest ${mean(by("newest"))}`);
   assert.ok(scored.every((row) => row.phase === "run" || row.phase === "out"));
   // One data point per train, minute, phase and model.
   const sample = points.find((p) => p.blobs[0] === "today" && p.blobs[2] === "run");

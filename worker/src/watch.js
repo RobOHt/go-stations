@@ -26,9 +26,11 @@ export const MODELS = ["today", "from_fix", "newest"];
 /**
  * How long after the watcher first sees a report the app has it, in seconds: it
  * asks every 5 s, and the answer it gets can be a few seconds old (the Worker's
- * cache). Calibrated against the app's own traces (reports 8 s old, median).
+ * cache). Measured by tools/record_feeds.mjs asking /v1/live/trains as the app
+ * does, in a rush hour: 2.1 s later (median; 90% within 7 s), when the watcher
+ * first saw reports 7.6 s old (median) and the app 8.8 s old.
  */
-export const APP_LAG = 4;
+export const APP_LAG = 2;
 /** The app keeps a train's last 12 reports, of the last 5 minutes. */
 export const KEEP = 12;
 export const HISTORY = 300;

@@ -21,8 +21,10 @@ Nothing in the app depends on it: if it stops, the app carries on as before.
   uses) through all of the train's GPS fixes, in metres along its run. A second is
   scored once two of the train's later fixes are in, and at least 30 seconds after.
 - **Where it was drawn.** Each model is replayed with only the reports the app had
-  at that second: what `/v1/live/trains` carried, 4 seconds after the watcher first
-  saw it (the app asks every 5 seconds, and the answer can be a few seconds old).
+  at that second: what `/v1/live/trains` carried, 2 seconds after the watcher first
+  saw it. That's measured: the app asks every 5 seconds, and the answer can be a few
+  seconds old (in a rush hour, the app had each report a median 2.1 s after the
+  watcher, which first saw them 7.6 s old).
   Each trip's run is built from its stops (GO's Schedule/Trip) and the app's own
   track shapes (`Departures/Resources/network.json`), so a train is placed exactly
   where the app places it.
