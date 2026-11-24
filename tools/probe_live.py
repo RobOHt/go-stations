@@ -418,6 +418,68 @@ def approach(code, polls, gap):
               "| longest gap between GTFS reports:", f"{max(gaps):.0f} s" if gaps else "-")
 
 
+def near(code, polls, gap, within=2500.0):
+    """Every train within a couple of kilometres of one station (e.g. UN), report
+    by report, as the Worker gives it to the app: where GO's GPS has it, how far
+    that is from where its last report had it and how fast that makes it, and what
+    GO says it's doing (GTFS status, Service at a Glance's motion and course, and
+    the GTFS position's own bearing and speed when it gives them). For seeing how
+    steady a standing train's position is (under Union's roof, say), which the
+    app's speed for it and where it's drawn hang on."""
+    stations = {s["code"]: s for s in json.load(open(NETWORK))["stations"]}
+    target = stations[code]
+    section(f"Trains near {target['name']} ({code}), within {within:.0f} m: {polls} polls, {gap:.0f} s apart")
+    seen = {}  # trip number -> [report]
+    for poll in range(polls):
+        started = time.time()
+        _, _, vehicles, _ = get("/Gtfs/Feed/VehiclePosition")
+        raw = {number_of(e): (e.get("vehicle") or {}) for e in find_list(vehicles or {}, "entity")}
+        for number, train in worker_trains().items():
+            lat, lon = train.get("lat"), train.get("lon")
+            if lat is None or lon is None or metres(lat, lon, target["lat"], target["lon"]) > within:
+                continue
+            reports = seen.setdefault(number, [])
+            if reports and reports[-1]["time"] == train.get("time"):
+                continue
+            position = (raw.get(number) or {}).get("position") or {}
+            reports.append({"time": train.get("time"), "lat": lat, "lon": lon, "line": train.get("line"),
+                            "status": train.get("status"), "stop": train.get("stop"),
+                            "moving": train.get("moving"), "course": train.get("course"),
+                            "bearing": position.get("bearing"), "speed": position.get("speed"),
+                            "got": started})
+        if poll + 1 < polls:
+            time.sleep(max(0, gap - (time.time() - started)))
+
+    print(f"trains seen: {len(seen)}")
+    for number, reports in sorted(seen.items(), key=lambda item: item[1][0]["time"] or 0):
+        print(f"\ntrain {number} ({reports[0]['line']}): {len(reports)} reports")
+        print("   GO's time   lat        lon         from stn  moved   in    km/h  GO says        glance      gtfs bearing/speed  age when got")
+        steps = []
+        for before, r in zip([None] + reports, reports):
+            away = metres(r["lat"], r["lon"], target["lat"], target["lon"])
+            moved = span = None
+            if before:
+                moved = metres(before["lat"], before["lon"], r["lat"], r["lon"])
+                span = (r["time"] or 0) - (before["time"] or 0)
+                if span > 0:
+                    steps.append((moved, span, r["status"], before["status"]))
+            clock = datetime.fromtimestamp(r["time"], TORONTO).strftime("%H:%M:%S") if r["time"] else "-"
+            says = f"{r['status'] or '-'} {r['stop'] or '-'}"
+            glance = ("moving" if r["moving"] else "still") if r["moving"] is not None else "-"
+            glance += f" {r['course']:.0f}" if isinstance(r["course"], (int, float)) else ""
+            print(f"   {clock}  {r['lat']:.6f}  {r['lon']:.6f}  {away:7.0f}  "
+                  + (f"{moved:6.1f}  {span:3.0f}  {moved / span * 3.6:6.1f}" if moved is not None and span and span > 0
+                     else "     -    -       -")
+                  + f"  {says:<13}  {glance:<10}  {r['bearing']!s:>7} {r['speed']!s:>7}        {r['got'] - (r['time'] or 0):4.0f} s")
+        # While GO has it standing at a station: how far its position wanders between reports.
+        standing = [moved for moved, span, now, was in steps if now == "at" and was == "at"]
+        if standing:
+            ordered = sorted(standing)
+            print(f"   standing (GO says 'at' in both reports), {len(standing)} steps: moved median "
+                  f"{ordered[len(ordered) // 2]:.1f} m, max {ordered[-1]:.1f} m; "
+                  f"15 m or more (the app would show a speed): {sum(1 for m in standing if m >= 15)}")
+
+
 def worker(polls, gap):
     """The app's view: the Worker's /v1/live/trains, poll by poll, with the cache's
     headers, and whether each train's report moved on."""
@@ -629,6 +691,7 @@ def main():
     parser.add_argument("--worker", action="store_true", help="the Worker's /v1/live/trains, as the app sees it")
     parser.add_argument("--trip", help="DAY/NUMBER: one trip's Schedule/Trip stops, in the order Metrolinx gives them")
     parser.add_argument("--approach", help="STATION: trains coming into it (e.g. UN), as the feeds and the Worker have them")
+    parser.add_argument("--near", help="STATION: every train near it, report by report (how steady GO's GPS is there)")
     parser.add_argument("--cancellations", action="store_true",
                         help="how cancelled trains show in each feed (with --station, its NextService too)")
     parser.add_argument("--station", help="with --cancellations: a station's NextService lines")
@@ -639,6 +702,9 @@ def main():
         return
     if args.worker:
         worker(args.polls, args.gap)
+        return
+    if args.near:
+        near(args.near, args.polls, args.gap)
         return
     if args.approach:
         approach(args.approach, args.polls, args.gap)

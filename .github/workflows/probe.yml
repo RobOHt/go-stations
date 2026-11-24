@@ -22,6 +22,9 @@ on:
       approach:
         description: "STATION (e.g. UN): trains coming into it, as the feeds and the worker have them"
         default: ""
+      near:
+        description: "STATION (e.g. UN): every train near it, report by report (how steady GO's GPS is there)"
+        default: ""
       cancellations:
         description: "true: how cancelled trains show in each feed; with station, its NextService lines too"
         default: ""
@@ -40,6 +43,7 @@ jobs:
       MODE: ${{ inputs.mode }}
       TRIP: ${{ inputs.trip }}
       APPROACH: ${{ inputs.approach }}
+      NEAR: ${{ inputs.near }}
       CANCELLATIONS: ${{ inputs.cancellations }}
       STATION: ${{ inputs.station }}
     steps:
@@ -58,6 +62,10 @@ jobs:
           fi
           if [ -n "$TRIP" ]; then
             python3 tools/probe_live.py --trip "$TRIP"
+            exit 0
+          fi
+          if [ -n "$NEAR" ]; then
+            python3 tools/probe_live.py --near "$NEAR" --polls "${POLLS:-4}" --gap "${GAP:-15}"
             exit 0
           fi
           if [ -n "$APPROACH" ]; then
