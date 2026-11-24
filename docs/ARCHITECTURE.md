@@ -69,14 +69,25 @@ Express trips are detected from the trip's stop list: if it skips two or more
 stations in a row that the line's all-stops pattern serves, it gets the ⚡. At Union
 the feed marks them directly.
 
-## Trains that move like trains
+## A train is only ever where its GPS says
 
-GO reports each train's position about every 20 seconds, 5 to 15 seconds after the
-fact. The map draws each train 5 seconds behind now: on a smooth curve through the
-places it was reported along the track, and past the latest report carried on at its
-pace, braking for the station ahead. The drawn train eases from one guess to the
-next, speeding up and slowing down no harder than a train does, so it never jumps or
-goes back.
+One rule decides where a train is drawn: its own GPS position is the only thing
+taken as true. GO reports each train about every 15 seconds, and a report is 5 to 25
+seconds old by the time the app has it. The map draws each train where its latest
+report has it, at the nearest point of its line's track (or just where the report
+says, when that's well off the line: a yard, a detour), and moves it there in one
+quick slide as soon as a new report is in. Nothing else places a train: not the
+timetable, not where it would be by now if it kept going, not the station's own
+spot when GO says it's standing there. A train with no report in the last two
+minutes isn't drawn.
+
+On the tracked train, once you're on it (on its line by where it is, moving its way,
+or standing along the way after it has left where you got on), your phone's GPS is
+the train's: it's drawn where you are, second by second.
+
+An earlier version drew trains smoothly, a few seconds behind, guessing ahead of the
+latest report and easing between guesses. It looked better and was sometimes wrong:
+a train standing at a platform drawn still coming in. Being right matters more.
 
 ## The Worker
 

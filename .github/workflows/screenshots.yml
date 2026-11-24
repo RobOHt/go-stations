@@ -479,7 +479,8 @@ jobs:
           UDID: ${{ steps.sim.outputs.udid }}
         run: |
           # Two and a half minutes of the tracked train on live data, as it's drawn
-          # each second (debug builds log it with -traceTrains): how smoothly it moves.
+          # each second (debug builds log it with -traceTrains): that it's only ever
+          # where its latest report has it, and how old those reports are.
           xcrun simctl terminate "$UDID" "$BUNDLE_ID" > /dev/null 2>&1 || true
           container=$(xcrun simctl get_app_container "$UDID" "$BUNDLE_ID" data)
           rm -f "$container/Documents/train-trace.tsv"

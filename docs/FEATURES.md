@@ -112,9 +112,10 @@ afternoon (to the last train), in the same menu.
 
 ## Tracking a train
 
-Tap *Track this train* on a train's stops. It moves along its line on the map where
-it really is, with a pointer showing which way it's going (one pin with your
-location when you're on it), a button bottom left opens it again, and a Live
+Tap *Track this train* on a train's stops. It's on the map where it really is, with
+a pointer showing which way it's going: where its latest GPS report has it (it
+steps to each new one, about every 15 seconds), or right where you are, once you're
+on it (one pin with your location). A button bottom left opens it again, and a Live
 Activity on the Lock Screen and in the Dynamic Island counts down to its next stop,
 with the stops either side of it.
 
@@ -124,7 +125,8 @@ in 6 minutes"). "Arrived" shows while the train actually stands at a station, fr
 when it's seen pulling in to when it's seen leaving, and the stops ahead are as late
 as the train runs.
 
-A train's stops show how fast it's going: the speed the map draws it moving at.
+A train's stops show how fast it's going, by its last two GPS reports (as you go,
+once you're on it).
 Running late, they say how late beside which way it goes ("25 min late") and each
 stop's new time, kept current while they're open (to the end of its run, where
 Metrolinx leaves the time blank), with GO's disruptions on its line after them
@@ -158,10 +160,11 @@ board get them too.
 
 ## Every train at once
 
-The map shows every train running now moving along its line (turn off *Show all
-trains* in Settings for just the one you track), from GO's live train positions
-(the timetable when those aren't available). Trains fade in as they set off and
-fade out a minute after their last stop. Tap one for its stops.
+The map shows every train running now on its line (turn off *Show all trains* in
+Settings for just the one you track), each where GO's live GPS position last had it,
+stepping to each new one. A train GO isn't reporting isn't drawn: the map never
+guesses where one is. Trains fade in once they're reported on their way and fade out
+a minute after their last stop. Tap one for its stops.
 
 ## Privacy
 

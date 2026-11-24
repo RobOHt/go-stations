@@ -30,6 +30,7 @@ enum SelfCheck {
         runningLate()
         stationWithTheTrain()
         onBoard()
+        gpsOnly()
         lines.append("done")
         write()
         NSLog("SelfCheck: done")
@@ -583,6 +584,70 @@ enum SelfCheck {
         check("on board: off its line, not", !on(onTrack: false, speed: 30))
         check("on board: on it, stays on through a stop", on(wasOn: true, gap: 6_000, speed: 0))
         check("on board: on it, off once it's well away", !on(wasOn: true, gap: 9_000, speed: 0))
+    }
+
+    /// The one rule for where a train is drawn: where its latest live report (its own
+    /// GPS position) has it. Not at a station's own spot when it stands short of it,
+    /// not further on than its latest report, and still by its position when GO
+    /// names no stop of its run. (A made-up line.)
+    private static func gpsOnly() {
+        // Due east from AA through BB to CC, 0.05 degrees of longitude apart.
+        let codes = ["AA", "BB", "CC"]
+        let west = -79.60, apart = 0.05, latitude = 43.60
+        let run = TrainRun(codes: codes) { a, b in
+            guard let from = codes.firstIndex(of: a), let to = codes.firstIndex(of: b) else { return nil }
+            return CommutePlanner.Path([
+                TrackGeometry.Point(latitude: latitude, longitude: west + apart * Double(from)),
+                TrackGeometry.Point(latitude: latitude, longitude: west + apart * Double(to)),
+            ])
+        }
+        // From one station to the next, in metres.
+        let hop = run.starts[1]
+        // A report `along` the line (0 at AA, 1 at BB, 2 at CC), `north` degrees off it.
+        func report(_ along: Double, north: Double = 0, status: String? = "to", stop: String? = "BB",
+                    at clock: String) -> LiveTrain {
+            LiveTrain(trip: "LW42", line: "LW", lat: latitude + north, lon: west + apart * along, time: date(clock),
+                      status: status, stop: stop, delay: 0, moving: nil, course: nil)
+        }
+
+        let between = run.place(report(0.4, at: "12:00"))
+        check("gps only: between two stations, where its position is",
+              between.map { abs($0.distance - 0.4 * hop) < 1 && $0.stop == 1 && !$0.isAt } ?? false,
+              "\(between?.distance ?? -1) m of \(hop)")
+        let short = run.place(report(0.96, status: "at", at: "12:00"))
+        check("gps only: standing short of the station's own spot, where it stands",
+              short.map { abs($0.distance - 0.96 * hop) < 1 && $0.stop == 1 && $0.isAt } ?? false,
+              "\(short?.distance ?? -1) m of \(hop)")
+        let signal = run.place(report(1.5, stop: "SIG9", at: "12:00"))
+        check("gps only: GO names a signal, still where its position is, heading for the next stop along",
+              signal.map { abs($0.distance - 1.5 * hop) < 1 && $0.stop == 2 && !$0.isAt } ?? false,
+              "\(signal?.distance ?? -1) m, stop \(signal?.stop ?? -1)")
+        let unnamed = run.place(report(0.3, status: nil, stop: nil, at: "12:00"))
+        check("gps only: GO names no stop, still where its position is",
+              unnamed.map { abs($0.distance - 0.3 * hop) < 1 && $0.stop == 1 } ?? false,
+              "\(unnamed?.distance ?? -1) m, stop \(unnamed?.stop ?? -1)")
+
+        // Two reports 15 seconds apart: it's where the later one has it, no further.
+        let latest = TrainReplay.position(of: [report(0.2, at: "12:00:00"), report(0.3, at: "12:00:15")], on: run)
+        check("gps only: where its latest report has it, not past it",
+              latest.map { abs($0.distance - 0.3 * hop) < 1 } ?? false, "\(latest?.distance ?? -1) m of \(hop)")
+        var measured = false
+        if let speed = latest?.speed { measured = abs(speed - 0.1 * hop / 15) < 0.1 }
+        check("gps only: its speed is what it covered between its last two reports", measured,
+              "\(latest?.speed ?? -1) m/s")
+        let one = TrainReplay.position(of: [report(0.2, at: "12:00")], on: run)
+        check("gps only: one report on the move, no speed made up", one != nil && one?.speed == nil)
+        let standing = TrainReplay.position(of: [report(1, status: "at", at: "12:00")], on: run)
+        check("gps only: one report standing at a station, not moving", standing?.speed == 0)
+        let still = TrainReplay.position(of: [report(0.5, at: "12:00:00"), report(0.5, at: "12:00:15")], on: run)
+        check("gps only: two reports in the same place, not moving", still?.speed == 0)
+
+        // Well off its line (a yard, a detour): where the report has it, not on the line.
+        let yard = TrainReplay.position(of: [report(0.5, north: 0.01, at: "12:00")], on: run)
+        check("gps only: well off its line, drawn where it is", yard?.away != nil)
+        let beside = TrainReplay.position(of: [report(0.5, north: 0.0005, at: "12:00")], on: run)
+        check("gps only: a few metres off its line, drawn on it", beside != nil && beside?.away == nil)
+        check("gps only: no reports, nowhere", TrainReplay.position(of: [], on: run) == nil)
     }
 
     /// A live report of the train: standing at a station ("at"), or on its way to it ("to").

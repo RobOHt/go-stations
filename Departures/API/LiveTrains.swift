@@ -60,6 +60,11 @@ struct LiveFix: Codable, Equatable, Sendable {
     func isFresh(at now: Date) -> Bool { now.timeIntervalSince(time) < Self.freshFor }
 }
 
+extension Notification.Name {
+    /// A new list of live trains is in (see `LiveTrains`).
+    static let liveTrainsUpdated = Notification.Name("LiveTrainsUpdated")
+}
+
 /// Where every GO train is right now, fetched while something shows trains (the
 /// map with a tracked train or all trains, a trip's stops) and shared by them.
 @MainActor
@@ -149,5 +154,7 @@ final class LiveTrains {
         trains = next
         updatedAt = now
         TripTracker.shared.follow(self)
+        // The map draws each train where its new report has it straight away.
+        NotificationCenter.default.post(name: .liveTrainsUpdated, object: nil)
     }
 }

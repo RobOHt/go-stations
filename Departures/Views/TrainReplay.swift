@@ -55,221 +55,123 @@ struct TrainRun {
         return degrees < 0 ? degrees + 360 : degrees
     }
 
-    /// Where one live report puts the train along the run: at the station it's
-    /// standing at, or where its position falls on the track to the one it's
-    /// heading for. Nil when it doesn't fit (a stop not on this run, or a position
-    /// far from its track).
-    func measure(_ report: LiveTrain, from hint: Int) -> TrainReplay.Sample? {
-        guard let fix = report.fix(in: codes, from: hint), starts.indices.contains(fix.index) else { return nil }
-        let time = report.time.timeIntervalSinceReferenceDate
-        if fix.isAt { return .init(time: time, distance: starts[fix.index], stop: fix.index, isAt: true) }
-        guard fix.index > 0, let path = paths[fix.index - 1] else { return nil }
-        let hit = path.project(TrackGeometry.point(report.coordinate))
-        guard hit.distance < 1_500 else { return nil }
-        let along = min(hit.arc, starts[fix.index] - starts[fix.index - 1])
-        return .init(time: time, distance: starts[fix.index - 1] + along, stop: fix.index, isAt: false)
-    }
+    /// A report further than this from the run's track, in metres, isn't on it (a
+    /// yard, a detour): the train is drawn where the report has it, off its line.
+    static let onTrack = 250.0
 
-    /// The timetable's pace on the way into `stop`, in metres per second.
-    func pace(into stop: Int, times: [Date?]) -> Double? {
-        guard stop > 0, stop < starts.count, times.indices.contains(stop), let start = times[stop - 1],
-              let end = TrainState.arrival(at: stop, times: times), end.timeIntervalSince(start) > 30
-        else { return nil }
-        return (starts[stop] - starts[stop - 1]) / end.timeIntervalSince(start)
-    }
+    /// A train this far short of a station's own spot on the line, in metres, is
+    /// still heading for that station, not the next (it may be at its platform).
+    static let platform = 150.0
 
-    /// Where a train's times put it along the run (TrainState): standing at a
-    /// station, or the right fraction of the way between two.
-    func position(of state: TrainState, times: [Date?]) -> TrainReplay.Position? {
-        let last = codes.count - 1
-        guard last >= 1 else { return nil }
-        switch state {
-        case .waiting:
-            return .init(distance: 0, speed: 0, stop: 0, isAt: true)
-        case .moving(let from, let fraction):
-            guard from + 1 <= last else { return nil }
-            let length = starts[from + 1] - starts[from]
-            var speed = 15.0
-            if times.indices.contains(from + 1), let start = times[from],
-               let end = TrainState.arrival(at: from + 1, times: times), end > start {
-                speed = length / end.timeIntervalSince(start)
-            }
-            return .init(distance: starts[from] + length * min(max(fraction, 0), 1), speed: speed,
-                         stop: from + 1, isAt: false)
-        case .stopped(let at):
-            guard at <= last else { return nil }
-            return .init(distance: starts[at], speed: 0, stop: at, isAt: true)
-        case .arrived:
-            return .init(distance: starts[last], speed: 0, stop: last, isAt: true)
-        case .unknown:
-            return nil
+    /// Where one live report has the train: the point of the run's track nearest
+    /// the position it gives, how far along the run that is, and how far off the
+    /// track the position is. Nothing but that position places it: not the
+    /// station's own spot when GO says it's standing there (a train can stand a
+    /// couple of hundred metres from it), and not the stop GO names, which only
+    /// says which stop it's at or heading for; when that isn't one of this run's
+    /// (a signal, a junction, none given), it's the next one along from where the
+    /// train is. Nil only when the run has no track to go by.
+    func place(_ report: LiveTrain, from hint: Int = 0) -> TrainReplay.Sample? {
+        let position = TrackGeometry.point(report.coordinate)
+        var best: (distance: Double, off: Double)?
+        for index in paths.indices {
+            guard let path = paths[index] else { continue }
+            let hit = path.project(position)
+            if let current = best, current.off <= hit.distance { continue }
+            best = (starts[index] + hit.arc, hit.distance)
         }
+        guard let nearest = best else { return nil }
+        var stop = starts.firstIndex(where: { $0 > nearest.distance - Self.platform }) ?? max(starts.count - 1, 0)
+        var isAt = false
+        if let fix = report.fix(in: codes, from: hint), starts.indices.contains(fix.index) {
+            stop = fix.index
+            isAt = fix.isAt
+        }
+        return TrainReplay.Sample(time: report.time.timeIntervalSinceReferenceDate, distance: nearest.distance,
+                                  off: nearest.off, stop: stop, isAt: isAt)
     }
 }
 
-/// Where a train is along its run by its live reports, a few seconds behind them.
+/// Where a train is along its run: exactly where its latest live report has it.
 ///
-/// Between two reports the train follows a smooth curve through them along the
-/// track (monotone cubic: it never goes back or overshoots, and it stands still
-/// where it stood). After the latest one, which is usually what's needed (GO's
-/// reports come about every 20 seconds, 5 to 15 seconds after the fact), it
-/// carries on at its pace, braking to stop at the station it's heading for and
-/// never passing it, until the next report comes in. (The map eases the drawn
-/// train from one guess to the next; see NetworkMapView.)
+/// A train's own GPS position is the only thing the map takes as true. Nothing is
+/// guessed between GO's reports (one about every 15 seconds, 5 to 25 seconds old
+/// by the time the app has it) or past the latest one, and nothing comes from the
+/// timetable: the train is drawn where it last said it was, and goes to where the
+/// next report has it, in one quick step, as soon as that comes in. Without a
+/// recent report it isn't drawn at all. (While you're on the tracked train, where
+/// you are is where it is: see NetworkMapView.)
 enum TrainReplay {
     /// One report, as a place along the run.
     struct Sample {
         /// Seconds since 2001.
         let time: Double
-        /// Metres along the run.
-        var distance: Double
+        /// Metres along the run: the point of its track nearest the report's position.
+        let distance: Double
+        /// How far the report's position is from that point, in metres.
+        let off: Double
         /// The stop it's at or heading for.
         let stop: Int
         let isAt: Bool
     }
 
-    /// Where the replay has the train.
+    /// Where the latest report has the train.
     struct Position {
         /// Metres along the run.
         let distance: Double
-        /// Metres per second.
-        let speed: Double
+        /// Metres per second, by its last two reports (nil: not known yet).
+        let speed: Double?
         /// The stop it's at or heading for.
         let stop: Int
         let isAt: Bool
+        /// Where the report has it, when that's away from the run's track: the train
+        /// is drawn there, not on its line, heading the way the report says.
+        var away: TrackGeometry.Point? = nil
+        var course: Double? = nil
     }
 
-    /// How hard a train brakes for a station, and speeds up leaving one, in m/s²
-    /// (GO's trains, from their reports: about this), and the speed it then runs at.
-    static let braking = 0.5
-    static let departing = 0.4
-    static let cruising = 33.0
-    /// How long past its latest report a train is carried on before it's held.
-    static let ahead: TimeInterval = 60
+    /// A train that moved less than this between two reports, in metres, is
+    /// standing: GPS wobbles by a few metres.
+    static let stirring = 15.0
+    /// Two reports closer together than this, in seconds, say nothing of its speed.
+    static let apart = 5.0
 
-    /// Where the train was at `date` by its reports (oldest first); with a single
-    /// report of it on the move, at the timetable's pace from `times`. Nil when
-    /// none of them fits the run.
-    static func position(of reports: [LiveTrain], on run: TrainRun, at date: Date,
-                         times: [Date?] = []) -> Position? {
-        var samples: [Sample] = []
-        for report in reports {
-            guard var sample = run.measure(report, from: samples.last?.stop ?? 0) else { continue }
-            if let last = samples.last {
-                guard sample.time > last.time else { continue }
-                // GPS wobble never takes it back.
-                sample.distance = max(sample.distance, last.distance)
+    /// Where the train is along `run` by its reports (oldest first): where the
+    /// latest has it, with how fast it went between the last two. Nil without one.
+    static func position(of reports: [LiveTrain], on run: TrainRun) -> Position? {
+        var placed: [(sample: Sample, report: LiveTrain)] = []
+        for report in reports.suffix(2) {
+            guard let sample = run.place(report, from: placed.last?.sample.stop ?? 0) else { continue }
+            if let last = placed.last, sample.time <= last.sample.time { continue }
+            placed.append((sample: sample, report: report))
+        }
+        guard let last = placed.last else { return nil }
+        let sample = last.sample
+        var speed: Double?
+        if placed.count >= 2 {
+            let before = placed[placed.count - 2].sample
+            let span = sample.time - before.time
+            if span >= apart, sample.off <= TrainRun.onTrack, before.off <= TrainRun.onTrack {
+                let moved = abs(sample.distance - before.distance)
+                speed = moved < stirring ? 0 : moved / span
             }
-            samples.append(sample)
         }
-        let pace = samples.count == 1 ? samples.last.flatMap { run.pace(into: $0.stop, times: times) } : nil
-        return position(of: samples, on: run, at: date.timeIntervalSinceReferenceDate, pace: pace)
-    }
-
-    static func position(of samples: [Sample], on run: TrainRun, at time: Double, pace: Double? = nil) -> Position? {
-        guard let first = samples.first, let last = samples.last else { return nil }
-        var slopes = self.slopes(samples)
-        // A single report of it on the move: going at the timetable's pace.
-        if samples.count == 1, !first.isAt, let pace { slopes = [pace] }
-        if time <= first.time {
-            // Before its first report: on its way there at that pace, if it was moving.
-            let speed = slopes[0]
-            guard !first.isAt, speed > 0 else {
-                return Position(distance: first.distance, speed: 0, stop: first.stop, isAt: first.isAt)
-            }
-            let from = run.starts.indices.contains(first.stop - 1) ? run.starts[first.stop - 1] : 0
-            return Position(distance: max(first.distance - speed * (first.time - time), from), speed: speed,
-                            stop: first.stop, isAt: false)
+        // (One report, or two that don't say: standing, when GO says it is.)
+        if speed == nil, sample.isAt || last.report.moving == false { speed = 0 }
+        var position = Position(distance: sample.distance, speed: speed, stop: sample.stop, isAt: sample.isAt)
+        if sample.off > TrainRun.onTrack {
+            position.away = TrackGeometry.point(last.report.coordinate)
+            position.course = last.report.course
         }
-        if time < last.time {
-            var index = 0
-            while samples[index + 1].time <= time { index += 1 }
-            let a = samples[index], b = samples[index + 1]
-            let h = b.time - a.time
-            let u = (time - a.time) / h
-            let u2 = u * u, u3 = u2 * u
-            let distance = (2 * u3 - 3 * u2 + 1) * a.distance + (u3 - 2 * u2 + u) * h * slopes[index]
-                + (-2 * u3 + 3 * u2) * b.distance + (u3 - u2) * h * slopes[index + 1]
-            let speed = (6 * u2 - 6 * u) * (a.distance - b.distance) / h
-                + (3 * u2 - 4 * u + 1) * slopes[index] + (3 * u2 - 2 * u) * slopes[index + 1]
-            let standing = a.isAt && b.isAt && a.stop == b.stop
-            return Position(distance: min(max(distance, a.distance), b.distance), speed: standing ? 0 : max(speed, 0),
-                            stop: b.stop, isAt: standing)
-        }
-        // After the latest report: carried on from there.
-        if last.isAt { return Position(distance: last.distance, speed: 0, stop: last.stop, isAt: true) }
-        let goal = run.starts.indices.contains(last.stop) ? run.starts[last.stop] : last.distance
-        var speed = max(slopes[samples.count - 1], 0)
-        var speedingUp = 0.0
-        if samples.count >= 2, samples[samples.count - 2].isAt {
-            // Just left a station: from a standstill, speeding up as trains do (its
-            // average since the last report there takes in time it stood).
-            let gone = max(last.distance - samples[samples.count - 2].distance, 0)
-            speed = min(speed, (2 * departing * gone).squareRoot())
-            speedingUp = departing
-        }
-        let top = max(cruising, speed)
-        var distance = last.distance
-        var elapsed = 0.0
-        let horizon = min(time - last.time, ahead)
-        while elapsed < horizon {
-            let step = min(0.5, horizon - elapsed)
-            let room = goal - distance
-            if room <= 0.5 {
-                distance = goal
-                speed = 0
-                break
-            }
-            // Braking to stop at the station once it must, otherwise speeding up to its
-            // running speed, or holding it.
-            let needed = speed * speed / (2 * room)
-            let rate = needed >= braking ? -needed : (speed < top ? speedingUp : 0)
-            let next = max(speed + rate * step, 0)
-            distance = min(distance + (speed + next) / 2 * step, goal)
-            speed = next
-            elapsed += step
-        }
-        return Position(distance: distance, speed: distance >= goal ? 0 : speed, stop: last.stop, isAt: false)
-    }
-
-    /// The train's speed at each report, for a smooth curve through them that never
-    /// goes back or overshoots (Fritsch–Carlson, as in PCHIP): none at a station,
-    /// none where it didn't move.
-    static func slopes(_ samples: [Sample]) -> [Double] {
-        let count = samples.count
-        guard count >= 2 else { return Array(repeating: 0, count: count) }
-        var h: [Double] = [], d: [Double] = []
-        for index in 0..<(count - 1) {
-            let span = samples[index + 1].time - samples[index].time
-            h.append(span)
-            d.append((samples[index + 1].distance - samples[index].distance) / span)
-        }
-        var m = [Double](repeating: 0, count: count)
-        if count == 2 {
-            m = [d[0], d[0]]
-        } else {
-            for k in 1..<(count - 1) where d[k - 1] > 0 && d[k] > 0 {
-                let w1 = 2 * h[k] + h[k - 1], w2 = h[k] + 2 * h[k - 1]
-                m[k] = (w1 + w2) / (w1 / d[k - 1] + w2 / d[k])
-            }
-            func end(_ h0: Double, _ h1: Double, _ d0: Double, _ d1: Double) -> Double {
-                let slope = ((2 * h0 + h1) * d0 - h0 * d1) / (h0 + h1)
-                if slope * d0 <= 0 { return 0 }
-                if d0 * d1 <= 0, abs(slope) > 3 * abs(d0) { return 3 * d0 }
-                return slope
-            }
-            m[0] = end(h[0], h[1], d[0], d[1])
-            m[count - 1] = end(h[count - 2], h[count - 3], d[count - 2], d[count - 3])
-        }
-        for index in samples.indices where samples[index].isAt { m[index] = 0 }
-        return m
+        return position
     }
 }
 
-/// How fast each train is going, as the map draws it moving: the map notes it as it
-/// draws each train (see NetworkMapView), and works it out too for a train whose
-/// stops are open but which it doesn't draw; the trip's stops show it. So the
-/// speed shown is always the one the map's train moves at.
+/// How fast each train is going, by its last two live reports (as you go, on the
+/// tracked train while you're on it): the map notes it as it draws each train (see
+/// NetworkMapView), and works it out too for a train whose stops are open but
+/// which it doesn't draw; the trip's stops show it. Never a guess: none is shown
+/// for a train with nothing to measure it by.
 @MainActor
 @Observable
 final class TrainMotion {
@@ -313,7 +215,7 @@ final class TrainMotion {
         }
     }
 
-    /// The map drew a train going this fast (nil: it isn't in service).
+    /// A train is going this fast (nil: nothing says how fast, or it isn't in service).
     func note(_ number: String, speed: Double?, at now: Date) {
         guard let speed else {
             if speeds[number] != nil { speeds[number] = nil }
@@ -325,7 +227,7 @@ final class TrainMotion {
         if speeds[number] != rounded { speeds[number] = rounded }
     }
 
-    /// How fast a train is going, as the map last drew it (in the last few seconds).
+    /// How fast a train is going, as last noted (in the last few seconds).
     func speed(of number: String, at now: Date = Date()) -> Double? {
         guard let speed = speeds[number], let noted = noted[number], now.timeIntervalSince(noted) < 4 else {
             return nil
