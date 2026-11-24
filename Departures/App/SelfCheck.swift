@@ -30,6 +30,7 @@ enum SelfCheck {
         runningLate()
         stationWithTheTrain()
         gpsOnly()
+        realArrival()
         lines.append("done")
         write()
         NSLog("SelfCheck: done")
@@ -554,6 +555,57 @@ enum SelfCheck {
               trip.stationToShow(reached: 6) == "LO")
     }
 
+    /// A real train's reports coming into a station (how far short of the station's
+    /// own spot each had it, 15 seconds apart), and where the replay has the train
+    /// at a few moments, as worked out beforehand by the script the replay was
+    /// tried with: what the app draws is what was tried. (On a made-up line.)
+    private static func realArrival() {
+        let codes = ["AA", "BB", "CC"]
+        let west = -79.60, apart = 0.05, latitude = 43.60
+        let run = TrainRun(codes: codes) { a, b in
+            guard let from = codes.firstIndex(of: a), let to = codes.firstIndex(of: b) else { return nil }
+            return CommutePlanner.Path([
+                TrackGeometry.Point(latitude: latitude, longitude: west + apart * Double(from)),
+                TrackGeometry.Point(latitude: latitude, longitude: west + apart * Double(to)),
+            ])
+        }
+        let hop = run.starts[1]
+        let short: [Double] = [5198, 5024, 4848, 4639, 4387, 4108, 3817, 3516, 3206, 2895, 2570, 2239, 1897, 1553,
+                               1221, 903, 599, 348, 249, 180, 111, 69, 66, 65, 65, 64]
+        let start = date("12:00:00")
+        // Its first `count` reports, heading for CC.
+        func reports(_ count: Int) -> [LiveTrain] {
+            (0..<min(count, short.count)).map { index in
+                LiveTrain(trip: "LW42", line: "LW", lat: latitude, lon: west + apart * (run.length - short[index]) / hop,
+                          time: start.addingTimeInterval(Double(index) * 15), status: "to", stop: "CC", delay: 0,
+                          moving: nil, course: nil)
+            }
+        }
+        // (How many reports are in, seconds after the first report, metres short of CC.)
+        let moments: [(count: Int, after: Double, short: Double, what: String)] = [
+            (2, 20, 4966.0, "two reports in: carried on 5 s past the second"),
+            (5, 52, 4527.0, "between its fourth and fifth reports"),
+            (5, 68, 4252.6, "running: carried on 8 s past its latest"),
+            (12, 200, 1466.7, "its reports stopped: carried on 35 s"),
+            (12, 260, 1356.3, "its reports stopped: held where 40 s took it"),
+            (16, 240, 629.0, "coming up to the station: carried on 15 s, slowing"),
+            (17, 255, 365.2, "braking: carried on 15 s"),
+            (18, 275, 250.0, "nearly there: carried on, but stopping well short of the station"),
+            (19, 282, 249.0, "from there on: where its report has it, no further"),
+            (22, 308, 85.6, "coming in: between two reports"),
+            (26, 400, 64.0, "standing: where it stands"),
+        ]
+        for moment in moments {
+            var drawn: Double?
+            if let track = TrainReplay.track(of: reports(moment.count), on: run) {
+                drawn = TrainReplay.along(track.samples, track.slopes, moving: track.isMoving, on: run,
+                                          at: start.timeIntervalSinceReferenceDate + moment.after)
+            }
+            check("a real arrival: \(moment.what)", drawn.map { abs((run.length - $0) - moment.short) < 1.5 } ?? false,
+                  "\(drawn.map { run.length - $0 } ?? -1) m short, of \(moment.short)")
+        }
+    }
+
     /// The one rule for where a train is drawn: where its latest live report (the GPS
     /// position GO gives for it) has it. Not at a station's own spot when it stands
     /// short of it, not further on than its latest report, and still by its position
@@ -669,14 +721,26 @@ enum SelfCheck {
         let held = drawn(steady, at: "12:03:00")
         check("gliding: its reports stopped, carried on no longer than a while past the last",
               abs(held - (0.30 * hop + TrainReplay.ahead * pace)) < 5, "\(held) m")
-        // Heading for BB, 0.05 of the way short of it: slowing for it at once.
-        let coming = [report(0.90, at: "12:00:00"), report(0.95, at: "12:00:15")]
-        let slowing = drawn(coming, at: "12:00:\(String(format: "%02d", Int(25 + behind)))")
-        check("gliding: slowing for the station it's heading for",
-              slowing > 0.95 * hop + 5 * pace && slowing < 0.95 * hop + 9.5 * pace, "\(slowing - 0.95 * hop) m on")
-        let there = drawn(coming, at: "12:02:00")
-        check("gliding: carried on to the station it's heading for, never past it",
-              there > 0.995 * hop && there <= hop + 0.001, "\(there) m of \(hop)")
+        // Heading for BB, 0.15 of the way short of it: slowing for it before long.
+        let coming = [report(0.80, at: "12:00:00"), report(0.85, at: "12:00:15")]
+        let slowing = drawn(coming, at: "12:00:\(String(format: "%02d", Int(45 + behind)))") - 0.85 * hop
+        check("gliding: slowing for the station it's heading for", slowing > 270 && slowing < 330,
+              "\(slowing) m on, of \(30 * pace) at its pace")
+        // It may come to a stand anywhere in the last stretch before the station's
+        // own spot (TrainRun.clear): carried on to there, and no nearer.
+        let there = drawn([report(0.85, at: "12:00:00"), report(0.90, at: "12:00:15")], at: "12:02:00")
+        check("gliding: carried on until it's well short of the station, no nearer",
+              abs(there - (hop - TrainRun.clear)) < 1, "\(hop - there) m short of it")
+        // Already nearer than that (0.05 of the way short of BB, about 200 m): only
+        // its reports place it.
+        let near = drawn([report(0.90, at: "12:00:00"), report(0.95, at: "12:00:15")], at: "12:02:00")
+        check("gliding: nearer the station than that, where its report has it and no further",
+              0.05 * hop < TrainRun.clear && abs(near - 0.95 * hop) < 0.05, "\(hop - near) m short of it")
+        // Standing, its GPS a metre further on after a while: not taken for setting off.
+        let stirred = [report(0.5, at: "12:00:00"), report(0.5, at: "12:00:15"), report(0.50025, at: "12:00:30")]
+        check("gliding: a standing train's GPS wobbling a metre on, it still stands",
+              abs(drawn(stirred, at: "12:01:10") - 0.50025 * hop) < 0.05,
+              "\(drawn(stirred, at: "12:01:10") - 0.50025 * hop) m on")
         let parked = [report(0.5, at: "12:00:00"), report(0.5, at: "12:00:15")]
         check("gliding: standing, it stands where it stood", abs(drawn(parked, at: "12:01:00") - 0.5 * hop) < 0.01)
         check("gliding: one report, where that has it and no further",

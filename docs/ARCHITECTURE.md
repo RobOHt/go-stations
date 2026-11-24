@@ -84,8 +84,12 @@ each is drawn where it was 10 seconds ago (`TrainReplay`):
 - between two reports, along a smooth curve through them (a monotone cubic: it
   never goes back or overshoots, and stands where the train stood);
 - past its latest report, while the next isn't in yet, carrying on at the pace it
-  last covered the ground at, slowing for the station it's heading for and never
-  passing it.
+  last covered the ground at, slowing for the station it's heading for and
+  stopping 250 m short of it: a train may come to a stand anywhere from there on
+  (GO's trains stand up to 235 m short of Union's own spot on the line), so from
+  there only its reports bring it in. And only while its reports have it
+  measurably moving: a standing train's GPS wobbles by a metre or two, which isn't
+  it setting off.
 
 When a new report shows that carrying on was off (the train braked early, a GPS
 position strayed), the train is put right in one quick slide, never eased there
@@ -95,17 +99,18 @@ against real trains' reports, as the app would have got them:
 
 | | Gliding, 10 s behind | Stepping from report to report |
 | --- | --- | --- |
-| Into a suburban station (a report every 15 s) | 191 m from the real train (worst 254 m) | 209 m (worst 567 m) |
-| Out of it again | 118 m (worst 219 m) | 148 m (worst 452 m) |
-| Out of Union, between downtown's towers | 56 m (worst 187 m) | 74 m (worst 425 m) |
-| Into Union (a report every 5 to 10 s) | 63 m (worst 211 m) | 86 m (worst 322 m) |
+| Into a suburban station (a report every 15 s) | 193 m from the real train (worst 254 m) | 209 m (worst 567 m) |
+| Out of it again | 119 m (worst 219 m) | 148 m (worst 452 m) |
+| Out of Union, between downtown's towers | 58 m (worst 187 m) | 74 m (worst 425 m) |
+| Into Union (a report every 5 to 10 s) | 63 m (worst 240 m) | 86 m (worst 320 m) |
 
 (Median distance from where the train really was, read off all its reports
-afterwards.) Gliding was never more than about 20 m ahead of the real train, and
-had to be put right once in the four runs, after a stray GPS position downtown.
-Drawn 5 seconds behind it was closer still but ran ahead into stations and had to
-be put back; 20 seconds behind it never had to be, and was further off than
-stepping.
+afterwards.) Gliding was never ahead of the real train, and had to be put back
+once in the four runs, after a stray GPS position downtown. It showed a train in
+at its platform, and on its way out of one, within a couple of seconds of when
+stepping did. Drawn 5 seconds behind, it was closer still (32 to 108 m) but ran
+ahead of the train downtown and had to be put back more often and further; 20
+seconds behind it never had to be, and was further off than stepping.
 
 A train's speed is only ever measured: the ground between its latest report and
 the newest one at least 12 seconds before it (GO's "stopped at" shows for most of
