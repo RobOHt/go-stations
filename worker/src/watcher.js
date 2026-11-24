@@ -125,11 +125,17 @@ export class Watch {
       }
     }
 
-    this.board.look(merged, seen, (train) => {
-      const { day, key } = keyOf(train);
-      const entry = this.trips.get(key);
-      return { key, day, line: network.line(train.line) ?? train.line, run: entry?.run ?? null, codes: entry?.codes ?? null };
-    });
+    // (Scoring never costs the recording: what changed is kept whatever happens here.)
+    try {
+      this.board.look(merged, seen, (train) => {
+        const { day, key } = keyOf(train);
+        const entry = this.trips.get(key);
+        return { key, day, line: network.line(train.line) ?? train.line, run: entry?.run ?? null, codes: entry?.codes ?? null };
+      });
+    } catch (failure) {
+      this.scoreErrors = (this.scoreErrors ?? 0) + 1;
+      this.lastScoreError = `${new Date(seen * 1000).toISOString().slice(0, 19)} ${String(failure?.stack ?? failure).slice(0, 300)}`;
+    }
     return { lines, merged, seen };
   }
 
@@ -327,6 +333,8 @@ export class Watcher extends DurableObject {
       tookMs: stats.took,
       errors: stats.errors,
       lastError: stats.lastError,
+      scoreErrors: this.watch.scoreErrors ?? 0,
+      lastScoreError: this.watch.lastScoreError ?? null,
       feeds: {
         vehicles: feeds.vehicles?.ok ?? null,
         vehiclesAge: feeds.vehicles?.ts ? Math.round((feeds.vehicles.at ?? now) - feeds.vehicles.ts) : null,

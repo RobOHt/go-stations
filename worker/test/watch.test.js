@@ -332,10 +332,21 @@ test("the watcher looks every 5 seconds, keeps what it saw for R2 an hour at a t
     const status = await object.status();
     assert.equal(status.running, true);
     assert.equal(status.errors, 0);
+    assert.equal(status.scoreErrors, 0);
     assert.equal(status.trips.known, 1);
     assert.equal(status.recording, true);
     assert.ok(status.flushed?.key === key);
     assert.ok(status.models.today.meanOff > 200);
+
+    // Scoring failing: the look's lines are kept all the same.
+    const before = [...storage.map.keys()].filter((k) => k.startsWith("rec:")).length;
+    const look = object.watch.board.look;
+    object.watch.board.look = () => { throw new Error("scoring broke"); };
+    now = storage.alarm / 1000;
+    await object.alarm();
+    object.watch.board.look = look;
+    assert.equal([...storage.map.keys()].filter((k) => k.startsWith("rec:")).length, before + 1);
+    assert.equal((await object.status()).scoreErrors, 1);
 
     // GO not answering: the look fails, and the next one is still set.
     globalThis.fetch = async () => { throw new Error("offline"); };
