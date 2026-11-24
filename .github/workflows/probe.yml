@@ -14,8 +14,11 @@ on:
         description: Seconds between polls
         default: "15"
       mode:
-        description: "overview, timeline (trains only, the feeds side by side over time), or worker (the app's /v1/live/trains, as the app sees it)"
+        description: "overview, timeline (trains only, the feeds side by side over time), worker (the app's /v1/live/trains, as the app sees it), or record (the feeds as the watcher keeps them, for `minutes`, scored)"
         default: overview
+      minutes:
+        description: "With mode record: how long to record, in minutes"
+        default: "20"
       trip:
         description: "DAY/NUMBER (e.g. 20261106/3837): just that trip's Schedule/Trip stops, as Metrolinx gives them"
         default: ""
@@ -35,7 +38,7 @@ on:
 jobs:
   probe:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 45
     env:
       METROLINX_API_KEY: ${{ secrets.METROLINX_API_KEY }}
       POLLS: ${{ inputs.polls }}
@@ -46,6 +49,7 @@ jobs:
       NEAR: ${{ inputs.near }}
       CANCELLATIONS: ${{ inputs.cancellations }}
       STATION: ${{ inputs.station }}
+      MINUTES: ${{ inputs.minutes }}
     steps:
       - uses: actions/checkout@v5
       # (For tools/cancelled_cost.mjs, which reads the Worker's own code.)
@@ -72,6 +76,13 @@ jobs:
             python3 tools/probe_live.py --approach "$APPROACH" --polls "${POLLS:-4}" --gap "${GAP:-15}"
             exit 0
           fi
+          if [ "$MODE" = "record" ]; then
+            # The feeds as the Worker's watcher keeps them, scored as it would score them.
+            node tools/record_feeds.mjs --minutes "${MINUTES:-20}" --out feeds.ndjson
+            gzip -9 feeds.ndjson
+            node tools/replay_archive.mjs feeds.ndjson.gz
+            exit 0
+          fi
           if [ "$MODE" = "worker" ]; then
             python3 tools/probe_live.py --worker --polls "${POLLS:-4}" --gap "${GAP:-15}"
             exit 0
@@ -79,3 +90,12 @@ jobs:
           extra=""
           if [ "$MODE" = "timeline" ]; then extra="--timeline"; fi
           python3 tools/probe_live.py --polls "${POLLS:-4}" --gap "${GAP:-15}" $extra
+
+      - name: Keep the recording
+        if: inputs.mode == 'record'
+        uses: actions/upload-artifact@v4
+        with:
+          name: feeds
+          path: feeds.ndjson.gz
+          retention-days: 1
+          if-no-files-found: ignore

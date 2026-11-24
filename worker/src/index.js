@@ -32,12 +32,24 @@
 // to find the next train. POST /v1/activity/end forgets one early. Nothing is kept once the trip
 // is over. The Apple push key is a Worker secret too (APNS_KEY_P8, APNS_KEY_ID,
 // APPLE_TEAM_ID).
+//
+// The Watcher Durable Object (src/watcher.js) looks at GO's live feeds every 5
+// seconds all day: it keeps every GPS fix (R2, an hour to a file) and scores how
+// far each way of drawing a train is from the real one (Analytics Engine). A Cron
+// Trigger keeps it running; /health?check=watch says how it's doing.
 
 import { DurableObject } from "cloudflare:workers";
 import {
   alertFor, alertTime, cancelAlert, cancellationFor, cancellations, cancelledContent, cancelledUntil, connectionAlert,
   connectionFor, follow, mergeTrains, missedCheck, nextLeg, shownState, watchWindow,
 } from "./live.js";
+
+export { Watcher } from "./watcher.js";
+
+/** The one watcher. */
+function watcher(env) {
+  return env.WATCHER.get(env.WATCHER.idFromName("all"));
+}
 
 const UPSTREAM = "https://api.openmetrolinx.com/OpenDataAPI/api/V1";
 
@@ -85,6 +97,9 @@ export default {
         if (checks.includes("metrolinx") && body.configured) body.metrolinx = await checkMetrolinx(env);
         if (checks.includes("live") && body.configured) body.live = await checkLive(env);
         if (checks.includes("cancelled") && body.configured) body.cancelled = await checkCancelled(env);
+        if (checks.includes("watch") && env.WATCHER) {
+          body.watch = await watcher(env).status().catch((e) => `failed: ${e?.message ?? e}`);
+        }
       }
       return new Response(JSON.stringify(body), {
         headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
@@ -139,6 +154,11 @@ export default {
         "Cache-Control": ok ? `public, max-age=${route.ttl}` : "no-store",
       },
     });
+  },
+
+  // Every minute (wrangler.toml): the watcher is running.
+  async scheduled(controller, env, ctx) {
+    if (env.WATCHER) ctx.waitUntil(watcher(env).start());
   },
 };
 
