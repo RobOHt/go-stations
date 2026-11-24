@@ -336,7 +336,7 @@ class Watched {
       const value = moment.drawn[model];
       if (!Number.isFinite(value)) continue;
       const error = value - real;
-      this.observer?.({ model, error, phase, line: this.line, time: moment.time, trip: this.trip });
+      this.observer?.({ model, error, phase, line: this.line, time: moment.time, trip: this.trip, age: moment.age, real, value });
       const key = `${minute}|${phase}|${model}`;
       let group = this.groups.get(key);
       if (!group) {

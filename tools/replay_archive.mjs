@@ -148,4 +148,18 @@ if (values.json) {
   for (const [name, f] of Object.entries(result.byPhase).sort()) row(name, f);
   console.log("\nBy line:");
   for (const [name, f] of Object.entries(result.byLine).sort()) row(name, f);
+  // The worst seconds, one per train and model: what to look into.
+  const clock = (t) => new Date((t - 5 * 3600) * 1000).toISOString().slice(11, 19);
+  console.log("\nWorst seconds (one per train):");
+  for (const model of watch.MODELS) {
+    const worst = new Map();
+    for (const row of errors) {
+      if (row.model !== model) continue;
+      if (!worst.has(row.trip) || Math.abs(row.error) > Math.abs(worst.get(row.trip).error)) worst.set(row.trip, row);
+    }
+    for (const row of [...worst.values()].sort((a, b) => Math.abs(b.error) - Math.abs(a.error)).slice(0, 4)) {
+      console.log(`${model.padEnd(10)} ${row.error > 0 ? "ahead " : "behind"} ${String(Math.round(Math.abs(row.error))).padStart(5)} m  ` +
+        `train ${row.trip} (${row.line}) at ${clock(row.time)} (UTC-5), ${row.phase}, its newest fix ${Math.round(row.age)} s old`);
+    }
+  }
 }
