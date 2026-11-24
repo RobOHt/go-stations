@@ -648,6 +648,37 @@ enum SelfCheck {
               unnamed.map { abs($0.distance - 0.3 * hop) < 1 && $0.stop == 1 } ?? false,
               "\(unnamed?.distance ?? -1) m, stop \(unnamed?.stop ?? -1)")
 
+        // A run starts and ends at its first and last stations' own spots on the
+        // line, and a train stands with its GPS a little way from those: short of
+        // the start before it sets off, past the end once it's in. It's placed and
+        // drawn there (straight on along the track), not held at the spot.
+        let waiting = run.place(report(-0.03, status: "at", stop: "AA", at: "12:00"))
+        check("gps only: short of where its run starts, where its position is",
+              waiting.map { abs($0.distance + 0.03 * hop) < 1 && $0.off < 1 && $0.stop == 0 && $0.isAt } ?? false,
+              "\(waiting?.distance ?? 1) m, \(waiting?.off ?? -1) m off")
+        let overrun = run.place(report(2.04, status: "at", stop: "CC", at: "12:00"))
+        check("gps only: past where its run ends, where its position is",
+              overrun.map { abs($0.distance - 2.04 * hop) < 1 && $0.off < 1 && $0.stop == 2 && $0.isAt } ?? false,
+              "\(overrun?.distance ?? -1) m of \(run.length), \(overrun?.off ?? -1) m off")
+        let ahead = run.point(at: -0.03 * hop).map { TrackGeometry.coordinate($0.point) }
+        check("gps only: drawn short of where its run starts, straight on along its track",
+              ahead.map { abs($0.longitude - (west - 0.03 * apart)) < 0.00002 && abs($0.latitude - latitude) < 0.00002 }
+                  ?? false, "\(String(describing: ahead))")
+        let past = run.point(at: 2.04 * hop)
+        check("gps only: drawn past where its run ends, still heading the way its track runs",
+              past.map { abs(TrackGeometry.coordinate($0.point).longitude - (west + 2.04 * apart)) < 0.00002
+                  && abs(($0.heading ?? -1) - 90) < 1 } ?? false, "\(String(describing: past))")
+        let leaving = [report(-0.03, status: "at", stop: "AA", at: "12:00:00"),
+                       report(-0.03, status: "at", stop: "AA", at: "12:00:15"),
+                       report(-0.02, status: "at", stop: "AA", at: "12:00:30")]
+        let left = TrainReplay.position(of: leaving, on: run)
+        check("gps only: setting off from short of where its run starts, moving from the first metres",
+              left.map { ($0.speed ?? 0) > 1 && abs($0.distance + 0.02 * hop) < 1 } ?? false,
+              "\(left?.speed ?? -1) m/s at \(left?.distance ?? 1) m")
+        let yardBound = TrainReplay.position(of: [report(2.2, status: "at", stop: "CC", at: "12:00")], on: run)
+        check("gps only: far past the end of its run (off to a yard), drawn where it is, off its line",
+              yardBound?.away != nil, "\(yardBound?.distance ?? -1) m of \(run.length)")
+
         // Two reports 15 seconds apart: it's where the later one has it, no further.
         let latest = TrainReplay.position(of: [report(0.2, at: "12:00:00"), report(0.3, at: "12:00:15")], on: run)
         check("gps only: where its latest report has it, not past it",
@@ -743,6 +774,11 @@ enum SelfCheck {
               "\(drawn(stirred, at: "12:01:10") - 0.50025 * hop) m on")
         let parked = [report(0.5, at: "12:00:00"), report(0.5, at: "12:00:15")]
         check("gliding: standing, it stands where it stood", abs(drawn(parked, at: "12:01:00") - 0.5 * hop) < 0.01)
+        // Setting off from short of where its run starts: on its way from there, not
+        // held at its first station's spot until its GPS is past it.
+        let setOff = drawn(leaving, at: "12:00:\(String(format: "%02d", Int(22 + behind)))")
+        check("gliding: setting off from short of where its run starts, on its way from there",
+              setOff > -0.03 * hop && setOff < -0.02 * hop, "\(setOff) m")
         check("gliding: one report, where that has it and no further",
               abs(drawn([report(0.2, at: "12:00:00")], at: "12:00:40") - 0.2 * hop) < 0.01)
         let wobble = [report(0.5, at: "12:00:00"), report(0.4995, at: "12:00:15")]

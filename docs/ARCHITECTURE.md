@@ -78,7 +78,12 @@ phone's GPS, even on the train you're riding: you're your own blue dot.
 GO reports each train every 15 seconds or so (some every 5), and a report is 5 to
 15 seconds old by the time the app has it. Each report is put at the nearest point
 of the train's track (or just where it says, when that's well off the line: a
-yard, a detour). So that trains move rather than jump from one report to the next,
+yard, a detour). A run's track starts and ends at its first and last stations' own
+spots on the line, and a train's GPS stands a little way from those: at Union,
+trains for the west wait 140 to 190 m short of where their run starts, and trains
+in from the west stop that far past where theirs ends. Those reports are placed
+there too, straight on along the track, so a train is seen to set off from its
+first metres. So that trains move rather than jump from one report to the next,
 each is drawn where it was 10 seconds ago (`TrainReplay`):
 
 - between two reports, along a smooth curve through them (a monotone cubic: it
@@ -131,13 +136,16 @@ place, then moved to another.
 The marker among a train's stops goes by the same rule and the same replay: it's
 as far along the track between two stops as the map draws the train.
 
-Earlier versions got this wrong in three ways, each fixed by the rule above. One
+Earlier versions got this wrong in four ways, each fixed by the rule above. One
 eased the drawn train toward where its reports had it over many seconds and
 blended in the timetable, so it could sit somewhere its reports didn't have it (a
 train standing at a platform drawn still coming in). One drew the tracked train
 where your phone was once you were on it, so it wandered with the phone's GPS under
 a station's roof. One stepped from report to report with nothing in between, which
-was never ahead of the train but further from it, and looked it.
+was never ahead of the train but further from it, and looked it. And one held a
+train at its first station's own spot until its GPS had passed it: out of Union
+for the west, it sat there for most of a minute after it had set off (shown 46 to
+62 seconds after the real train, where it's now 13 to 15).
 
 ## The Worker
 

@@ -12,6 +12,36 @@ struct TrainRun {
     /// How far along the run each stop is, in metres.
     let starts: [Double]
 
+    /// The run's track at one of its ends: the point there, and the way a train
+    /// travels along it there (a unit vector, east and north).
+    struct End {
+        let point: Point
+        let east: Double
+        let north: Double
+
+        /// In degrees clockwise from north.
+        var heading: Double {
+            let degrees = atan2(east, north) * 180 / .pi
+            return degrees < 0 ? degrees + 360 : degrees
+        }
+
+        /// How far `position` is past this end the way trains travel (negative:
+        /// short of it), and how far to one side of the track's line there.
+        func offset(of position: Point) -> (on: Double, beside: Double) {
+            let dx = position.x - point.x, dy = position.y - point.y
+            return (dx * east + dy * north, abs(dx * north - dy * east))
+        }
+
+        /// The point `metres` on from this end, straight along the track's line there.
+        func point(on metres: Double) -> Point {
+            Point(x: point.x + east * metres, y: point.y + north * metres)
+        }
+    }
+
+    /// Where the run starts and ends (nil without track there to go by).
+    let head: End?
+    let tail: End?
+
     init(codes: [String], segment: (String, String) -> CommutePlanner.Path?) {
         self.codes = codes
         var paths: [CommutePlanner.Path?] = []
@@ -23,6 +53,21 @@ struct TrainRun {
         }
         self.paths = paths
         self.starts = starts
+        head = Self.end(of: paths.first ?? nil, atStart: true)
+        tail = Self.end(of: paths.last ?? nil, atStart: false)
+    }
+
+    /// One end of a stretch of track: the way it runs over its first (or last)
+    /// 100 m, so a kink in the last metre of a track shape doesn't turn it.
+    private static func end(of path: CommutePlanner.Path?, atStart: Bool) -> End? {
+        guard let path, let length = path.cumulative.last, length > 1 else { return nil }
+        let span = min(100, length)
+        let from = path.point(at: atStart ? 0 : length - span)
+        let to = path.point(at: atStart ? span : length)
+        let dx = to.x - from.x, dy = to.y - from.y
+        let size = (dx * dx + dy * dy).squareRoot()
+        guard size > 0 else { return nil }
+        return End(point: atStart ? from : to, east: dx / size, north: dy / size)
     }
 
     /// A trip's run along its line through its stops, by the network's track.
@@ -53,9 +98,13 @@ struct TrainRun {
     }
 
     /// The point `distance` metres along the run, and the way the train is going
-    /// there (at a station, the way it carries on).
+    /// there (at a station, the way it carries on). Short of the run's start
+    /// (`distance` below 0) or past its end: straight on along the track's line
+    /// there (see `beyond`).
     func point(at distance: Double) -> (point: Point, heading: Double?)? {
         guard !paths.isEmpty else { return nil }
+        if distance < 0, let head { return (head.point(on: distance), head.heading) }
+        if distance > length, let tail { return (tail.point(on: distance - length), tail.heading) }
         let index = segment(at: distance)
         guard let path = paths[index] else { return nil }
         let along = min(max(distance - starts[index], 0), path.cumulative.last ?? 0)
@@ -116,14 +165,29 @@ struct TrainRun {
     /// only its reports bring it in.
     static let clear = 250.0
 
+    /// A train is placed along its run up to this far short of the run's start or
+    /// past its end, in metres, straight on along the track's line there. A run
+    /// starts and ends at its first and last stations' own spots on the line, and
+    /// a train stands with its GPS up to a couple of hundred metres from those:
+    /// at Union, trains for the west wait 140 to 190 m short of where their run
+    /// starts, and trains in from the west stop that far past where theirs ends.
+    /// They're drawn there, and seen to set off from there, not held at the spot
+    /// until their GPS has passed it.
+    static let beyond = 400.0
+    /// Within this of an end of the run's track, in metres, a position past that
+    /// end is placed beyond it. (Track shapes can end in a kink a metre long,
+    /// so the nearest point of the track isn't always its very end.)
+    private static let atEnd = 10.0
+
     /// Where one live report has the train: the point of the run's track nearest
     /// the position it gives, how far along the run that is, and how far off the
     /// track the position is. Nothing but that position places it: not the
     /// station's own spot when GO says it's standing there (a train can stand a
-    /// couple of hundred metres from it), and not the stop GO names, which only
-    /// says which stop it's at or heading for; when that isn't one of this run's
-    /// (a signal, a junction, none given), it's the next one along from where the
-    /// train is. Nil only when the run has no track to go by.
+    /// couple of hundred metres from it, short of the run's start or past its end
+    /// too: see `beyond`), and not the stop GO names, which only says which stop
+    /// it's at or heading for; when that isn't one of this run's (a signal, a
+    /// junction, none given), it's the next one along from where the train is.
+    /// Nil only when the run has no track to go by.
     func place(_ report: LiveTrain, from hint: Int = 0) -> TrainReplay.Sample? {
         let position = TrackGeometry.point(report.coordinate)
         var best: (distance: Double, off: Double)?
@@ -133,7 +197,15 @@ struct TrainRun {
             if let current = best, current.off <= hit.distance { continue }
             best = (starts[index] + hit.arc, hit.distance)
         }
-        guard let nearest = best else { return nil }
+        guard var nearest = best else { return nil }
+        // Short of the run's start, or past its end: along the track's line there.
+        if nearest.distance < Self.atEnd, let head {
+            let offset = head.offset(of: position)
+            if offset.on < 0, offset.on >= -Self.beyond { nearest = (offset.on, offset.beside) }
+        } else if nearest.distance > length - Self.atEnd, let tail {
+            let offset = tail.offset(of: position)
+            if offset.on > 0, offset.on <= Self.beyond { nearest = (length + offset.on, offset.beside) }
+        }
         var stop = starts.firstIndex(where: { $0 > nearest.distance - Self.platform }) ?? max(starts.count - 1, 0)
         var isAt = false
         if let fix = report.fix(in: codes, from: hint), starts.indices.contains(fix.index) {
@@ -177,7 +249,8 @@ enum TrainReplay {
     struct Sample {
         /// Seconds since 2001.
         let time: Double
-        /// Metres along the run: the point of its track nearest the report's position.
+        /// Metres along the run: the point of its track nearest the report's position
+        /// (below 0 short of the run's start, more than its length past its end).
         var distance: Double
         /// How far the report's position is from that point, in metres.
         let off: Double
@@ -189,7 +262,8 @@ enum TrainReplay {
     /// Where a train is along its run: by its live reports, or with no live
     /// position, where its times put it (`isLive` false).
     struct Position {
-        /// Metres along the run.
+        /// Metres along the run (below 0 short of its start, more than its length
+        /// past its end: see `TrainRun.beyond`).
         var distance: Double
         /// Metres per second: what it covered over the last quarter of a minute or so
         /// of its reports (nil without two far enough apart to measure it by).
