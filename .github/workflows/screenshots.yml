@@ -21,7 +21,7 @@ on:
         description: "true: only the app's self-checks, no screenshots"
         default: ""
       only:
-        description: "Only these shots, by name (say 13c-activity-journey 15h-tracked-journey-stops; start for the start-up board check; train-trace for how the tracked train moves); empty for all"
+        description: "Only these shots, by name (say 13c-activity-journey 15h-tracked-journey-stops; start for the start-up board check; train-trace for how the tracked train moves; train-openings for its first seconds after opening, six times); empty for all"
         default: ""
       trace_seconds:
         description: "How long the tracked train is traced for, in seconds (600 takes in a station stop or two); empty for 145"
@@ -506,6 +506,29 @@ jobs:
           else
             echo "::warning title=Train motion::No trace was written"
           fi
+
+      - name: Trace the tracked train just after opening
+        if: always() && steps.sim.outputs.udid != '' && inputs.checks_only != 'true' && contains(inputs.only, 'train-openings')
+        env:
+          UDID: ${{ steps.sim.outputs.udid }}
+        run: |
+          # The app opened six times from cold, 40 seconds each, its tracked train
+          # traced from the first frame: how many positions it had to go by, how old
+          # they were, how long it stood before it moved, and how far it then jumped.
+          # (Alone: "train-openings" as the shots to take.)
+          container=$(xcrun simctl get_app_container "$UDID" "$BUNDLE_ID" data)
+          for i in 1 2 3 4 5 6; do
+            xcrun simctl terminate "$UDID" "$BUNDLE_ID" > /dev/null 2>&1 || true
+            rm -f "$container/Documents/train-trace.tsv"
+            sleep 1
+            xcrun simctl launch "$UDID" "$BUNDLE_ID" -debugScene trackedTrip -traceTrains YES \
+              -homeStation OA -workStation UN > /dev/null < /dev/null
+            sleep 40
+            cp "$container/Documents/train-trace.tsv" "shots/train-opening-$i.tsv" 2> /dev/null \
+              || echo "opening $i: no trace written"
+          done
+          python3 tools/trace_summary.py --openings shots/train-opening-*.tsv | tee openings.txt
+          echo "::notice title=Openings::$(tr '\n' ' ' < openings.txt)"
 
       - name: Check the start-up station
         id: startup

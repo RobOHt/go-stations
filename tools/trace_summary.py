@@ -18,7 +18,12 @@ far from its latest report it was drawn, how old the reports were, how far it we
 at once whenever it changed between its times and its reports, and each time its
 reports had it standing: that it was drawn where they had it, never carried on.
 
+With --openings, for traces each taken from the moment the app opened: how
+many positions the train had to go by at its first frame, how old the newest
+was, how long it stood there before it moved, and how far it then jumped.
+
 Usage: python3 tools/trace_summary.py train-trace.tsv
+       python3 tools/trace_summary.py --openings train-opening-*.tsv
 """
 import csv
 import statistics
@@ -111,5 +116,35 @@ def main(path):
               f"{row['drawn'] - row['target']:+6.0f}  {speed} {row['report_age']:4.0f}  {row['stop']}")
 
 
+def openings(paths):
+    stood_all, jumps_all = [], []
+    for path in paths:
+        with open(path, newline="") as f:
+            rows = list(csv.DictReader(f, delimiter="\t"))
+        rows = [r for r in rows if r["source"] == "report"]
+        if len(rows) < 3:
+            print(f"{path}: only {len(rows)} draws by live reports")
+            continue
+        t0, first = float(rows[0]["time"]), float(rows[0]["drawn"])
+        moved = next((float(r["time"]) - t0 for r in rows if abs(float(r["drawn"]) - first) > 1), None)
+        # Draws less than half a second apart go together (see main()).
+        paced = [r for r, after in zip(rows, rows[1:] + [None])
+                 if after is None or float(after["time"]) - float(r["time"]) >= 0.5]
+        early = [r for r in paced if float(r["time"]) - t0 <= 30]
+        jump = max((float(b["drawn"]) - float(a["drawn"]) for a, b in zip(early, early[1:])), default=0)
+        stood = moved if moved is not None else float(rows[-1]["time"]) - t0
+        stood_all.append(stood)
+        jumps_all.append(jump)
+        print(f"{path.rsplit('/', 1)[-1]}: {rows[0]['reports']} position(s) at its first frame, the newest "
+              f"{float(rows[0]['report_age']):.0f} s old; stood {stood:.0f} s"
+              + ("" if moved is not None else " (never moved)") + f"; biggest move in a second: {jump:.0f} m")
+    if stood_all:
+        print(f"over {len(stood_all)} openings: stood {statistics.median(stood_all):.0f} s typically "
+              f"(longest {max(stood_all):.0f} s); biggest jump {max(jumps_all):.0f} m")
+
+
 if __name__ == "__main__":
-    main(sys.argv[1] if len(sys.argv) > 1 else "train-trace.tsv")
+    if len(sys.argv) > 1 and sys.argv[1] == "--openings":
+        openings(sys.argv[2:])
+    else:
+        main(sys.argv[1] if len(sys.argv) > 1 else "train-trace.tsv")
