@@ -49,11 +49,11 @@ SCREENS = {
 # people see with animated images turned off. Speed > 1 plays it faster: trains
 # move slowly at the scale of the network.
 CLIPS = [
-    ("trains", 5, 36, 8, 320, 12),
-    ("union-trains", 4, 84, 10, 320, 12),
-    ("trip", 5.5, 7.5, 1, 320, 12),
-    ("tracked", 5.6, 4.6, 1, 320, 12),
-    ("plan", 11.2, 4.4, 1, 320, 12),
+    ("trains", 3.5, 36, 8, 320, 12),
+    ("union-trains", 6, 84, 10, 320, 12),
+    ("trip", 4.5, 7.5, 1, 320, 12),
+    ("tracked", 4.5, 4.6, 1, 320, 12),
+    ("plan", 3.8, 4.4, 1, 320, 12),
 ]
 
 
