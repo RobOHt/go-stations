@@ -132,10 +132,11 @@ line, the stations where today's model is furthest off, and the worst minutes. T
 - The Durable Object is billed only while it's working (about a second every 5
   seconds), not while it waits for its next alarm. That's well inside the paid
   plan's 400,000 GB-s a month.
-- Its alarms count as requests: about 520,000 a month, with the Cron Trigger,
+- Its alarms count as requests: about 560,000 a month with the Cron Trigger's,
   inside the plan's 1 million.
-- The archive is about 1 GB a month gzipped, inside R2's 10 GB free storage.
-  Downloading it costs nothing.
+- The archive is small: in a rush hour, 25 minutes of both feeds came to 4 MB of
+  JSON lines and 0.17 MB gzipped, so under 0.3 GB a month, inside R2's 10 GB free
+  storage. Downloading it costs nothing.
 - Analytics Engine takes at most 250 data points per invocation, so the watcher
   writes at most 200 per look and keeps the rest for the next.
 - Alarms are retried only a few times after an error. The watcher catches its own
