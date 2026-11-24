@@ -696,9 +696,8 @@ struct RootView: View {
     }
 
     /// Opens the tracked trip's details (closing the station sheet or Settings first)
-    /// and goes to the train on the map: where the map draws it (with you, when
-    /// you're on it), else where its times put it, with a station and you in view
-    /// (see `showTrackedTrain`).
+    /// and goes to the train on the map, where its latest live report has it, with a
+    /// station and you in view (see `showTrackedTrain`).
     private func openTrackedTrip() {
         guard let trip = TripTracker.shared.trip, let station = network.station(trip.boardingCode) else { return }
         // Cancelled before you got on: where to find another train instead (your
@@ -711,8 +710,8 @@ struct RootView: View {
             }
             return
         }
-        if let drawn = mapController.trackedTrain, drawn.onBoard || mapController.you != nil {
-            showTrackedTrain(trip, at: drawn.coordinate, onBoard: drawn.onBoard, reached: drawn.reached)
+        if let drawn = mapController.trackedTrain, mapController.you != nil {
+            showTrackedTrain(trip, at: drawn.coordinate, reached: drawn.reached)
         } else {
             // Not drawn yet, or the map doesn't have you yet (just launched, or back
             // after a while away): once the live trains and where you are are in.
@@ -722,8 +721,8 @@ struct RootView: View {
     }
 
     /// The map to the tracked train where it actually is: where the map draws it once
-    /// its live position is in (with you, when you're on it), a second or two after
-    /// launch. Never to where its times would put it, which can be miles off (a train
+    /// its live position is in, a second or two after launch. Never to where its
+    /// times would put it, which can be miles off (a train
     /// held up for half an hour): with no live position in a few seconds, just to a
     /// station and you. Left alone if you've moved the map meanwhile.
     private func goToTrackedTrain(_ trip: TrackedTrip) async {
@@ -739,8 +738,8 @@ struct RootView: View {
                 if !mapController.wasTouched(since: asked) {
                     // (The trip as it is now: brought up to date meanwhile, or on to the
                     // next train of a trip with changes, which is the one drawn.)
-                    showTrackedTrain(TripTracker.shared.trip ?? trip, at: drawn.coordinate, onBoard: drawn.onBoard,
-                                     reached: drawn.reached, you: here?.coordinate)
+                    showTrackedTrain(TripTracker.shared.trip ?? trip, at: drawn.coordinate, reached: drawn.reached,
+                                     you: here?.coordinate)
                 }
                 return
             }
@@ -749,26 +748,26 @@ struct RootView: View {
         let current = TripTracker.shared.trip ?? trip
         let here = await fix.value
         guard !mapController.wasTouched(since: asked) else { return }
-        showTrackedTrain(current, at: trackedTrainPlace(current), onBoard: false,
+        showTrackedTrain(current, at: trackedTrainPlace(current),
                          reached: current.state(at: Date()).reached(stopCount: current.stops.count),
                          you: here?.coordinate)
     }
 
     /// The tracked train above its stops at half height, with a station and you in
     /// view too, so the map you open to always shows where you are and a station to
-    /// go by: on the train, you and the next station it stops at; waiting for it, the
-    /// train, you and the station you get on at (see `TrackedTrip.stationToShow`).
-    /// `train`: where it is, when anything says (nil: just the station and you);
-    /// `you`: where you are, when the map may not have it yet.
-    private func showTrackedTrain(_ trip: TrackedTrip, at train: CLLocationCoordinate2D?, onBoard: Bool,
-                                  reached: Int, you: CLLocationCoordinate2D? = nil) {
+    /// go by: once the train has left where you get on, the next station it stops
+    /// at; still waiting for it, the station you get on at (see
+    /// `TrackedTrip.stationToShow`). `train`: where its latest live report has it
+    /// (nil without one: just the station and you); `you`: where you are, when the
+    /// map may not have it yet.
+    private func showTrackedTrain(_ trip: TrackedTrip, at train: CLLocationCoordinate2D?, reached: Int,
+                                  you: CLLocationCoordinate2D? = nil) {
         var places: [CLLocationCoordinate2D] = []
         if let train { places.append(train) }
-        if let code = trip.stationToShow(onBoard: onBoard, reached: reached), let station = network.station(code) {
+        if let code = trip.stationToShow(reached: reached), let station = network.station(code) {
             places.append(station.coordinate)
         }
-        // On it, the train is drawn where you are.
-        if !onBoard, let you = you ?? mapController.you, RailNetwork.isInServiceArea(you) { places.append(you) }
+        if let you = you ?? mapController.you, RailNetwork.isInServiceArea(you) { places.append(you) }
         guard !places.isEmpty else { return }
         mapController.frame(places, minWidth: 3_000, coveredFraction: 0.55, asked: true)
     }

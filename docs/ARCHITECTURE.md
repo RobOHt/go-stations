@@ -71,23 +71,27 @@ the feed marks them directly.
 
 ## A train is only ever where its GPS says
 
-One rule decides where a train is drawn: its own GPS position is the only thing
-taken as true. GO reports each train about every 15 seconds, and a report is 5 to 25
-seconds old by the time the app has it. The map draws each train where its latest
-report has it, at the nearest point of its line's track (or just where the report
-says, when that's well off the line: a yard, a detour), and moves it there in one
-quick slide as soon as a new report is in. Nothing else places a train: not the
-timetable, not where it would be by now if it kept going, not the station's own
-spot when GO says it's standing there. A train with no report in the last two
+One rule decides where a train is drawn: the GPS position GO reports for it is the
+only thing taken as true. GO reports each train about every 15 seconds, and a report
+is 5 to 25 seconds old by the time the app has it. The map draws each train where
+its latest report has it, at the nearest point of its line's track (or just where
+the report says, when that's well off the line: a yard, a detour), and moves it
+there in one quick slide as soon as a new report is in. Nothing else places a train:
+not the timetable, not where it would be by now if it kept going, not the station's
+own spot when GO says it's standing there. A train with no report in the last two
 minutes isn't drawn.
 
-On the tracked train, once you're on it (on its line by where it is, moving its way,
-or standing along the way after it has left where you got on), your phone's GPS is
-the train's: it's drawn where you are, second by second.
+Your phone's GPS never places a train, not even the one you're on: you're your own
+blue dot, and the train is where GO last had it (so riding it, your dot runs a
+little ahead of it, by however old its latest report is). Its pointer shows the way
+its track runs there, and its speed is what it covered between its last two reports:
+measured, or not shown.
 
-An earlier version drew trains smoothly, a few seconds behind, guessing ahead of the
-latest report and easing between guesses. It looked better and was sometimes wrong:
-a train standing at a platform drawn still coming in. Being right matters more.
+Earlier versions drew trains smoothly, a few seconds behind, guessing ahead of the
+latest report and easing between guesses, and drew the tracked train where you were
+once you were on it. That looked better and was sometimes wrong: a train standing at
+a platform drawn still coming in, its speed and pointer swinging about under a
+station's roof with the phone's GPS. Being right matters more.
 
 ## The Worker
 

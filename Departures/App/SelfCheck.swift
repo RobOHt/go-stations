@@ -29,7 +29,6 @@ enum SelfCheck {
         boardWays()
         runningLate()
         stationWithTheTrain()
-        onBoard()
         gpsOnly()
         lines.append("done")
         write()
@@ -534,62 +533,32 @@ enum SelfCheck {
     }
 
     /// Opening the app while tracking a train: the station the map shows with it.
-    /// On it, the next one it stops at; still waiting for it, the one you get on at.
+    /// Once it has left where you get on, the next one it stops at; still on its way
+    /// to you, the one you get on at.
     private static func stationWithTheTrain() {
         // Aldershot to Union, getting on at Oakville (4).
         let trip = lakeshore(boarding: 4, destination: 10)
-        check("station with the train: on it, between Clarkson and Port Credit, Port Credit",
-              trip.stationToShow(onBoard: true, reached: 5) == "PO")
-        check("station with the train: on it, standing at Port Credit, Long Branch",
-              trip.stationToShow(onBoard: true, reached: 6) == "LO")
-        check("station with the train: on it at Oakville before it's seen leaving, Clarkson",
-              trip.stationToShow(onBoard: true, reached: 4) == "CL")
-        check("station with the train: waiting for it, where you get on",
-              trip.stationToShow(onBoard: false, reached: 2) == "OA")
-        check("station with the train: waiting for it as it stands at your station, your station",
-              trip.stationToShow(onBoard: false, reached: 4) == "OA")
-        // Seen leaving Oakville: on it as far as tracking goes, even before your
-        // location and speed say so (standing at a station, say).
+        check("station with the train: on its way to you, where you get on", trip.stationToShow(reached: 2) == "OA")
+        check("station with the train: standing at your station, your station", trip.stationToShow(reached: 4) == "OA")
+        // Seen leaving Oakville.
         var left = trip
         left.stops[4].departed = date("11:36")
-        check("station with the train: left where you get on, standing at Long Branch, Mimico",
-              left.stationToShow(onBoard: false, reached: 7) == "MI")
-        check("station with the train: at the end of its run, none ahead",
-              left.stationToShow(onBoard: true, reached: 10) == nil)
+        check("station with the train: just left where you get on, Clarkson", left.stationToShow(reached: 4) == "CL")
+        check("station with the train: between Clarkson and Port Credit, Port Credit",
+              left.stationToShow(reached: 5) == "PO")
+        check("station with the train: standing at Long Branch, Mimico", left.stationToShow(reached: 7) == "MI")
+        check("station with the train: at the end of its run, none ahead", left.stationToShow(reached: 10) == nil)
         // Back in the app after a while: the map already draws it past Oakville by
         // its live reports, before its times catch up.
         check("station with the train: drawn past where you get on, the next one ahead",
-              trip.stationToShow(onBoard: false, reached: 6) == "LO")
+              trip.stationToShow(reached: 6) == "LO")
     }
 
-    /// Whether you're on the tracked train. Standing still at a station along the way
-    /// counts once it has left where you get on: GO's reports can trail the train by
-    /// half a minute, and it was drawn still coming in a kilometre behind you.
-    private static func onBoard() {
-        func on(wasOn: Bool = false, onTrack: Bool = true, gap: Double = 900, speed: Double, aligned: Bool = true,
-                past: Double? = 30_000, left: Bool = true) -> Bool {
-            OnBoard.check(wasOn: wasOn, onTrack: onTrack, gap: gap, speed: speed, aligned: aligned,
-                          pastBoarding: past, leftBoarding: left)
-        }
-        check("on board: moving with it", on(speed: 30))
-        check("on board: moving the other way, not", !on(speed: 30, aligned: false))
-        check("on board: faster than any train, not", !on(speed: 80))
-        check("on board: standing at a station along the way, the train drawn coming in behind", on(speed: 0))
-        check("on board: speed not known, standing at a station along the way", on(speed: -1))
-        check("on board: still on the platform where you get on once it has gone, not",
-              !on(speed: 0, past: 120))
-        check("on board: standing still before it has left where you get on, not", !on(speed: 0, past: 30_000,
-                                                                                         left: false))
-        check("on board: standing still with it drawn far off, not", !on(gap: 5_000, speed: 0))
-        check("on board: off its line, not", !on(onTrack: false, speed: 30))
-        check("on board: on it, stays on through a stop", on(wasOn: true, gap: 6_000, speed: 0))
-        check("on board: on it, off once it's well away", !on(wasOn: true, gap: 9_000, speed: 0))
-    }
-
-    /// The one rule for where a train is drawn: where its latest live report (its own
-    /// GPS position) has it. Not at a station's own spot when it stands short of it,
-    /// not further on than its latest report, and still by its position when GO
-    /// names no stop of its run. (A made-up line.)
+    /// The one rule for where a train is drawn: where its latest live report (the GPS
+    /// position GO gives for it) has it. Not at a station's own spot when it stands
+    /// short of it, not further on than its latest report, and still by its position
+    /// when GO names no stop of its run. Its speed: what it covered between two
+    /// reports, or none. (A made-up line.)
     private static func gpsOnly() {
         // Due east from AA through BB to CC, 0.05 degrees of longitude apart.
         let codes = ["AA", "BB", "CC"]
@@ -638,7 +607,13 @@ enum SelfCheck {
         let one = TrainReplay.position(of: [report(0.2, at: "12:00")], on: run)
         check("gps only: one report on the move, no speed made up", one != nil && one?.speed == nil)
         let standing = TrainReplay.position(of: [report(1, status: "at", at: "12:00")], on: run)
-        check("gps only: one report standing at a station, not moving", standing?.speed == 0)
+        check("gps only: one report standing at a station, no speed made up either",
+              standing != nil && standing?.speed == nil)
+        // (GO says a train is standing at a station while it's still pulling in.)
+        let pullingIn = TrainReplay.position(of: [report(0.97, status: "at", at: "12:00:00"),
+                                                  report(0.99, status: "at", at: "12:00:15")], on: run)
+        check("gps only: pulling in while GO has it standing there, as fast as it covers the ground",
+              (pullingIn?.speed ?? 0) > 1, "\(pullingIn?.speed ?? -1) m/s")
         let still = TrainReplay.position(of: [report(0.5, at: "12:00:00"), report(0.5, at: "12:00:15")], on: run)
         check("gps only: two reports in the same place, not moving", still?.speed == 0)
 

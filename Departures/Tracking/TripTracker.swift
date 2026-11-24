@@ -122,13 +122,13 @@ struct TrackedTrip: Codable, Equatable, Sendable {
 
     /// The station shown with the train when the map goes to it (the app opening or
     /// coming back while tracking, the Live Activity tapped), so there's always a
-    /// station to go by: on the train (or once it's past where you get on), the
-    /// next one it stops at after `reached`, the last it got to; still waiting for
-    /// it, the one you get on at. Nil at the end of its run. (`reached` is where the
-    /// map draws it, which can be ahead of these times when the app has just come
-    /// back: past your station there, it's past it.)
-    func stationToShow(onBoard: Bool, reached: Int) -> String? {
-        guard onBoard || hasLeftBoarding || reached > boardingIndex else { return boardingCode }
+    /// station to go by: once it's past where you get on, the next one it stops at
+    /// after `reached`, the last it got to; still on its way to you, the one you get
+    /// on at. Nil at the end of its run. (`reached` is where the map draws it, by
+    /// its latest live report, which can be ahead of these times when the app has
+    /// just come back: past your station there, it's past it.)
+    func stationToShow(reached: Int) -> String? {
+        guard hasLeftBoarding || reached > boardingIndex else { return boardingCode }
         let next = reached + 1
         return stops.indices.contains(next) ? stops[next].code : nil
     }
@@ -320,53 +320,6 @@ struct TrackedTrip: Codable, Equatable, Sendable {
             legs.append(next)
         }
         return legs
-    }
-
-    /// Where the train should be now, along the track, from its stop times: on
-    /// the line, at a station while it stands there.
-    func position(at now: Date, on geometry: TrackGeometry) -> TrackGeometry.Point? {
-        let codes = stopCodes
-        guard codes.count >= 2 else { return codes.first.flatMap { geometry.stop($0) } }
-        switch state(at: now) {
-        case .waiting:
-            return geometry.point(line: lineCode, from: codes[0], to: codes[1], fraction: 0)
-        case .moving(let from, let fraction):
-            guard from + 1 < codes.count else { return nil }
-            return geometry.point(line: lineCode, from: codes[from], to: codes[from + 1], fraction: fraction)
-        case .stopped(let at):
-            guard at > 0, at < codes.count else { return nil }
-            return geometry.point(line: lineCode, from: codes[at - 1], to: codes[at], fraction: 1)
-        case .arrived:
-            return geometry.point(line: lineCode, from: codes[codes.count - 2], to: codes[codes.count - 1],
-                                  fraction: 1)
-        case .unknown:
-            return nil
-        }
-    }
-
-    /// Which way the train is heading now, in degrees clockwise from north (the way
-    /// it will leave while it waits, the way it came in once it's there).
-    func heading(at now: Date, on geometry: TrackGeometry) -> Double? {
-        let codes = stopCodes
-        guard codes.count >= 2 else { return nil }
-        switch state(at: now) {
-        case .waiting:
-            return geometry.heading(line: lineCode, from: codes[0], to: codes[1], fraction: 0)
-        case .moving(let from, let fraction):
-            guard from + 1 < codes.count else { return nil }
-            return geometry.heading(line: lineCode, from: codes[from], to: codes[from + 1], fraction: fraction)
-        case .stopped(let at):
-            // The way it will carry on.
-            guard at > 0, at < codes.count else { return nil }
-            return at + 1 < codes.count
-                ? geometry.heading(line: lineCode, from: codes[at], to: codes[at + 1], fraction: 0)
-                : geometry.heading(line: lineCode, from: codes[at - 1], to: codes[at], fraction: 1)
-        case .arrived:
-            return geometry.heading(line: lineCode, from: codes[codes.count - 2], to: codes[codes.count - 1],
-                                    fraction: 1)
-        case .unknown:
-            return nil
-        }
     }
 }
 

@@ -102,29 +102,10 @@ struct TrackGeometry: Sendable {
         return [Point(x: pa.x + (pb.x - pa.x) * f, y: pa.y + (pb.y - pa.y) * f), pb]
     }
 
-    /// Where a train `fraction` of the way between stops a and b is, along the track.
-    func point(line: String, from a: String, to b: String, fraction: Double) -> Point? {
-        guard let pa = position[a], let pb = position[b] else { return nil }
-        let f = min(max(fraction, 0), 1)
-        if let hit = locate(line, a, b) {
-            return hit.path.point(at: hit.sa + (hit.sb - hit.sa) * f)
-        }
-        return Point(x: pa.x + (pb.x - pa.x) * f, y: pa.y + (pb.y - pa.y) * f)
-    }
-
     /// The track between two neighbouring stops, in travel order (a straight line
     /// where no track shape joins them).
     func segment(line: String, from a: String, to b: String) -> [Point] {
         track(line, from: a, to: b)
-    }
-
-    /// The direction of travel `fraction` of the way between stops a and b, in
-    /// degrees clockwise from north.
-    func heading(line: String, from a: String, to b: String, fraction: Double) -> Double? {
-        let points = track(line, from: a, to: b)
-        guard points.count >= 2 else { return nil }
-        let f = min(max(fraction, 0), 1)
-        return Self.bearing(on: points, at: Self.length(of: points) * f)
     }
 
     // MARK: Along a trip
@@ -139,33 +120,5 @@ struct TrackGeometry: Sendable {
             points += points.isEmpty ? piece : Array(piece.dropFirst())
         }
         return points
-    }
-
-    /// How far a point is from a stretch of track, and how far along it (in metres)
-    /// its closest point is.
-    static func locate(_ point: Point, on track: [Point]) -> (distance: Double, along: Double)? {
-        guard track.count >= 2 else { return nil }
-        let result = Path(track).project(point)
-        return (result.distance, result.arc)
-    }
-
-    /// The direction of travel at `along` metres into a stretch of track, in degrees
-    /// clockwise from north.
-    static func bearing(on track: [Point], at along: Double) -> Double? {
-        guard track.count >= 2 else { return nil }
-        let path = Path(track)
-        let total = path.cumulative[path.cumulative.count - 1]
-        let a = path.point(at: max(0, min(along, total - 25)))
-        let b = path.point(at: min(total, max(along, 25) + 25))
-        let dx = b.x - a.x, dy = b.y - a.y
-        guard dx != 0 || dy != 0 else { return nil }
-        let degrees = atan2(dx, dy) * 180 / .pi
-        return degrees < 0 ? degrees + 360 : degrees
-    }
-
-    /// Length of a stretch of track in metres.
-    static func length(of track: [Point]) -> Double {
-        guard track.count >= 2 else { return 0 }
-        return Path(track).cumulative.last ?? 0
     }
 }

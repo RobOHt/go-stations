@@ -94,13 +94,13 @@ struct TrainRun {
 
 /// Where a train is along its run: exactly where its latest live report has it.
 ///
-/// A train's own GPS position is the only thing the map takes as true. Nothing is
-/// guessed between GO's reports (one about every 15 seconds, 5 to 25 seconds old
-/// by the time the app has it) or past the latest one, and nothing comes from the
-/// timetable: the train is drawn where it last said it was, and goes to where the
-/// next report has it, in one quick step, as soon as that comes in. Without a
-/// recent report it isn't drawn at all. (While you're on the tracked train, where
-/// you are is where it is: see NetworkMapView.)
+/// The GPS position Metrolinx reports for a train is the only thing the map takes
+/// as true. Nothing is guessed between GO's reports (one about every 15 seconds, 5
+/// to 25 seconds old by the time the app has it) or past the latest one, nothing
+/// comes from the timetable, and nothing from where your phone is (not even on
+/// board): the train is drawn where GO last had it, and goes to where the next
+/// report has it, in one quick step, as soon as that comes in. Without a recent
+/// report it isn't drawn at all.
 enum TrainReplay {
     /// One report, as a place along the run.
     struct Sample {
@@ -119,7 +119,8 @@ enum TrainReplay {
     struct Position {
         /// Metres along the run.
         let distance: Double
-        /// Metres per second, by its last two reports (nil: not known yet).
+        /// Metres per second: what it covered between its last two reports (nil
+        /// without two to measure it by).
         let speed: Double?
         /// The stop it's at or heading for.
         let stop: Int
@@ -138,6 +139,11 @@ enum TrainReplay {
 
     /// Where the train is along `run` by its reports (oldest first): where the
     /// latest has it, with how fast it went between the last two. Nil without one.
+    ///
+    /// Its speed is only ever measured, from two positions: GO's word that a train
+    /// is standing isn't taken for it (its feed says "stopped at" a station for most
+    /// of a minute while the train is still pulling in, and "not in motion" for
+    /// about as long after it has left).
     static func position(of reports: [LiveTrain], on run: TrainRun) -> Position? {
         var placed: [(sample: Sample, report: LiveTrain)] = []
         for report in reports.suffix(2) {
@@ -156,8 +162,6 @@ enum TrainReplay {
                 speed = moved < stirring ? 0 : moved / span
             }
         }
-        // (One report, or two that don't say: standing, when GO says it is.)
-        if speed == nil, sample.isAt || last.report.moving == false { speed = 0 }
         var position = Position(distance: sample.distance, speed: speed, stop: sample.stop, isAt: sample.isAt)
         if sample.off > TrainRun.onTrack {
             position.away = TrackGeometry.point(last.report.coordinate)
@@ -167,11 +171,11 @@ enum TrainReplay {
     }
 }
 
-/// How fast each train is going, by its last two live reports (as you go, on the
-/// tracked train while you're on it): the map notes it as it draws each train (see
-/// NetworkMapView), and works it out too for a train whose stops are open but
-/// which it doesn't draw; the trip's stops show it. Never a guess: none is shown
-/// for a train with nothing to measure it by.
+/// How fast each train is going, by its last two live reports: the map notes it as
+/// it draws each train (see NetworkMapView), and works it out too for a train whose
+/// stops are open but which it doesn't draw; the trip's stops show it. Never a
+/// guess, and never your phone's speed: none is shown for a train with nothing to
+/// measure it by.
 @MainActor
 @Observable
 final class TrainMotion {

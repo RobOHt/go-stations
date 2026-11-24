@@ -113,11 +113,11 @@ afternoon (to the last train), in the same menu.
 ## Tracking a train
 
 Tap *Track this train* on a train's stops. It's on the map where it really is, with
-a pointer showing which way it's going: where its latest GPS report has it (it
-steps to each new one, about every 15 seconds), or right where you are, once you're
-on it (one pin with your location). A button bottom left opens it again, and a Live
-Activity on the Lock Screen and in the Dynamic Island counts down to its next stop,
-with the stops either side of it.
+a pointer showing which way it's going: always where the GPS position GO last
+reported for it has it (it steps to each new one, about every 15 seconds), with
+your own location as its own blue dot, on board too. A button bottom left opens it
+again, and a Live Activity on the Lock Screen and in the Dynamic Island counts down
+to its next stop, with the stops either side of it.
 
 Tracked from your station's board, it first counts down to the train getting to
 you ("Your Lakeshore East line 08:12 westbound train to Union Station will arrive
@@ -125,12 +125,11 @@ in 6 minutes"). "Arrived" shows while the train actually stands at a station, fr
 when it's seen pulling in to when it's seen leaving, and the stops ahead are as late
 as the train runs.
 
-A train's stops show how fast it's going, by its last two GPS reports (as you go,
-once you're on it).
-Running late, they say how late beside which way it goes ("25 min late") and each
-stop's new time, kept current while they're open (to the end of its run, where
-Metrolinx leaves the time blank), with GO's disruptions on its line after them
-("Signal issue near Port Credit GO"), as on a station's board.
+A train's stops show how fast it's going, by its last two GPS reports. Running
+late, they say how late beside which way it goes ("25 min late") and each stop's
+new time, kept current while they're open (to the end of its run, where Metrolinx
+leaves the time blank), with GO's disruptions on its line after them ("Signal issue
+near Port Credit GO"), as on a station's board.
 
 With push set up (see [SETUP.md](SETUP.md)), the Worker follows the train while it
 runs and pushes the Live Activity an update when it pulls in at a stop or leaves

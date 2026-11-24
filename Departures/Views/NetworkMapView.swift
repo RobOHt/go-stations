@@ -78,36 +78,10 @@ enum StationRole {
 
 // MARK: - Camera control from SwiftUI
 
-/// Whether you're on the tracked train, by where you are against where the map has it.
-enum OnBoard {
-    /// - wasOn: you were on it at the last look (you stay on through station stops
-    ///   until you leave its line, or it's well away from you).
-    /// - onTrack: you're on its line, within your fix's error.
-    /// - gap: metres along the line between you and where it's drawn.
-    /// - speed: yours, in metres a second (negative: not known); aligned: going its way.
-    /// - pastBoarding: metres along the line you are past where you get on.
-    /// - leftBoarding: it has left where you get on, by its reports.
-    static func check(wasOn: Bool, onTrack: Bool, gap: Double, speed: Double, aligned: Bool,
-                      pastBoarding: Double?, leftBoarding: Bool) -> Bool {
-        guard onTrack else { return false }
-        if wasOn { return gap <= 8000 }
-        guard gap <= 4000 else { return false }
-        // Moving like it, its way.
-        if speed >= 5 { return speed <= 60 && aligned }
-        // Standing still (at a station along the way, or held at a signal) once it has
-        // left where you get on, and well past there: tracking already has you on it,
-        // so where you are is where it is. GO's reports can trail the train by half a
-        // minute or more, so it would otherwise be drawn still coming in behind you.
-        return leftBoarding && (pastBoarding ?? 0) > 500
-    }
-}
-
 /// The tracked train as the map draws it.
 struct DrawnTrain {
-    /// Where: with you, when you're on it.
+    /// Where: where Metrolinx's latest GPS report of it has it.
     let coordinate: CLLocationCoordinate2D
-    /// You're on it, by where you are and how you're moving.
-    let onBoard: Bool
     /// The last of its stops it has got to (or stands at), as it's drawn.
     let reached: Int
     /// When it was drawn there.
@@ -685,7 +659,7 @@ struct NetworkMapView: UIViewRepresentable {
             }
             // Your location's blue dot is drawn over everything: no tag's name goes
             // under it, anywhere in the step (checked at a dozen zooms across it).
-            let you = isOnBoard ? nil : mapView.userLocation.location.map { Self.metres($0.coordinate) }
+            let you = mapView.userLocation.location.map { Self.metres($0.coordinate) }
             let samples = (0...11).map { step -> CGFloat in
                 scales.closest * CGFloat(pow(Double(scales.farthest / scales.closest), Double(step) / 11))
             }
@@ -844,25 +818,21 @@ struct NetworkMapView: UIViewRepresentable {
                 let view = mapView.dequeueReusableAnnotationView(withIdentifier: Self.userLocationID, for: user)
                 view.zPriority = .max
                 view.displayPriority = .required
-                // On board, the train marker shows where you are.
-                view.isHidden = isOnBoard
                 return view
             }
             if let marker = annotation as? TrainAnnotation {
                 let view = mapView.dequeueReusableAnnotationView(withIdentifier: TrainAnnotationView.reuseID, for: marker)
                 guard let trainView = view as? TrainAnnotationView else { return view }
-                let now = Date()
                 trainView.setMapHeading(mapView.camera.heading)
                 if let running = marker.running {
                     trainView.zPriority = MKAnnotationViewZPriority(rawValue: 980)
-                    trainView.configure(color: lineColor(running.lineCode), animatesPointer: false, isOnBoard: false,
+                    trainView.configure(color: lineColor(running.lineCode), animatesPointer: false,
                                         scale: runningScale)
                     trainView.setHeading(spots[running.id]?.heading, animated: false)
                 } else if let trip {
                     trainView.zPriority = MKAnnotationViewZPriority(rawValue: 990)
-                    trainView.configure(color: lineColor(trip.lineCode), animatesPointer: trainIsMoving(at: now),
-                                        isOnBoard: isOnBoard)
-                    trainView.setHeading(trainHeading(at: now), animated: false)
+                    trainView.configure(color: lineColor(trip.lineCode), animatesPointer: trainIsMoving())
+                    trainView.setHeading(trainHeading(), animated: false)
                 }
                 return view
             }
@@ -904,14 +874,9 @@ struct NetworkMapView: UIViewRepresentable {
         }
 
         func mapView(_ mapView: MKMapView, didUpdate userLocation: MKUserLocation) {
-            self.userLocation = userLocation.location
-            // The tags make way for your location as you move.
+            // The tags make way for your location as you move. (It never moves a train:
+            // a train is only where Metrolinx's GPS has it.)
             placeNames(in: mapView)
-            guard trip != nil else { return }
-            let wasOnBoard = isOnBoard
-            updateOnBoard(in: mapView, now: Date())
-            // On board, the train follows you as soon as you move.
-            if isOnBoard || wasOnBoard { moveTrain(in: mapView, now: Date()) }
         }
 
         @objc func userMovedMap(_ recognizer: UIGestureRecognizer) {
@@ -942,7 +907,7 @@ struct NetworkMapView: UIViewRepresentable {
             refreshStations(in: mapView)
             for marker in running.values {
                 guard let view = mapView.view(for: marker) as? TrainAnnotationView, let trip = marker.running else { continue }
-                view.configure(color: lineColor(trip.lineCode), animatesPointer: false, isOnBoard: false, scale: runningScale)
+                view.configure(color: lineColor(trip.lineCode), animatesPointer: false, scale: runningScale)
             }
             for renderer in renderers.values {
                 guard let track = renderer.polyline as? TrackPolyline else { continue }
@@ -966,8 +931,6 @@ struct NetworkMapView: UIViewRepresentable {
         /// The stop that stretch starts at (it's redrawn when the train reaches the next).
         private var routeStart: Int?
         private var routeRenderers: [ObjectIdentifier: MKPolylineRenderer] = [:]
-        /// The trip's track from its first stop to your stop.
-        private var fullRoute: [TrackGeometry.Point] = []
         /// Moves the trains every second.
         private var timer: Timer?
         private weak var trackedMap: MKMapView?
@@ -981,9 +944,6 @@ struct NetworkMapView: UIViewRepresentable {
         private var appearing: [ObjectIdentifier: Date] = [:]
         /// Track between neighbouring stops, by line and stops, measured once.
         private var segments: [String: CommutePlanner.Path] = [:]
-        private var userLocation: CLLocation?
-        /// Your location and speed match the train's: you're on it.
-        private var isOnBoard = false
 
         private var geometry: TrackGeometry { StartupStation.geometry }
 
@@ -1004,10 +964,8 @@ struct NetworkMapView: UIViewRepresentable {
             route = []
             routeStart = nil
             routeRenderers = [:]
-            fullRoute = []
             trip = newTrip
             trackedMap = mapView
-            setOnBoard(false, in: mapView)
             dimLines()
             // The tracked train isn't drawn twice.
             if let newTrip, let twin = running.first(where: { $0.value.running?.tripNumber == newTrip.tripNumber }) {
@@ -1017,8 +975,6 @@ struct NetworkMapView: UIViewRepresentable {
             updateTimer()
             guard let newTrip else { return }
 
-            fullRoute = geometry.route(line: newTrip.lineCode, stops: newTrip.stopCodes,
-                                       from: 0, to: newTrip.destinationIndex)
             let now = Date()
             moveTrain(in: mapView, now: now)
             updateRoute(in: mapView, now: now)
@@ -1143,7 +1099,7 @@ struct NetworkMapView: UIViewRepresentable {
                     remove(marker, from: mapView)
                     continue
                 }
-                move(marker, to: Self.coordinate(spot.point), gliding: false)
+                move(marker, to: Self.coordinate(spot.point))
                 (mapView.view(for: marker) as? TrainAnnotationView)?.setHeading(spot.heading, animated: true)
             }
             if !added.isEmpty { appear(added, in: mapView) }
@@ -1165,14 +1121,15 @@ struct NetworkMapView: UIViewRepresentable {
             var isMoving: Bool { speed.map { $0 > 0.3 } ?? !isAt }
         }
 
-        // The one rule for where a train is drawn: its own GPS position is the only
-        // thing taken as true. A train is drawn where its latest live report has it
-        // (the tracked one where you are, while you're on it), as soon as the report
-        // is in, and nowhere else: not where the timetable would have it, not where
-        // it would be by now if it kept going, not part way to a newer report. GO
-        // reports each train about every 15 seconds, so a train moves in steps (a
-        // quick slide to each new position, see `move`); a train with no recent
-        // report isn't drawn at all (see `reported`).
+        // The one rule for where a train is drawn: the GPS position Metrolinx reports
+        // for it is the only thing taken as true. A train is drawn where its latest
+        // live report has it, as soon as the report is in, and nowhere else: not where
+        // the timetable would have it, not where it would be by now if it kept going,
+        // not part way to a newer report, and not where you are, even on board (your
+        // phone's GPS is yours, shown as your own dot). GO reports each train about
+        // every 15 seconds, so a train moves in steps (a quick slide to each new
+        // position, see `move`); a train with no recent report isn't drawn at all (see
+        // `reported`).
 
         /// The other trains as last drawn, by trip (for their markers and taps).
         private var spots: [String: Spot] = [:]
@@ -1239,17 +1196,14 @@ struct NetworkMapView: UIViewRepresentable {
             return spot(on: run, at: position)
         }
 
-        /// Moves a train's marker to where it is now. To a new report's position: in
-        /// one quick slide, so the eye follows the step. `gliding`: with a position
-        /// that changes every second (yours, on the tracked train), evenly from one
-        /// to the next. Not at all when it hasn't moved.
-        private func move(_ marker: TrainAnnotation, to coordinate: CLLocationCoordinate2D, gliding: Bool) {
+        /// Moves a train's marker to where a new report has it: in one quick slide, so
+        /// the eye follows the step. Not at all when it hasn't moved.
+        private func move(_ marker: TrainAnnotation, to coordinate: CLLocationCoordinate2D) {
             let from = marker.coordinate
             guard abs(from.latitude - coordinate.latitude) > 1e-7 || abs(from.longitude - coordinate.longitude) > 1e-7
             else { return }
-            let curve: UIView.AnimationOptions = gliding ? .curveLinear : .curveEaseInOut
-            UIView.animate(withDuration: gliding ? 1.0 : 0.45, delay: 0,
-                           options: [curve, .beginFromCurrentState, .allowUserInteraction]) {
+            UIView.animate(withDuration: 0.45, delay: 0,
+                           options: [.curveEaseInOut, .beginFromCurrentState, .allowUserInteraction]) {
                 marker.coordinate = coordinate
             }
         }
@@ -1336,34 +1290,28 @@ struct NetworkMapView: UIViewRepresentable {
             return casing ? width + (zoom.casingWidth - zoom.lineWidth) : width
         }
 
-        /// Which way the train is going: yours when you're on it and moving,
-        /// otherwise along its track.
-        private func trainHeading(at now: Date) -> Double? {
-            if isOnBoard, let course = userLocation?.course, course >= 0 { return course }
-            return trackedSpot?.heading ?? trip?.heading(at: now, on: geometry)
+        /// Which way the tracked train is going: the way its track runs where its
+        /// latest report has it.
+        private func trainHeading() -> Double? {
+            trackedSpot?.heading
         }
 
-        /// How fast the tracked train goes: as you go, when you're on it (the train is
-        /// drawn with you); otherwise by its last two reports (nil: not known), in
-        /// metres per second. The trip's stops show it (TrainMotion).
+        /// How fast the tracked train goes, by its last two reports, in metres per
+        /// second (nil: not known). The trip's stops show it (TrainMotion).
         private func trainSpeed() -> Double? {
-            if isOnBoard, let speed = userLocation?.speed, speed >= 0 { return speed }
-            return trackedSpot?.speed
+            trackedSpot?.speed
         }
 
-        /// Whether the tracked train is moving: as you are, when you're on it;
-        /// otherwise by its reports.
-        private func trainIsMoving(at now: Date) -> Bool {
-            if isOnBoard, let speed = userLocation?.speed, speed >= 0 { return speed > 0.3 }
-            if let trackedSpot { return trackedSpot.isMoving }
-            return trip?.state(at: now).isMoving ?? false
+        /// Whether the tracked train is moving, by its reports.
+        private func trainIsMoving() -> Bool {
+            trackedSpot?.isMoving ?? false
         }
 
         /// Where the tracked train is drawn now (see `updateTrackedSpot(at:)`).
         private var trackedSpot: Spot?
 
         /// Where the tracked train's latest live report has it (see the rule above):
-        /// nil without a recent one, and then it's only drawn while you're on it.
+        /// nil without a recent one, and then it isn't drawn.
         private func updateTrackedSpot(at now: Date) {
             guard let trip else {
                 trackedSpot = nil
@@ -1374,15 +1322,14 @@ struct NetworkMapView: UIViewRepresentable {
                   let position = reported(trip.tripNumber, on: run, at: now)
             else {
                 trackedSpot = nil
-                // (Its speed is yours while you're on it.)
-                TrainMotion.shared.note(trip.tripNumber, speed: isOnBoard ? trainSpeed() : nil, at: now)
+                TrainMotion.shared.note(trip.tripNumber, speed: nil, at: now)
                 return
             }
             trackedSpot = spot(on: run, at: position)
             // How fast it's going, for its stops to show, while it's in service: not
             // standing at its first stop or its last.
             let standingAtAnEnd = position.isAt && (position.stop == 0 || position.stop == run.codes.count - 1)
-            TrainMotion.shared.note(trip.tripNumber, speed: standingAtAnEnd && !isOnBoard ? nil : trainSpeed(), at: now)
+            TrainMotion.shared.note(trip.tripNumber, speed: standingAtAnEnd ? nil : trainSpeed(), at: now)
             #if DEBUG
             trace(trip.tripNumber, now: now, position: position)
             #endif
@@ -1498,31 +1445,11 @@ struct NetworkMapView: UIViewRepresentable {
             }
         }
 
-        /// About where the train is: where its latest report has it, or failing
-        /// that where its times would. Only for telling whether you're on it (close
-        /// to it, on its line): never where it's drawn.
-        private func estimatedPoint(at now: Date) -> TrackGeometry.Point? {
-            trackedSpot?.point ?? trip?.position(at: now, on: geometry)
-        }
-
-        /// Where to draw the train: with you when you're on it (your own GPS),
-        /// otherwise where its latest live report has it. Nil when nothing says
-        /// where it is: then it isn't drawn.
-        private func trainPoint(at now: Date) -> TrackGeometry.Point? {
-            if isOnBoard, let userLocation {
-                return TrackGeometry.Point(latitude: userLocation.coordinate.latitude,
-                                           longitude: userLocation.coordinate.longitude)
-            }
-            return trackedSpot?.point
-        }
-
         private func moveTrain(in mapView: MKMapView, now: Date) {
             guard let trip else { return }
             updateTrackedSpot(at: now)
-            updateOnBoard(in: mapView, now: now)
-            guard let point = trainPoint(at: now) else {
-                // Nothing says where it is (no recent report of it, and you're not on
-                // it): it comes off the map until something does.
+            guard let spot = trackedSpot else {
+                // No recent report says where it is: it comes off the map until one does.
                 if let marker = train {
                     train = nil
                     remove(marker, from: mapView)
@@ -1530,19 +1457,18 @@ struct NetworkMapView: UIViewRepresentable {
                 controller?.drawnTrain = nil
                 return
             }
-            let coordinate = Self.coordinate(point)
-            let reached = trackedSpot?.reached ?? trip.state(at: now).reached(stopCount: trip.stops.count)
-            controller?.drawnTrain = DrawnTrain(coordinate: coordinate, onBoard: isOnBoard, reached: reached, at: Date())
+            let coordinate = Self.coordinate(spot.point)
+            controller?.drawnTrain = DrawnTrain(coordinate: coordinate, reached: spot.reached, at: Date())
             if let train {
-                move(train, to: coordinate, gliding: isOnBoard)
+                move(train, to: coordinate)
             } else {
                 let marker = TrainAnnotation(coordinate: coordinate)
                 train = marker
                 appear([marker], in: mapView)
             }
             if let train, let view = mapView.view(for: train) as? TrainAnnotationView {
-                view.configure(color: lineColor(trip.lineCode), animatesPointer: trainIsMoving(at: now), isOnBoard: isOnBoard)
-                view.setHeading(trainHeading(at: now), animated: true)
+                view.configure(color: lineColor(trip.lineCode), animatesPointer: trainIsMoving())
+                view.setHeading(trainHeading(), animated: true)
             }
         }
 
@@ -1575,53 +1501,6 @@ struct NetworkMapView: UIViewRepresentable {
                 mapView?.removeOverlays(old)
                 for overlay in old { self?.routeRenderers[ObjectIdentifier(overlay)] = nil }
             }
-        }
-
-        /// You're on the train when you're on its track, near where it should be, and
-        /// moving like it (fast, its way). Once on, you stay on through station stops
-        /// until you leave the track.
-        private func updateOnBoard(in mapView: MKMapView, now: Date) {
-            guard trip != nil, let location = userLocation, -location.timestamp.timeIntervalSinceNow < 30 else {
-                setOnBoard(false, in: mapView)
-                return
-            }
-            let user = TrackGeometry.Point(latitude: location.coordinate.latitude,
-                                           longitude: location.coordinate.longitude)
-            guard let hit = TrackGeometry.locate(user, on: fullRoute),
-                  let estimate = estimatedPoint(at: now),
-                  let train = TrackGeometry.locate(estimate, on: fullRoute)
-            else {
-                setOnBoard(false, in: mapView)
-                return
-            }
-            let onTrack = hit.distance <= 250 + min(max(location.horizontalAccuracy, 0), 300)
-            let gap = abs(hit.along - train.along)
-            var aligned = true
-            if location.course >= 0, let bearing = TrackGeometry.bearing(on: fullRoute, at: hit.along) {
-                let difference = abs((location.course - bearing + 540).truncatingRemainder(dividingBy: 360) - 180)
-                aligned = difference <= 60
-            }
-            // How far past where you get on you are, along its line.
-            var pastBoarding: Double?
-            if let trip, let station = RailNetwork.shared.station(trip.boardingCode),
-               let boarding = TrackGeometry.locate(TrackGeometry.Point(latitude: station.latitude,
-                                                                       longitude: station.longitude), on: fullRoute) {
-                pastBoarding = hit.along - boarding.along
-            }
-            let left = trip.map { $0.hasLeftBoarding || (trackedSpot?.reached ?? -1) > $0.boardingIndex } ?? false
-            setOnBoard(OnBoard.check(wasOn: isOnBoard, onTrack: onTrack, gap: gap, speed: location.speed,
-                                     aligned: aligned, pastBoarding: pastBoarding, leftBoarding: left),
-                       in: mapView)
-        }
-
-        private func setOnBoard(_ value: Bool, in mapView: MKMapView) {
-            if value != isOnBoard {
-                isOnBoard = value
-                if let train, let trip, let view = mapView.view(for: train) as? TrainAnnotationView {
-                    view.configure(color: lineColor(trip.lineCode), animatesPointer: trainIsMoving(at: Date()), isOnBoard: value)
-                }
-            }
-            mapView.view(for: mapView.userLocation)?.isHidden = isOnBoard
         }
     }
 }

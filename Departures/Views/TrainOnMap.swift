@@ -20,15 +20,13 @@ final class TrainAnnotation: NSObject, MKAnnotation {
 /// in a white ring, with a white pointer on the ring showing which way it's going.
 /// While the tracked train moves, its pointer pushes forward with copies of it
 /// streaming ahead, and rings in the line's colour spread from the disc, so it
-/// catches the eye. When you're on board it carries your location's blue halo
-/// instead of the rings. Ignores touches like the other markers; the map's tap
-/// handler opens the trip.
+/// catches the eye. Ignores touches like the other markers; the map's tap handler
+/// opens the trip.
 final class TrainAnnotationView: MKAnnotationView {
     static let reuseID = "train"
 
     /// Everything, so the other trains can be drawn smaller than the tracked one.
     private let content = UIView()
-    private let halo = UIView()
     private let pointer = UIView()
     private let arrow = CAShapeLayer()
     /// Copies of the arrow that stream ahead of it, one after the other.
@@ -60,14 +58,6 @@ final class TrainAnnotationView: MKAnnotationView {
         content.frame = bounds
         content.isUserInteractionEnabled = false
         addSubview(content)
-
-        halo.frame = bounds
-        halo.layer.cornerRadius = bounds.width / 2
-        halo.backgroundColor = UIColor.systemBlue.withAlphaComponent(0.22)
-        halo.layer.borderColor = UIColor.systemBlue.withAlphaComponent(0.5).cgColor
-        halo.layer.borderWidth = 1
-        halo.isHidden = true
-        content.addSubview(halo)
 
         let center = CGPoint(x: bounds.midX, y: bounds.midY)
         ripple.frame = bounds
@@ -124,35 +114,20 @@ final class TrainAnnotationView: MKAnnotationView {
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
     /// The line's colour (always, waiting or not), whether the pointer moves (the
-    /// tracked train, while it moves), whether you're on it, and its size: the
-    /// tracked train full size, the others a little smaller.
-    func configure(color: UIColor, animatesPointer: Bool, isOnBoard: Bool, scale: CGFloat = 1) {
+    /// tracked train, while it moves), and its size: the tracked train full size,
+    /// the others a little smaller.
+    func configure(color: UIColor, animatesPointer: Bool, scale: CGFloat = 1) {
         disc.backgroundColor = color
         ripple.strokeColor = color.withAlphaComponent(0.9).cgColor
         ripple.fillColor = color.withAlphaComponent(0.18).cgColor
         if content.transform.a != scale {
             content.transform = CGAffineTransform(scaleX: scale, y: scale)
         }
-        if isOnBoard != !halo.isHidden {
-            halo.isHidden = !isOnBoard
-            halo.layer.removeAllAnimations()
-            if isOnBoard {
-                let pulse = CABasicAnimation(keyPath: "transform.scale")
-                pulse.fromValue = 0.8
-                pulse.toValue = 1.1
-                pulse.duration = 1.4
-                pulse.autoreverses = true
-                pulse.repeatCount = .infinity
-                pulse.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-                halo.layer.add(pulse, forKey: "pulse")
-            }
-            updateMotion()
-        }
         if animatesPointer != isAnimated {
             isAnimated = animatesPointer
             updateMotion()
         }
-        accessibilityLabel = isOnBoard ? "Your train" : "Train"
+        accessibilityLabel = "Train"
     }
 
     // MARK: Pointing the way
@@ -182,21 +157,24 @@ final class TrainAnnotationView: MKAnnotationView {
         var delta = (target - angle).truncatingRemainder(dividingBy: 2 * .pi)
         if delta > .pi { delta -= 2 * .pi }
         if delta < -.pi { delta += 2 * .pi }
-        let turned = angle + delta
-        let layer = pointer.layer
-        if animated, !pointer.isHidden {
-            // Over the second until the next update, like the marker's own movement.
-            let animation = CABasicAnimation(keyPath: "transform.rotation.z")
-            animation.fromValue = angle
-            animation.toValue = turned
-            animation.duration = 1
-            animation.timingFunction = CAMediaTimingFunction(name: .linear)
-            layer.add(animation, forKey: "turn")
-        } else {
-            layer.removeAnimation(forKey: "turn")
+        // (Pointing that way already: nothing to turn, and a turn under way carries on.)
+        if abs(delta) > 0.0005 || pointer.isHidden {
+            let turned = angle + delta
+            let layer = pointer.layer
+            if animated, !pointer.isHidden {
+                // One quick turn, with the marker's own slide to a new position.
+                let animation = CABasicAnimation(keyPath: "transform.rotation.z")
+                animation.fromValue = angle
+                animation.toValue = turned
+                animation.duration = 0.45
+                animation.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+                layer.add(animation, forKey: "turn")
+            } else {
+                layer.removeAnimation(forKey: "turn")
+            }
+            layer.setValue(turned, forKeyPath: "transform.rotation.z")
+            angle = turned
         }
-        layer.setValue(turned, forKeyPath: "transform.rotation.z")
-        angle = turned
         if pointer.isHidden {
             pointer.isHidden = false
             updateMotion()
@@ -204,10 +182,9 @@ final class TrainAnnotationView: MKAnnotationView {
     }
 
     /// The tracked train, while it moves: the pointer pushes forward and back with
-    /// two copies of it streaming ahead and fading, and (unless you're on board,
-    /// where your halo pulses) rings spread from the disc. Still with Reduce
-    /// Motion, while the train stands or waits, and for the other trains (so the
-    /// tracked one stands out).
+    /// two copies of it streaming ahead and fading, and rings spread from the disc.
+    /// Still with Reduce Motion, while the train stands or waits, and for the other
+    /// trains (so the tracked one stands out).
     private func updateMotion() {
         arrow.removeAnimation(forKey: "push")
         for echo in echoes {
@@ -218,20 +195,18 @@ final class TrainAnnotationView: MKAnnotationView {
         ripple.opacity = 0
         guard isAnimated, window != nil, !UIAccessibility.isReduceMotionEnabled else { return }
 
-        if halo.isHidden {
-            let grow = CABasicAnimation(keyPath: "transform.scale")
-            grow.fromValue = 1
-            grow.toValue = 1.9
-            let fade = CABasicAnimation(keyPath: "opacity")
-            fade.fromValue = 0.85
-            fade.toValue = 0
-            let ring = CAAnimationGroup()
-            ring.animations = [grow, fade]
-            ring.duration = 1.6
-            ring.repeatCount = .infinity
-            ring.timingFunction = CAMediaTimingFunction(name: .easeOut)
-            ripple.add(ring, forKey: "ripple")
-        }
+        let grow = CABasicAnimation(keyPath: "transform.scale")
+        grow.fromValue = 1
+        grow.toValue = 1.9
+        let fade = CABasicAnimation(keyPath: "opacity")
+        fade.fromValue = 0.85
+        fade.toValue = 0
+        let ring = CAAnimationGroup()
+        ring.animations = [grow, fade]
+        ring.duration = 1.6
+        ring.repeatCount = .infinity
+        ring.timingFunction = CAMediaTimingFunction(name: .easeOut)
+        ripple.add(ring, forKey: "ripple")
 
         guard !pointer.isHidden else { return }
         let push = CABasicAnimation(keyPath: "transform.translation.y")
