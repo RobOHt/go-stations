@@ -28,6 +28,7 @@ enum SelfCheck {
         cancelledConnection()
         boardWays()
         runningLate()
+        stationWithTheTrain()
         lines.append("done")
         write()
         NSLog("SelfCheck: done")
@@ -528,6 +529,35 @@ enum SelfCheck {
                            isCancelled: false)
         return TrackedTrip(row: row, boardingCode: codes[boarding], boardingIndex: boarding,
                            destinationIndex: destination, stops: stops, source: .schedule, startedAt: start)
+    }
+
+    /// Opening the app while tracking a train: the station the map shows with it.
+    /// On it, the next one it stops at; still waiting for it, the one you get on at.
+    private static func stationWithTheTrain() {
+        // Aldershot to Union, getting on at Oakville (4).
+        let trip = lakeshore(boarding: 4, destination: 10)
+        check("station with the train: on it, between Clarkson and Port Credit, Port Credit",
+              trip.stationToShow(onBoard: true, reached: 5) == "PO")
+        check("station with the train: on it, standing at Port Credit, Long Branch",
+              trip.stationToShow(onBoard: true, reached: 6) == "LO")
+        check("station with the train: on it at Oakville before it's seen leaving, Clarkson",
+              trip.stationToShow(onBoard: true, reached: 4) == "CL")
+        check("station with the train: waiting for it, where you get on",
+              trip.stationToShow(onBoard: false, reached: 2) == "OA")
+        check("station with the train: waiting for it as it stands at your station, your station",
+              trip.stationToShow(onBoard: false, reached: 4) == "OA")
+        // Seen leaving Oakville: on it as far as tracking goes, even before your
+        // location and speed say so (standing at a station, say).
+        var left = trip
+        left.stops[4].departed = date("11:36")
+        check("station with the train: left where you get on, standing at Long Branch, Mimico",
+              left.stationToShow(onBoard: false, reached: 7) == "MI")
+        check("station with the train: at the end of its run, none ahead",
+              left.stationToShow(onBoard: true, reached: 10) == nil)
+        // Back in the app after a while: the map already draws it past Oakville by
+        // its live reports, before its times catch up.
+        check("station with the train: drawn past where you get on, the next one ahead",
+              trip.stationToShow(onBoard: false, reached: 6) == "LO")
     }
 
     /// A live report of the train: standing at a station ("at"), or on its way to it ("to").

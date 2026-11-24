@@ -78,25 +78,44 @@ enum StationRole {
 
 // MARK: - Camera control from SwiftUI
 
+/// The tracked train as the map draws it.
+struct DrawnTrain {
+    /// Where: with you, when you're on it.
+    let coordinate: CLLocationCoordinate2D
+    /// You're on it, by where you are and how you're moving.
+    let onBoard: Bool
+    /// The last of its stops it has got to (or stands at), as it's drawn.
+    let reached: Int
+    /// When it was drawn there.
+    let at: Date
+}
+
 /// Lets SwiftUI move the map's camera. Commands sent before the map has a size
 /// are held until its first layout.
 @MainActor
 final class MapController {
     fileprivate weak var mapView: MKMapView?
     private var pending: ((MKMapView) -> Void)?
-    /// Where the map draws the tracked train (with you, when you're on it), while
-    /// it's drawing it: nil when it hasn't for a few seconds (the app was away).
-    var trackedTrain: CLLocationCoordinate2D? {
+    /// The tracked train as the map draws it, while it's drawing it: nil when it
+    /// hasn't for a few seconds (the app was away).
+    var trackedTrain: DrawnTrain? {
         guard let drawnTrain, Date().timeIntervalSince(drawnTrain.at) < 3 else { return nil }
-        return drawnTrain.coordinate
+        return drawnTrain
     }
-    fileprivate var drawnTrain: (coordinate: CLLocationCoordinate2D, at: Date)?
+    fileprivate var drawnTrain: DrawnTrain?
 
-    /// Where the map drew the tracked train, if it has since `date` (after its live
+    /// The tracked train as the map drew it, if it has since `date` (after its live
     /// reports came in, say).
-    func trackedTrain(drawnSince date: Date) -> CLLocationCoordinate2D? {
+    func trackedTrain(drawnSince date: Date) -> DrawnTrain? {
         guard let drawnTrain, drawnTrain.at >= date else { return nil }
-        return drawnTrain.coordinate
+        return drawnTrain
+    }
+
+    /// Where the map has you, from a fix in the last two minutes.
+    var you: CLLocationCoordinate2D? {
+        guard let location = mapView?.userLocation.location, -location.timestamp.timeIntervalSinceNow < 120
+        else { return nil }
+        return location.coordinate
     }
 
     /// Whether a finger has been on the map since `date`: a camera move worked out
@@ -1530,7 +1549,8 @@ struct NetworkMapView: UIViewRepresentable {
             updateOnBoard(in: mapView, now: now)
             guard let point = trainPoint(at: now) else { return }
             let coordinate = Self.coordinate(point)
-            controller?.drawnTrain = (coordinate, Date())
+            let reached = trackedSpot?.reached ?? trip.state(at: now).reached(stopCount: trip.stops.count)
+            controller?.drawnTrain = DrawnTrain(coordinate: coordinate, onBoard: isOnBoard, reached: reached, at: Date())
             if let train {
                 UIView.animate(withDuration: 1, delay: 0,
                                options: [.curveLinear, .beginFromCurrentState, .allowUserInteraction]) {

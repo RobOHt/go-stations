@@ -120,6 +120,19 @@ struct TrackedTrip: Codable, Equatable, Sendable {
             || (live?.index ?? -1) > boardingIndex
     }
 
+    /// The station shown with the train when the map goes to it (the app opening or
+    /// coming back while tracking, the Live Activity tapped), so there's always a
+    /// station to go by: on the train (or once it's past where you get on), the
+    /// next one it stops at after `reached`, the last it got to; still waiting for
+    /// it, the one you get on at. Nil at the end of its run. (`reached` is where the
+    /// map draws it, which can be ahead of these times when the app has just come
+    /// back: past your station there, it's past it.)
+    func stationToShow(onBoard: Bool, reached: Int) -> String? {
+        guard onBoard || hasLeftBoarding || reached > boardingIndex else { return boardingCode }
+        let next = reached + 1
+        return stops.indices.contains(next) ? stops[next].code : nil
+    }
+
     /// Cancelled: until a while after it was due to leave your station (or, on it,
     /// to get to your stop), and at least a while after it was found out.
     var cancelledUntil: Date? {
