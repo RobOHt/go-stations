@@ -25,6 +25,16 @@ extension GOFeeds {
             #expect(LiveTrains.shared.train("4003") == nil)
         }
 
+        @Test("a train's reports place it only while they still say where it is: not minutes old, not once out of touch")
+        func reportsToDrawBy() async {
+            await load([GO.train("4041", seconds: 10), GO.train("4042", seconds: 300)])
+            #expect(LiveTrains.shared.reports(of: "4041")?.last?.trip == "4041")
+            #expect(LiveTrains.shared.reports(of: "4042") == nil)
+            #expect(LiveTrains.shared.reports(of: "4049") == nil)
+            // (No new list for most of a minute: what it has is old news.)
+            #expect(LiveTrains.shared.reports(of: "4041", at: Date().addingTimeInterval(45)) == nil)
+        }
+
         @Test("one train the app can't read doesn't lose it the others")
         func oneOdd() async {
             var odd = GO.train("4011")

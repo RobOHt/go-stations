@@ -60,8 +60,11 @@ enum TravelDirection {
 }
 
 /// Every stop of one train along a line in its colour, with chevrons flowing in the
-/// direction of travel and a marker where the train should be now. Tapping a stop
-/// opens that station's board in another sheet, which can open another train, and so on.
+/// direction of travel and a marker where the train is: as far along the track
+/// between its stops as its GPS reports have it, gliding through them as on the
+/// map; by its times only for want of a live position (see `trainPlace`). Tapping a
+/// stop opens that station's board in another sheet, which can open another train,
+/// and so on.
 struct TripSheet: View {
     let selection: TripSelection
 
@@ -77,6 +80,10 @@ struct TripSheet: View {
     /// GO's service disruptions on its line, and its own alerts ("Signal issue
     /// near Port Credit GO").
     @State private var alerts: [StationAlert] = []
+    /// Its stops along the track, for placing it among them by its GPS reports.
+    @State private var run: TrainRun?
+    /// Its reports as placed along that track (worked out once per report).
+    @State private var placed = PlacedReports()
     #if DEBUG
     /// `-debugAlertDelay`: the train has jumped on, with the alerts coming in.
     @State private var debugJumped = false
@@ -169,12 +176,18 @@ struct TripSheet: View {
             }
         }
         .task {
-            // Where the train really is, while its stops are open, and whether it's cancelled.
+            // Where the train really is, while its stops are open (every 5 seconds, as
+            // for the map: its marker here goes where each new report has it), and
+            // every 15 seconds whether it's cancelled.
+            var pass = 0
             while !Task.isCancelled {
-                await LiveTrains.shared.refresh()
-                let status = await CancelledTrains.shared.list()?.status(of: row)
-                if status != cancellation { withAnimation(.snappy) { cancellation = status } }
-                try? await Task.sleep(for: .seconds(15))
+                await LiveTrains.shared.refresh(maxAge: 4)
+                if pass % 3 == 0 {
+                    let status = await CancelledTrains.shared.list()?.status(of: row)
+                    if status != cancellation { withAnimation(.snappy) { cancellation = status } }
+                }
+                pass += 1
+                try? await Task.sleep(for: .seconds(5))
             }
         }
         .task(id: detail?.stops.map(\.code)) {
@@ -182,8 +195,11 @@ struct TripSheet: View {
             // doesn't draw it), while its stops are open.
             guard let detail else { return }
             let number = row.tripNumber
-            TrainMotion.shared.watch(number, line: network.line(code: row.lineCode)?.code ?? row.lineCode,
-                                     codes: detail.stops.map(\.code),
+            let line = network.line(code: row.lineCode)?.code ?? row.lineCode
+            let codes = detail.stops.map(\.code)
+            // (And its stops along the track, for its marker among them: see `trainPlace`.)
+            run = codes.count >= 2 ? TrainRun(line: line, codes: codes, geometry: StartupStation.geometry) : nil
+            TrainMotion.shared.watch(number, line: line, codes: codes,
                                      times: detail.stops.map { $0.expected ?? $0.time })
             defer { TrainMotion.shared.unwatch(number) }
             while !Task.isCancelled {
@@ -409,6 +425,30 @@ struct TripSheet: View {
         return TrainState(stops: detail.stops, now: now, live: LiveTrains.shared.train(row.tripNumber)?.fix(in: codes))
     }
 
+    /// Where the train's marker goes among its stops at `now`, by the map's rule.
+    /// While the train has a live position, only its GPS reports place it: as far
+    /// along the track between two stops as the map draws it, gliding through them
+    /// (see TrainReplay). With none, where its times put it (`state`): the backup.
+    /// Nowhere while the live positions are still on their way (the app has just
+    /// opened or come back: by its times it would be put in one place, then moved),
+    /// or for a train GO has cancelled.
+    private func trainPlace(_ detail: TripDetail, state: TrainState, at now: Date) -> TrainPlace? {
+        #if DEBUG
+        if debugJumped { return TrainPlace(stops: Double(min(3, detail.stops.count - 1)), isLive: true) }
+        #endif
+        if let reports = LiveTrains.shared.reports(of: row.tripNumber, at: now) {
+            // (Once its stops' track is measured, a moment after they load.)
+            guard let run, run.codes == detail.stops.map(\.code), let track = placed.track(of: reports, on: run)
+            else { return nil }
+            let position = TrainReplay.position(on: track, of: run, at: now)
+            return TrainPlace(stops: run.progress(at: position.distance), isLive: true)
+        }
+        guard !LiveTrains.shared.isPending(at: now), cancellation?.all != true,
+              let stops = state.progress(stopCount: detail.stops.count)
+        else { return nil }
+        return TrainPlace(stops: stops, isLive: false)
+    }
+
     // MARK: Stops
 
     private func stopList(_ detail: TripDetail) -> some View {
@@ -438,7 +478,13 @@ struct TripSheet: View {
                 }
 
                 ZStack(alignment: .topLeading) {
-                    TripLine(stopCount: detail.stops.count, state: state, color: lineColor)
+                    // (The line and the train on it, afresh every second: the train
+                    // glides, as on the map.)
+                    TimelineView(.periodic(from: .now, by: TrainGlide.period)) { moment in
+                        let state = trainState(detail, at: moment.date)
+                        TripLine(stopCount: detail.stops.count, state: state,
+                                 place: trainPlace(detail, state: state, at: moment.date), color: lineColor)
+                    }
 
                     VStack(spacing: 0) {
                         ForEach(detail.stops) { stop in
@@ -463,7 +509,11 @@ struct TripSheet: View {
                         }
                     }
 
-                    TrainMarkerLayer(stopCount: detail.stops.count, state: state, color: lineColor)
+                    TimelineView(.periodic(from: .now, by: TrainGlide.period)) { moment in
+                        let state = trainState(detail, at: moment.date)
+                        TrainMarkerLayer(stopCount: detail.stops.count, state: state,
+                                         place: trainPlace(detail, state: state, at: moment.date), color: lineColor)
+                    }
                 }
                 .padding(.vertical, 6)
                 .background(.background.secondary, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
@@ -666,16 +716,55 @@ extension TrainState {
     }
 }
 
+/// Where a train's marker goes among its stops, and what puts it there.
+struct TrainPlace: Equatable {
+    /// In stops along the line (2.5: halfway from its third stop to its fourth).
+    var stops: Double
+    /// Its latest live report: not its times, for want of one.
+    var isLive: Bool
+}
+
 /// How the train's marker, and the line's faded part behind it, follow the train:
-/// gliding over the ten seconds until where it is gets worked out again, so it moves
-/// smoothly, but in a moment when it jumps (a live report placing it elsewhere, new
-/// times). Animated on their own, as where the train is changes: what moves the
-/// stops themselves (alerts coming in above them) moves the line and the train with
-/// them, never slowly after them.
+/// worked out afresh every second, and gliding evenly from one second's place to
+/// the next while the train carries on along its line, so it moves smoothly, as on
+/// the map. In one quick step when it's put somewhere else: right after a new
+/// report, to its live position from where its times had put it, or by new times.
+/// Animated on their own, as where the train is changes: what moves the stops
+/// themselves (alerts coming in above them) moves the line and the train with them,
+/// never slowly after them.
 enum TrainGlide {
-    static func animation(from old: Double?, to new: Double, reduceMotion: Bool) -> Animation? {
-        guard let old, !reduceMotion else { return nil }
-        return abs(new - old) <= 1 ? .linear(duration: 10) : .smooth(duration: 0.5)
+    /// How often where the train is among its stops is worked out, in seconds.
+    static let period: TimeInterval = 1
+
+    /// Where something is shown along the line (a train's marker, the end of the
+    /// faded part), in stops, and whether by the train's times.
+    struct Along: Equatable {
+        var stops: Double?
+        var byTimes: Bool
+    }
+
+    /// From where it's `shown` to where it is now (`new`; `old`: as last worked out).
+    static func animation(from shown: Double?, old: Along, new: Along, reduceMotion: Bool) -> Animation? {
+        guard let shown, let stops = new.stops, !reduceMotion else { return nil }
+        // Carrying on: a little further along, by the same thing as before.
+        let carriesOn = old.byTimes == new.byTimes && stops >= shown && stops - shown <= 0.25
+        return carriesOn ? .linear(duration: period) : .smooth(duration: 0.45)
+    }
+}
+
+/// A train's reports as placed along its stops' track, kept from one second to the
+/// next: worked out once per report. (Only ever used by the view that holds it.)
+final class PlacedReports {
+    private var newest: Date?
+    private var codes: [String] = []
+    private var track: TrainReplay.Track?
+
+    func track(of reports: [LiveTrain], on run: TrainRun) -> TrainReplay.Track? {
+        if let newest, newest == reports.last?.time, codes == run.codes { return track }
+        track = TrainReplay.track(of: reports, on: run)
+        newest = reports.last?.time
+        codes = run.codes
+        return track
     }
 }
 
@@ -685,18 +774,35 @@ enum TrainGlide {
 private struct TripLine: View {
     let stopCount: Int
     let state: TrainState
+    /// Where the train's marker is (nil while there isn't one: see
+    /// `TripSheet.trainPlace`).
+    var place: TrainPlace? = nil
     let color: Color
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// Where the faded part ends, in stops along the line (see `TrainGlide`).
     @State private var shown: Double?
 
+    /// How much of its run is done, in stops along the line: up to where the train's
+    /// marker is; with none, up to the last stop it has left (as the stops are
+    /// dimmed). None of it before it sets off, and all of it once it's in, wherever
+    /// the train itself is then (coming in to its first stop, off to a yard).
+    private var done: Double {
+        switch state {
+        case .waiting: return 0
+        case .arrived: return Double(max(stopCount - 1, 0))
+        case .moving, .stopped, .unknown: return place?.stops ?? Double(state.reached(stopCount: stopCount))
+        }
+    }
+
     var body: some View {
-        let progress = state.progress(stopCount: stopCount) ?? 0
-        TripLineDrawing(stopCount: stopCount, train: shown ?? progress, isMoving: state.isMoving, color: color)
-            .onAppear { shown = progress }
-            .onChange(of: progress) { _, new in
-                withAnimation(TrainGlide.animation(from: shown, to: new, reduceMotion: reduceMotion)) { shown = new }
+        let along = TrainGlide.Along(stops: done, byTimes: place?.isLive == false)
+        TripLineDrawing(stopCount: stopCount, train: shown ?? done, isMoving: state.isMoving, color: color)
+            .onAppear { shown = done }
+            .onChange(of: along) { old, new in
+                withAnimation(TrainGlide.animation(from: shown, old: old, new: new, reduceMotion: reduceMotion)) {
+                    shown = new.stops ?? 0
+                }
             }
             .allowsHitTesting(false)
             .accessibilityHidden(true)
@@ -769,10 +875,14 @@ private struct TripLineDrawing: View, Animatable {
     }
 }
 
-/// The train itself, drawn above the stop rows.
+/// The train itself, drawn above the stop rows, where `place` has it (see
+/// `TripSheet.trainPlace`): where its latest GPS report has it along the line, as
+/// on the map, or for want of a live position, where its times put it.
 private struct TrainMarkerLayer: View {
     let stopCount: Int
     let state: TrainState
+    /// Where the train is (nil: not drawn).
+    var place: TrainPlace? = nil
     let color: Color
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -781,22 +891,24 @@ private struct TrainMarkerLayer: View {
 
     var body: some View {
         let rowHeight = TripSheet.rowHeight
-        let progress = state.progress(stopCount: stopCount)
+        let along = TrainGlide.Along(stops: place?.stops, byTimes: place?.isLive == false)
         ZStack(alignment: .topLeading) {
             Color.clear
-            if progress != nil, let shown {
+            if place != nil, let shown {
                 TrainMarker(color: color, isSleeping: state.isIdle, isMoving: state.isMoving)
                     .position(x: TripSheet.lineX, y: CGFloat(shown) * rowHeight + rowHeight / 2)
             }
         }
         .frame(height: CGFloat(stopCount) * rowHeight)
-        .onAppear { shown = progress }
-        .onChange(of: progress) { _, new in
-            guard let new else {
+        .onAppear { shown = place?.stops }
+        .onChange(of: along) { old, new in
+            guard let stops = new.stops else {
                 shown = nil
                 return
             }
-            withAnimation(TrainGlide.animation(from: shown, to: new, reduceMotion: reduceMotion)) { shown = new }
+            withAnimation(TrainGlide.animation(from: shown, old: old, new: new, reduceMotion: reduceMotion)) {
+                shown = stops
+            }
         }
         .allowsHitTesting(false)
         .accessibilityHidden(true)

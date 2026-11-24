@@ -15,8 +15,11 @@ import WidgetKit
 
 // MARK: - Where a train is
 
-/// Where the train should be right now, worked out from its stop times
-/// (when it was seen arriving and leaving, live estimates, otherwise the timetable).
+/// Where the train should be right now among its stops, worked out from their times
+/// (when it was seen arriving and leaving, live estimates, otherwise the timetable):
+/// which stops it has left, and what it counts down to. Where a train is drawn (the
+/// map, its marker among its stops) goes by this only for want of a live position:
+/// while GO reports one, that alone places it.
 enum TrainState {
     /// Hasn't left its first stop yet.
     case waiting(departs: Date)
@@ -71,7 +74,7 @@ enum TrainState {
         return .unknown
     }
 
-    /// Position along the list, in stops (0 = first stop).
+    /// Position along the list, in stops (0 = first stop), by its times.
     func progress(stopCount: Int) -> Double? {
         switch self {
         case .waiting: return 0

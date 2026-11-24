@@ -602,7 +602,7 @@ enum SelfCheck {
               latest.map { abs($0.distance - 0.3 * hop) < 1 } ?? false, "\(latest?.distance ?? -1) m of \(hop)")
         var measured = false
         if let speed = latest?.speed { measured = abs(speed - 0.1 * hop / 15) < 0.1 }
-        check("gps only: its speed is what it covered between its last two reports", measured,
+        check("gps only: its speed is what it covered between two reports", measured,
               "\(latest?.speed ?? -1) m/s")
         let one = TrainReplay.position(of: [report(0.2, at: "12:00")], on: run)
         check("gps only: one report on the move, no speed made up", one != nil && one?.speed == nil)
@@ -616,6 +616,33 @@ enum SelfCheck {
               (pullingIn?.speed ?? 0) > 1, "\(pullingIn?.speed ?? -1) m/s")
         let still = TrainReplay.position(of: [report(0.5, at: "12:00:00"), report(0.5, at: "12:00:15")], on: run)
         check("gps only: two reports in the same place, not moving", still?.speed == 0)
+        // GO reports some trains every 5 seconds. Coming in at 7 km/h, one moves about
+        // 10 m between two of them, less than a standing train's GPS wobbles: its speed
+        // is measured over three of those, not read as standing.
+        let crawl = 0.0025
+        let often = (0...3).map { report(0.5 + crawl * Double($0), at: "12:00:\(String(format: "%02d", $0 * 5))") }
+        let crawling = TrainReplay.position(of: often, on: run)
+        var paced = false
+        if let speed = crawling?.speed { paced = abs(speed - 3 * crawl * hop / 15) < 0.1 }
+        check("gps only: reported every 5 seconds and crawling, its speed over the last 15", paced,
+              "\(crawling?.speed ?? -1) m/s")
+        check("gps only: two reports 5 seconds apart, no speed yet",
+              TrainReplay.position(of: Array(often.prefix(2)), on: run).map { $0.speed == nil } ?? false)
+        // Reports missed for a minute: where it is by the new one, but not how fast it's going now.
+        let gap = TrainReplay.position(of: [report(0.2, at: "12:00:00"), report(0.4, at: "12:01:00")], on: run)
+        check("gps only: a minute between two reports, no speed from them",
+              gap.map { $0.speed == nil && abs($0.distance - 0.4 * hop) < 1 } ?? false)
+
+        // Among its stops (its marker in the list of them): as far along the track
+        // between two of them as its position is.
+        check("gps only: among its stops, as far between two of them as its position is",
+              abs(run.progress(at: 0.4 * hop) - 0.4) < 0.001 && abs(run.progress(at: 1.25 * hop) - 1.25) < 0.001,
+              "\(run.progress(at: 0.4 * hop)), \(run.progress(at: 1.25 * hop))")
+        check("gps only: among its stops, at a stop when it's there",
+              abs(run.progress(at: hop) - 1) < 0.001 && run.progress(at: 0) == 0, "\(run.progress(at: hop))")
+        check("gps only: among its stops, at the end of its run and no further",
+              abs(run.progress(at: run.length) - 2) < 0.001 && abs(run.progress(at: run.length + 500) - 2) < 0.001,
+              "\(run.progress(at: run.length)), \(run.progress(at: run.length + 500))")
 
         // Well off its line (a yard, a detour): where the report has it, not on the line.
         let yard = TrainReplay.position(of: [report(0.5, north: 0.01, at: "12:00")], on: run)
@@ -623,6 +650,79 @@ enum SelfCheck {
         let beside = TrainReplay.position(of: [report(0.5, north: 0.0005, at: "12:00")], on: run)
         check("gps only: a few metres off its line, drawn on it", beside != nil && beside?.away == nil)
         check("gps only: no reports, nowhere", TrainReplay.position(of: [], on: run) == nil)
+
+        // Drawn gliding through its reports, a few seconds behind them (TrainReplay.delay).
+        func drawn(_ reports: [LiveTrain], at clock: String) -> Double {
+            guard let track = TrainReplay.track(of: reports, on: run) else { return -1 }
+            return TrainReplay.position(on: track, of: run, at: date(clock)).distance
+        }
+        let behind = TrainReplay.delay
+        // 0.05 of the way to BB every 15 seconds.
+        let pace = 0.05 * hop / 15
+        let steady = [report(0.20, at: "12:00:00"), report(0.25, at: "12:00:15"), report(0.30, at: "12:00:30")]
+        let midway = drawn(steady, at: "12:00:\(String(format: "%02d", Int(22 + behind)))")
+        check("gliding: between two reports, as far between them",
+              abs(midway - (0.25 * hop + 7 * pace)) < 3, "\(midway) m, of \(0.25 * hop + 7 * pace)")
+        let carried = drawn(steady, at: "12:00:\(String(format: "%02d", Int(40 + behind)))")
+        check("gliding: past its latest report, carried on at the pace it had",
+              abs(carried - (0.30 * hop + 10 * pace)) < 5, "\(carried) m, of \(0.30 * hop + 10 * pace)")
+        let held = drawn(steady, at: "12:03:00")
+        check("gliding: its reports stopped, carried on no longer than a while past the last",
+              abs(held - (0.30 * hop + TrainReplay.ahead * pace)) < 5, "\(held) m")
+        // Heading for BB, 0.05 of the way short of it: slowing for it at once.
+        let coming = [report(0.90, at: "12:00:00"), report(0.95, at: "12:00:15")]
+        let slowing = drawn(coming, at: "12:00:\(String(format: "%02d", Int(25 + behind)))")
+        check("gliding: slowing for the station it's heading for",
+              slowing > 0.95 * hop + 5 * pace && slowing < 0.95 * hop + 9.5 * pace, "\(slowing - 0.95 * hop) m on")
+        let there = drawn(coming, at: "12:02:00")
+        check("gliding: carried on to the station it's heading for, never past it",
+              there > 0.995 * hop && there <= hop + 0.001, "\(there) m of \(hop)")
+        let parked = [report(0.5, at: "12:00:00"), report(0.5, at: "12:00:15")]
+        check("gliding: standing, it stands where it stood", abs(drawn(parked, at: "12:01:00") - 0.5 * hop) < 0.01)
+        check("gliding: one report, where that has it and no further",
+              abs(drawn([report(0.2, at: "12:00:00")], at: "12:00:40") - 0.2 * hop) < 0.01)
+        let wobble = [report(0.5, at: "12:00:00"), report(0.4995, at: "12:00:15")]
+        check("gliding: GPS wobble never takes it back", abs(drawn(wobble, at: "12:00:40") - 0.5 * hop) < 0.01,
+              "\(drawn(wobble, at: "12:00:40") - 0.5 * hop) m")
+        // One position 0.01 of the way further on than its pace would have it.
+        let strayed = [report(0.20, at: "12:00:00"), report(0.25, at: "12:00:15"), report(0.31, at: "12:00:30")]
+        let flung = drawn(strayed, at: "12:00:\(String(format: "%02d", Int(40 + behind)))") - 0.31 * hop
+        check("gliding: a position that strayed ahead doesn't fling it on", flung > 0 && flung <= 0.06 * hop / 15 * 10 + 1,
+              "\(flung) m on")
+
+        // The backup, for a train with no live position: where its times put it.
+        let timed = run.position(of: .moving(from: 0, fraction: 0.5))
+        check("backup: by its times, the fraction of the way between two stops they make it",
+              timed.map { abs($0.distance - 0.5 * hop) < 1 && !$0.isLive && $0.speed == nil && $0.stop == 1 && !$0.isAt }
+                  ?? false)
+        check("backup: by its times, standing at a stop",
+              run.position(of: .stopped(at: 1)).map { abs($0.distance - hop) < 1 && $0.isAt && !$0.isLive } ?? false)
+        check("backup: by its times, waiting at its first stop",
+              run.position(of: .waiting(departs: date("12:00"))).map { $0.distance == 0 && $0.isAt } ?? false)
+        check("backup: by its times, in at its last stop",
+              run.position(of: .arrived(at: date("12:00"))).map { abs($0.distance - run.length) < 1 && $0.stop == 2 }
+                  ?? false)
+        check("backup: no times to go by, nowhere", run.position(of: .unknown) == nil)
+
+        // Whether the list of live trains is still awaited: nothing goes by the
+        // timetable yet (it would be drawn in one place, then moved).
+        let opened = date("12:00:00")
+        var contact = LiveContact()
+        contact.want(at: opened)
+        check("awaiting live: just opened, nothing in yet",
+              contact.isPending(at: opened.addingTimeInterval(1), listedAt: nil))
+        check("awaiting live: a few seconds on with nothing in, no longer",
+              !contact.isPending(at: opened.addingTimeInterval(LiveContact.patience + 1), listedAt: nil))
+        check("awaiting live: not once the list is in",
+              !contact.isPending(at: opened.addingTimeInterval(1), listedAt: opened.addingTimeInterval(0.5)))
+        // Offline: fetches fail every few seconds.
+        contact.attemptedAt = opened.addingTimeInterval(12)
+        contact.want(at: opened.addingTimeInterval(17))
+        check("awaiting live: offline, a failed fetch doesn't start the wait again",
+              !contact.isPending(at: opened.addingTimeInterval(18), listedAt: nil))
+        contact.want(at: opened.addingTimeInterval(600))
+        check("awaiting live: back after a while away, awaited again",
+              contact.isPending(at: opened.addingTimeInterval(601), listedAt: opened.addingTimeInterval(-10)))
     }
 
     /// A live report of the train: standing at a station ("at"), or on its way to it ("to").

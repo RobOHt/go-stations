@@ -65,6 +65,44 @@ extension Notification.Name {
     static let liveTrainsUpdated = Notification.Name("LiveTrainsUpdated")
 }
 
+/// Whether the list of live trains is still awaited. Right after the app opens or
+/// comes back (or trains are first asked for), it's a moment away: until it's in, or
+/// a few seconds have gone by without it, nothing is drawn by the timetable for want
+/// of a live position (it would be drawn, then moved the moment after).
+struct LiveContact: Sendable {
+    /// When a fetch of the list last finished, whether or not it got one.
+    var attemptedAt: Date?
+    /// When the list last began to be wanted after a lull in fetching it.
+    var wantedSince: Date?
+
+    /// How long after the list last came in its reports still say where trains
+    /// are: past this (the app just opened or came back, or it's offline) what it
+    /// has is old news.
+    static let inTouchFor: TimeInterval = 30
+    /// While the list is kept up, fetches finish at most this far apart (every 5
+    /// seconds; offline, a 12-second time-out and 5 more): a longer gap is a lull
+    /// (the app was away, or nothing showed trains).
+    static let lull: TimeInterval = 20
+    /// How long what's drawn waits for the list after a lull before going by the
+    /// timetable for want of it.
+    static let patience: TimeInterval = 3
+
+    /// The list is wanted at `now`: something draws trains, or fetches it.
+    mutating func want(at now: Date) {
+        let last = attemptedAt ?? .distantPast
+        guard now.timeIntervalSince(last) > Self.lull else { return }
+        if wantedSince.map({ $0 <= last }) ?? true { wantedSince = now }
+    }
+
+    /// Whether the list is still awaited at `now`: it isn't recent (`listedAt`: when
+    /// one last came in) and has only just been wanted.
+    func isPending(at now: Date, listedAt: Date?) -> Bool {
+        if let listedAt, now.timeIntervalSince(listedAt) < Self.inTouchFor { return false }
+        guard let wantedSince else { return false }
+        return now.timeIntervalSince(wantedSince) < Self.patience
+    }
+}
+
 /// Where every GO train is right now, fetched while something shows trains (the
 /// map with a tracked train or all trains, a trip's stops) and shared by them.
 @MainActor
@@ -80,14 +118,9 @@ final class LiveTrains {
     /// after it leaves the list), for replaying its run on the map.
     @ObservationIgnored private(set) var history: [String: [LiveTrain]] = [:]
     @ObservationIgnored private var loading: Task<Void, Never>?
+    @ObservationIgnored private var contact = LiveContact()
 
     private init() {}
-
-    /// Whether the list is recent: a train missing from it isn't running.
-    func isCurrent(at now: Date = Date()) -> Bool {
-        guard let updatedAt else { return false }
-        return now.timeIntervalSince(updatedAt) < 60 && !trains.isEmpty
-    }
 
     /// A train's latest report, while it still says where the train is.
     func train(_ number: String, at now: Date = Date()) -> LiveTrain? {
@@ -99,9 +132,42 @@ final class LiveTrains {
     /// the end of its run: see `TrackedTrip.following`).
     func latest(_ number: String) -> LiveTrain? { trains[number] }
 
+    /// A train's reports over the last few minutes, oldest first, while they still
+    /// say where it is: GO reported it in the last two minutes, in a list that came
+    /// in within the last half minute. That's a live position: while a train has
+    /// one, nothing else places it (the map, or the marker among its stops). Nil
+    /// otherwise: then its times are the backup (see `isPending`, `isReporting`).
+    func reports(of number: String, at now: Date = Date()) -> [LiveTrain]? {
+        guard isInTouch(at: now), let reports = history[number], let newest = reports.last,
+              newest.isFresh(at: now)
+        else { return nil }
+        return reports
+    }
+
+    /// Whether the list is one to go by: it came in within the last half minute.
+    func isInTouch(at now: Date = Date()) -> Bool {
+        updatedAt.map { now.timeIntervalSince($0) < LiveContact.inTouchFor } ?? false
+    }
+
+    /// Whether GO's live positions are coming in: the list is recent, with a train
+    /// on it reported lately. While they are, a train they leave out isn't running
+    /// as far as GO says. (When they aren't, GO's feed is down or frozen, the app is
+    /// offline, or no trains are running.)
+    func isReporting(at now: Date = Date()) -> Bool {
+        isInTouch(at: now) && trains.values.contains { $0.isFresh(at: now) }
+    }
+
+    /// Whether the list is still awaited (see `LiveContact`): the app has just
+    /// opened or come back, and nothing is drawn by the timetable yet.
+    func isPending(at now: Date = Date()) -> Bool {
+        contact.want(at: now)
+        return contact.isPending(at: now, listedAt: updatedAt)
+    }
+
     /// Fetches the list, unless it came in less than `maxAge` seconds ago.
     func refresh(maxAge: TimeInterval = 8) async {
         if let updatedAt, Date().timeIntervalSince(updatedAt) < maxAge { return }
+        contact.want(at: Date())
         if let loading {
             await loading.value
             return
@@ -124,6 +190,7 @@ final class LiveTrains {
     }()
 
     private func load() async {
+        defer { contact.attemptedAt = Date() }
         guard let url = URL(string: ProxyConfig.baseURL + "/live/trains") else { return }
         var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 12)
         request.setValue("application/json", forHTTPHeaderField: "Accept")

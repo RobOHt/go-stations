@@ -60,38 +60,79 @@ Cloudflare's runtime.
 
 The board refreshes every 20 seconds while it's open (matching the Worker's cache)
 and right away when you come back to the app. Live train positions refresh every 5
-seconds while the map shows the tracked train or all trains (every 15 seconds while
-a train's stops are open). Nothing is fetched in the background, apart from one
-check a while after a tracked train is due at your stop, to end its Live Activity.
-Metrolinx has no push feed, so polling is as fresh as it gets.
+seconds while the map shows the tracked train or all trains, or a train's stops are
+open. Nothing is fetched in the background, apart from one check a while after a
+tracked train is due at your stop, to end its Live Activity. Metrolinx has no push
+feed, so polling is as fresh as it gets.
 
 Express trips are detected from the trip's stop list: if it skips two or more
 stations in a row that the line's all-stops pattern serves, it gets the ⚡. At Union
 the feed marks them directly.
 
-## A train is only ever where its GPS says
+## Live GPS first, the timetable as the backup
 
-One rule decides where a train is drawn: the GPS position GO reports for it is the
-only thing taken as true. GO reports each train about every 15 seconds, and a report
-is 5 to 25 seconds old by the time the app has it. The map draws each train where
-its latest report has it, at the nearest point of its line's track (or just where
-the report says, when that's well off the line: a yard, a detour), and moves it
-there in one quick slide as soon as a new report is in. Nothing else places a train:
-not the timetable, not where it would be by now if it kept going, not the station's
-own spot when GO says it's standing there. A train with no report in the last two
-minutes isn't drawn.
+One rule decides where a train is drawn: while it has a live position (the GPS
+positions GO reports for it), those alone place it. Not the timetable, and not your
+phone's GPS, even on the train you're riding: you're your own blue dot.
 
-Your phone's GPS never places a train, not even the one you're on: you're your own
-blue dot, and the train is where GO last had it (so riding it, your dot runs a
-little ahead of it, by however old its latest report is). Its pointer shows the way
-its track runs there, and its speed is what it covered between its last two reports:
-measured, or not shown.
+GO reports each train every 15 seconds or so (some every 5), and a report is 5 to
+15 seconds old by the time the app has it. Each report is put at the nearest point
+of the train's track (or just where it says, when that's well off the line: a
+yard, a detour). So that trains move rather than jump from one report to the next,
+each is drawn where it was 10 seconds ago (`TrainReplay`):
 
-Earlier versions drew trains smoothly, a few seconds behind, guessing ahead of the
-latest report and easing between guesses, and drew the tracked train where you were
-once you were on it. That looked better and was sometimes wrong: a train standing at
-a platform drawn still coming in, its speed and pointer swinging about under a
-station's roof with the phone's GPS. Being right matters more.
+- between two reports, along a smooth curve through them (a monotone cubic: it
+  never goes back or overshoots, and stands where the train stood);
+- past its latest report, while the next isn't in yet, carrying on at the pace it
+  last covered the ground at, slowing for the station it's heading for and never
+  passing it.
+
+When a new report shows that carrying on was off (the train braked early, a GPS
+position strayed), the train is put right in one quick slide, never eased there
+over many seconds. Ten seconds is about how old a report is on arrival, so there's
+usually one either side of the moment drawn and little carrying on to do. Replayed
+against real trains' reports, as the app would have got them:
+
+| | Gliding, 10 s behind | Stepping from report to report |
+| --- | --- | --- |
+| Into a suburban station (a report every 15 s) | 191 m from the real train (worst 254 m) | 209 m (worst 567 m) |
+| Out of it again | 118 m (worst 219 m) | 148 m (worst 452 m) |
+| Out of Union, between downtown's towers | 56 m (worst 187 m) | 74 m (worst 425 m) |
+| Into Union (a report every 5 to 10 s) | 63 m (worst 211 m) | 86 m (worst 322 m) |
+
+(Median distance from where the train really was, read off all its reports
+afterwards.) Gliding was never more than about 20 m ahead of the real train, and
+had to be put right once in the four runs, after a stray GPS position downtown.
+Drawn 5 seconds behind it was closer still but ran ahead into stations and had to
+be put back; 20 seconds behind it never had to be, and was further off than
+stepping.
+
+A train's speed is only ever measured: the ground between its latest report and
+the newest one at least 12 seconds before it (GO's "stopped at" shows for most of
+a minute while a train is still pulling in, so it isn't taken for 0 km/h). Its
+pointer shows the way its track runs where it's drawn.
+
+The timetable is the backup, for a train with no live position (none reported in
+the last two minutes, or no list of live trains in the last half minute). The
+tracked train is then where its times put it, as late as it was last seen running.
+The other trains go by the timetable only when GO's live positions aren't coming
+in at all (its feed down or frozen, the app offline): while they are, a train they
+leave out isn't running as far as GO says, and isn't drawn. A train drawn by its
+times goes to its live position in one quick slide the moment it has one, and
+nothing is drawn by the timetable in the first seconds after the app opens or
+comes back, while the live positions are on their way: it would be drawn in one
+place, then moved to another.
+
+The marker among a train's stops goes by the same rule and the same replay: it's
+as far along the track between two stops as the map draws the train.
+
+Earlier versions got this wrong in three ways, each fixed by the rule above. One
+eased the drawn train toward where its reports had it over many seconds and
+blended in the timetable, so it could sit somewhere its reports didn't have it (a
+train standing at a platform drawn still coming in). One drew the tracked train
+where your phone was once you were on it, so it wandered with the phone's GPS under
+a station's roof. One stepped from report to report with nothing in between, which
+was never ahead of the train but further from it, and looked it.
 
 ## The Worker
 
