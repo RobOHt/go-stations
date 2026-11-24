@@ -579,7 +579,7 @@ enum SelfCheck {
               !on(speed: 0, past: 120))
         check("on board: standing still before it has left where you get on, not", !on(speed: 0, past: 30_000,
                                                                                          left: false))
-        check("on board: standing still with it drawn far off, not", !on(speed: 0, gap: 5_000))
+        check("on board: standing still with it drawn far off, not", !on(gap: 5_000, speed: 0))
         check("on board: off its line, not", !on(onTrack: false, speed: 30))
         check("on board: on it, stays on through a stop", on(wasOn: true, gap: 6_000, speed: 0))
         check("on board: on it, off once it's well away", !on(wasOn: true, gap: 9_000, speed: 0))
