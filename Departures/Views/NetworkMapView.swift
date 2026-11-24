@@ -1122,7 +1122,8 @@ struct NetworkMapView: UIViewRepresentable {
                     motion.note(number, speed: nil, at: now)
                     continue
                 }
-                motion.note(number, speed: ease(key, toward: target, on: run, now: now).speed, at: now)
+                motion.note(number, speed: ease(key, toward: target, live: replay != nil, on: run, now: now).speed,
+                            at: now)
             }
             drawn = drawn.filter { !$0.key.hasPrefix("watch-") || motion.watched[String($0.key.dropFirst(6))] != nil }
         }
@@ -1181,13 +1182,18 @@ struct NetworkMapView: UIViewRepresentable {
         /// keeps the guesses short.
         static let replayDelay: TimeInterval = 5
 
+        /// A train drawn by its times for no longer than this (the app just opened, or
+        /// came back) goes straight to where its first live reports place it.
+        static let firstReportsWithin: TimeInterval = 15
+
         /// The other trains as last drawn, by trip (for their markers and taps).
         private var spots: [String: Spot] = [:]
         /// Each trip's run along its stops, measured once.
         private var runs: [String: TrainRun] = [:]
         /// Each train as last drawn along its run, by trip ("tracked" for the
-        /// tracked one): how far along, how fast, and when.
-        private var drawn: [String: (distance: Double, speed: Double, at: Date)] = [:]
+        /// tracked one): how far along, how fast, and when; whether by its live
+        /// reports, and since when it has been drawn.
+        private var drawn: [String: (distance: Double, speed: Double, at: Date, live: Bool, since: Date)] = [:]
         /// When each of the other trains was first drawn at the end of its run.
         private var endedAt: [String: Date] = [:]
 
@@ -1224,6 +1230,7 @@ struct NetworkMapView: UIViewRepresentable {
             }
             let times = trip.times.map { Optional($0) }
             var found = replayed(trip.tripNumber, on: run, at: now, times: times)
+            let live = found != nil
             if found == nil {
                 // Missing from an up-to-date list of live trains: not running.
                 if LiveTrains.shared.isCurrent(at: now), LiveTrains.shared.history[trip.tripNumber] == nil {
@@ -1247,7 +1254,7 @@ struct NetworkMapView: UIViewRepresentable {
             if target.isAt, target.stop == 0, let leaves = trip.times.first, now < leaves.addingTimeInterval(-60) {
                 return forget(trip.id)
             }
-            let shown = ease(trip.id, toward: target, on: run, now: now)
+            let shown = ease(trip.id, toward: target, live: live, on: run, now: now)
             // In at its last stop: there a minute, then gone.
             if shown.isAt, shown.stop == run.codes.count - 1 {
                 let since = endedAt[trip.id] ?? now
@@ -1266,13 +1273,17 @@ struct NetworkMapView: UIViewRepresentable {
         /// closing any gap over a few seconds (no faster than it could slow down
         /// again without overshooting), speeding up and slowing down no harder than a
         /// train does, never going back, and never past the station it's heading for.
-        /// Starts again there when it's far off, or wasn't drawn just now.
-        private func ease(_ key: String, toward target: TrainReplay.Position, on run: TrainRun,
+        /// Starts again there when it's far off, or wasn't drawn just now; and when
+        /// `live` reports first place it just after the app opens (or comes back), so
+        /// the timetable's guess, drawn until they came in a second or two later,
+        /// isn't then caught up from over a minute at train speed.
+        private func ease(_ key: String, toward target: TrainReplay.Position, live: Bool, on run: TrainRun,
                           now: Date) -> TrainReplay.Position {
             let limit = run.starts.indices.contains(target.stop) ? run.starts[target.stop] : run.length
             if let last = drawn[key] {
                 let dt = now.timeIntervalSince(last.at)
-                if dt > 0, dt < 5, abs(target.distance - last.distance) < 2_000 {
+                let firstReports = live && !last.live && now.timeIntervalSince(last.since) < Self.firstReportsWithin
+                if dt > 0, dt < 5, abs(target.distance - last.distance) < 2_000, !firstReports {
                     let coasting = last.distance + last.speed * dt
                     let gap = target.distance - coasting
                     let correction = min(0.5 * abs(gap), (2 * abs(gap)).squareRoot())
@@ -1289,7 +1300,7 @@ struct NetworkMapView: UIViewRepresentable {
                         distance = max(limit, last.distance)
                         speed = min(speed, target.speed)
                     }
-                    drawn[key] = (distance, speed, now)
+                    drawn[key] = (distance, speed, now, live, last.since)
                     return TrainReplay.Position(distance: distance, speed: speed, stop: target.stop,
                                                 isAt: target.isAt && abs(distance - target.distance) < 2)
                 }
@@ -1298,7 +1309,7 @@ struct NetworkMapView: UIViewRepresentable {
                                                 isAt: target.isAt && abs(last.distance - target.distance) < 2)
                 }
             }
-            drawn[key] = (target.distance, target.speed, now)
+            drawn[key] = (target.distance, target.speed, now, live, now)
             return target
         }
 
@@ -1425,7 +1436,7 @@ struct NetworkMapView: UIViewRepresentable {
                 trackedSpot = nil
                 return
             }
-            let shown = ease("tracked", toward: target, on: run, now: now)
+            let shown = ease("tracked", toward: target, live: replay != nil, on: run, now: now)
             trackedSpot = spot(on: run, at: shown)
             // How fast it's drawn going, for its stops to show (yours, when it's drawn
             // with you), while it's in service.
