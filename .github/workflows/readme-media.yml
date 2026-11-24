@@ -99,6 +99,14 @@ jobs:
             sleep 1
             xcrun simctl launch "$UDID" "$BUNDLE_ID" -homeStation OA -workStation UN "$@" > /dev/null
           }
+          # Stops a recording: asked to finish its file, then made to after 20 s (a
+          # busy simulator can leave it never finishing, and the run stuck waiting).
+          stop() {
+            kill -INT "$1" 2> /dev/null || true
+            for i in $(seq 1 20); do kill -0 "$1" 2> /dev/null || break; sleep 1; done
+            kill -9 "$1" 2> /dev/null && log "recording $2: had to be stopped" || true
+            wait "$1" 2> /dev/null || true
+          }
           # A clip: recording starts a second before the app does, and runs `seconds`.
           clip() {
             name=$1; seconds=$2; shift 2
@@ -111,8 +119,7 @@ jobs:
             log "clip $name: launched"
             xcrun simctl launch "$UDID" "$BUNDLE_ID" -homeStation OA -workStation UN "$@" > /dev/null
             sleep "$seconds"
-            kill -INT "$recorder" 2> /dev/null || true
-            wait "$recorder" || true
+            stop "$recorder" "$name"
             shrink "$name"
           }
           # 600 wide (full size is about 1 MB a second, too much to push).
@@ -166,6 +173,15 @@ jobs:
             -planOpenFirst YES
           clip plan 14 -debugScene tripPlan -debugNow "$MORNING" -planOpenFirst YES
           shot journey 22 -debugScene trackedJourney -debugNow "$MORNING" -debugLocation 43.5560,-79.5869
+          # Its views drawn in the app: Lock Screen, compact, minimal, expanded.
+          shot lock-screen 8 -debugScene activityGallery -galleryLockScreen YES -galleryClean YES
+          shot activity-gallery 8 -debugScene activityGallery -galleryClean YES
+          shot activity-journey 8 -debugScene activityGallery -gallerySection journey -galleryClean YES
+          # The map in light mode too.
+          xcrun simctl ui "$UDID" appearance light
+          shot map-light 12 -debugScene allTrains -showsAllTrains YES
+          shot board-light 12 -debugScene station
+          xcrun simctl ui "$UDID" appearance dark
           # The Live Activity: track a train, then switch to Settings; the island
           # shows it, and expands with the app's alert a few seconds later.
           if wanted island; then
@@ -174,6 +190,8 @@ jobs:
           xcrun simctl launch "$UDID" "$BUNDLE_ID" -debugScene liveActivity -homeStation OA -workStation UN > /dev/null
           log "live activity: launched"
           sleep 22
+          # The app as it goes to the background: the train it's tracking.
+          xcrun simctl io "$UDID" screenshot --type=png media/island-app.png > /dev/null 2>&1
           xcrun simctl io "$UDID" recordVideo --codec=h264 --force raw-island.mp4 > /dev/null 2>&1 &
           recorder=$!
           sleep 1
@@ -185,20 +203,14 @@ jobs:
           done
           log "live activity: shots taken"
           sleep 8
-          kill -INT "$recorder" 2> /dev/null || true
-          wait "$recorder" || true
+          stop "$recorder" island
           shrink island
+          # What ActivityKit and the app said meanwhile: whether the activity started.
+          xcrun simctl spawn "$UDID" log show --style compact --last 3m \
+            --predicate 'eventMessage CONTAINS[c] "activit"' > media/island-log.txt 2>&1 || true
+          log "live activity: $(grep -ci "activit" media/island-log.txt) log lines" 
           xcrun simctl terminate "$UDID" com.apple.Preferences > /dev/null 2>&1 || true
           fi
-          # Its views drawn in the app: Lock Screen, compact, minimal, expanded.
-          shot lock-screen 8 -debugScene activityGallery -galleryLockScreen YES -galleryClean YES
-          shot activity-gallery 8 -debugScene activityGallery -galleryClean YES
-          shot activity-journey 8 -debugScene activityGallery -gallerySection journey -galleryClean YES
-          # The map in light mode too.
-          xcrun simctl ui "$UDID" appearance light
-          shot map-light 12 -debugScene allTrains -showsAllTrains YES
-          shot board-light 12 -debugScene station
-          xcrun simctl ui "$UDID" appearance dark
           ls -l media
 
       - name: Publish
