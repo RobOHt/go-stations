@@ -308,10 +308,12 @@ enum TrainReplay {
     /// ...and over no longer than this: reports further apart than that (some were
     /// missed) don't say how fast it's going now.
     static let within = 45.0
-    /// In a train's first seconds in view (just after the app opens), before it
-    /// has two reports `apart` seconds apart: its speed is taken from two at least
-    /// this far apart, once it has plainly moved between them (by `stirring` or
-    /// more), so it glides from its second report on rather than its third.
+    /// Without a report `apart` seconds before its latest (and no further back than
+    /// `within`): in a train's first seconds in view, or for one GO reports every 5
+    /// seconds once its only report from further back is too old, its speed is
+    /// taken from two at least this far apart, once it has plainly moved between
+    /// them (by `stirring` or more), so it glides on rather than standing still
+    /// until there's one.
     static let soonest = 4.0
 
     /// How far behind now a train is drawn, in seconds: about how old a report is
@@ -354,16 +356,19 @@ enum TrainReplay {
         guard let last = placed.last else { return nil }
         let sample = last.sample
         var speed: Double?
-        if let before = placed.dropLast().last(where: { sample.time - $0.sample.time >= apart })?.sample {
-            if sample.time - before.time <= within, sample.off <= TrainRun.onTrack, before.off <= TrainRun.onTrack {
+        let earlier = placed.dropLast().map(\.sample)
+        if let before = earlier.last(where: { sample.time - $0.time >= apart }), sample.time - before.time <= within {
+            if sample.off <= TrainRun.onTrack, before.off <= TrainRun.onTrack {
                 let moved = abs(sample.distance - before.distance)
                 speed = moved < stirring ? 0 : moved / (sample.time - before.time)
             }
-        } else if placed.count >= 2, let before = placed.first?.sample, sample.time - before.time >= soonest,
+        } else if let before = earlier.first(where: { (soonest..<apart).contains(sample.time - $0.time) }),
                   sample.off <= TrainRun.onTrack, before.off <= TrainRun.onTrack {
-            // Its first seconds in view, with no report yet that long before its
-            // latest: by the first it has, once it has plainly moved since (less
-            // than that could be it standing, or crawling: nothing says yet).
+            // None that far back but one from too long ago, or none at all: by the
+            // earliest a little before it (its first seconds in view; or a train GO
+            // reports every 5 seconds, once the fix from GO's other feed it came with
+            // is too old), once it has plainly moved since (less than that could be
+            // it standing, or crawling: nothing says yet).
             let moved = abs(sample.distance - before.distance)
             if moved >= stirring { speed = moved / (sample.time - before.time) }
         }

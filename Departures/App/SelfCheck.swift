@@ -720,6 +720,15 @@ enum SelfCheck {
         if let speed = TrainReplay.position(of: justSeen, on: run)?.speed { soon = abs(speed - 0.03 * hop / 10) < 0.1 }
         check("gps only: its first two reports 10 seconds apart, plainly on the move, its speed by those", soon,
               "\(TrainReplay.position(of: justSeen, on: run)?.speed ?? -1) m/s")
+        // Reported every 5 seconds, with an older fix from GO's other feed that's
+        // nearly a minute before its latest: its speed by the 5-second reports, not
+        // none (the only one 12 seconds back is too old to say how fast it goes now).
+        let everyFive = [report(0.10, at: "12:00:00"), report(0.300, at: "12:00:44"), report(0.306, at: "12:00:49"),
+                         report(0.312, at: "12:00:54")]
+        var paced5 = false
+        if let speed = TrainReplay.position(of: everyFive, on: run)?.speed { paced5 = abs(speed - 0.012 * hop / 10) < 0.1 }
+        check("gps only: reported every 5 seconds after an old fix, its speed by those reports", paced5,
+              "\(TrainReplay.position(of: everyFive, on: run)?.speed ?? -1) m/s, of \(0.012 * hop / 10)")
         // Reports missed for a minute: where it is by the new one, but not how fast it's going now.
         let gap = TrainReplay.position(of: [report(0.2, at: "12:00:00"), report(0.4, at: "12:01:00")], on: run)
         check("gps only: a minute between two reports, no speed from them",
