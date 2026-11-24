@@ -91,27 +91,32 @@ each is drawn where it was 10 seconds ago (`TrainReplay`):
 - past its latest report, while the next isn't in yet, carrying on at the pace it
   last covered the ground at, slowing for the station it's heading for and
   stopping 250 m short of it: a train may come to a stand anywhere from there on
-  (GO's trains stand up to 235 m short of Union's own spot on the line), so from
-  there only its reports bring it in. And only while its reports have it
-  measurably moving: a standing train's GPS wobbles by a metre or two, which isn't
-  it setting off.
+  (GO's trains stand up to 235 m short of Union's own spot on the line, and up to
+  160 m past others'), so from there only its reports bring it in. But it's
+  always carried on as far as it's sure to get from the speed it has, however
+  hard it brakes (1 m/s², a full service brake): one still doing 70 km/h in that
+  last stretch has 190 m to go at the very least. And only while its reports have
+  it measurably moving: a standing train's GPS wobbles by a metre or two, which
+  isn't it setting off.
 
 When a new report shows that carrying on was off (the train braked early, a GPS
 position strayed), the train is put right in one quick slide, never eased there
-over many seconds. Ten seconds is about how old a report is on arrival, so there's
-usually one either side of the moment drawn and little carrying on to do. Replayed
-against real trains' reports, as the app would have got them:
+over many seconds. A report is 5 to 15 seconds old when it comes in, and the next
+comes 10 to 15 seconds after it: about half the time there's a report either side
+of the moment drawn, and the rest of the time the train is carried on, for up to
+15 seconds or so. Replayed against real trains' reports, as the app would have
+got them:
 
 | | Gliding, 10 s behind | Stepping from report to report |
 | --- | --- | --- |
 | Into a suburban station (a report every 15 s) | 193 m from the real train (worst 254 m) | 209 m (worst 567 m) |
 | Out of it again | 119 m (worst 219 m) | 148 m (worst 452 m) |
 | Out of Union, between downtown's towers | 58 m (worst 187 m) | 74 m (worst 425 m) |
-| Into Union (a report every 5 to 10 s) | 63 m (worst 240 m) | 86 m (worst 320 m) |
+| Into Union (a report every 5 to 10 s) | 63 m (worst 208 m) | 86 m (worst 320 m) |
 
 (Median distance from where the train really was, read off all its reports
-afterwards.) Gliding was never ahead of the real train, and had to be put back
-once in the four runs, after a stray GPS position downtown. It showed a train in
+afterwards.) Gliding was never more than a metre ahead of the real train, and had
+to be put back once in the four runs, after a stray GPS position downtown. It showed a train in
 at its platform, and on its way out of one, within a couple of seconds of when
 stepping did. Drawn 5 seconds behind, it was closer still (32 to 108 m) but ran
 ahead of the train downtown and had to be put back more often and further; 20
@@ -119,8 +124,11 @@ seconds behind it never had to be, and was further off than stepping.
 
 A train's speed is only ever measured: the ground between its latest report and
 the newest one at least 12 seconds before it (GO's "stopped at" shows for most of
-a minute while a train is still pulling in, so it isn't taken for 0 km/h). Its
-pointer shows the way its track runs where it's drawn.
+a minute while a train is still pulling in, so it isn't taken for 0 km/h). In its
+first seconds in view, just after the app opens, it's the ground between its
+first two reports once it has plainly moved, so the train glides on from its
+second report rather than its third. Its pointer shows the way its track runs
+where it's drawn.
 
 The timetable is the backup, for a train with no live position (none reported in
 the last two minutes, or no list of live trains in the last half minute). The

@@ -590,8 +590,9 @@ enum SelfCheck {
             (12, 260, 1356.3, "its reports stopped: held where 40 s took it"),
             (16, 240, 629.0, "coming up to the station: carried on 15 s, slowing"),
             (17, 255, 365.2, "braking: carried on 15 s"),
-            (18, 275, 250.0, "nearly there: carried on, but stopping well short of the station"),
-            (19, 282, 249.0, "from there on: where its report has it, no further"),
+            (18, 262, 267.7, "nearly there: carried on 7 s"),
+            (18, 275, 236.0, "nearly there: carried on as far as it would get braking hard, no further"),
+            (19, 282, 247.8, "in the last stretch: on from its report only as far as braking hard"),
             (22, 308, 85.6, "coming in: between two reports"),
             (26, 400, 64.0, "standing: where it stands"),
         ]
@@ -711,6 +712,14 @@ enum SelfCheck {
               "\(crawling?.speed ?? -1) m/s")
         check("gps only: two reports 5 seconds apart, no speed yet",
               TrainReplay.position(of: Array(often.prefix(2)), on: run).map { $0.speed == nil } ?? false)
+        // Its first seconds in view (the app just opened): two reports 10 seconds
+        // apart, and it has plainly moved between them. Its speed by those, so it
+        // glides on from its second report rather than waiting for a third.
+        let justSeen = [report(0.20, at: "12:00:00"), report(0.23, at: "12:00:10")]
+        var soon = false
+        if let speed = TrainReplay.position(of: justSeen, on: run)?.speed { soon = abs(speed - 0.03 * hop / 10) < 0.1 }
+        check("gps only: its first two reports 10 seconds apart, plainly on the move, its speed by those", soon,
+              "\(TrainReplay.position(of: justSeen, on: run)?.speed ?? -1) m/s")
         // Reports missed for a minute: where it is by the new one, but not how fast it's going now.
         let gap = TrainReplay.position(of: [report(0.2, at: "12:00:00"), report(0.4, at: "12:01:00")], on: run)
         check("gps only: a minute between two reports, no speed from them",
@@ -762,11 +771,18 @@ enum SelfCheck {
         let there = drawn([report(0.85, at: "12:00:00"), report(0.90, at: "12:00:15")], at: "12:02:00")
         check("gliding: carried on until it's well short of the station, no nearer",
               abs(there - (hop - TrainRun.clear)) < 1, "\(hop - there) m short of it")
-        // Already nearer than that (0.05 of the way short of BB, about 200 m): only
-        // its reports place it.
+        // Already nearer than that (0.05 of the way short of BB, about 200 m) and
+        // still at its pace: on from its report only as far as it would get however
+        // hard it braked (TrainReplay.hard), which it's sure to.
         let near = drawn([report(0.90, at: "12:00:00"), report(0.95, at: "12:00:15")], at: "12:02:00")
-        check("gliding: nearer the station than that, where its report has it and no further",
-              0.05 * hop < TrainRun.clear && abs(near - 0.95 * hop) < 0.05, "\(hop - near) m short of it")
+        check("gliding: nearer the station than that, on only as far as it would get braking hard",
+              0.05 * hop < TrainRun.clear && abs(near - (0.95 * hop + pace * pace / (2 * TrainReplay.hard))) < 0.5,
+              "\(near - 0.95 * hop) m on, of \(pace * pace / (2 * TrainReplay.hard))")
+        let nearSoon = drawn([report(0.90, at: "12:00:00"), report(0.95, at: "12:00:15")],
+                             at: "12:00:\(String(format: "%02d", Int(20 + behind)))")
+        check("gliding: ...slowing as hard as that from the first second",
+              abs(nearSoon - (0.95 * hop + pace * 5 - TrainReplay.hard * 25 / 2)) < 0.5,
+              "\(nearSoon - 0.95 * hop) m on in 5 s, of \(pace * 5 - TrainReplay.hard * 25 / 2)")
         // Standing, its GPS a metre further on after a while: not taken for setting off.
         let stirred = [report(0.5, at: "12:00:00"), report(0.5, at: "12:00:15"), report(0.50025, at: "12:00:30")]
         check("gliding: a standing train's GPS wobbling a metre on, it still stands",
@@ -774,6 +790,9 @@ enum SelfCheck {
               "\(drawn(stirred, at: "12:01:10") - 0.50025 * hop) m on")
         let parked = [report(0.5, at: "12:00:00"), report(0.5, at: "12:00:15")]
         check("gliding: standing, it stands where it stood", abs(drawn(parked, at: "12:01:00") - 0.5 * hop) < 0.01)
+        let seenOn = drawn(justSeen, at: "12:00:\(String(format: "%02d", Int(16 + behind)))")
+        check("gliding: its first two reports 10 seconds apart, carried on from the second",
+              abs(seenOn - (0.23 * hop + 6 * 0.03 * hop / 10)) < 1, "\(seenOn - 0.23 * hop) m on")
         // Setting off from short of where its run starts: on its way from there, not
         // held at its first station's spot until its GPS is past it.
         let setOff = drawn(leaving, at: "12:00:\(String(format: "%02d", Int(22 + behind)))")

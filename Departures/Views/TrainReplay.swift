@@ -161,8 +161,9 @@ struct TrainRun {
     /// A train carried on past its latest report (see `TrainReplay`) is taken no
     /// nearer the station it's heading for than this, in metres short of the
     /// station's own spot on the line. It may come to a stand anywhere from there
-    /// on (GO's trains stand up to 235 m short of Union's spot), so from there
-    /// only its reports bring it in.
+    /// on (GO's trains stand up to 235 m short of Union's spot, and up to 160 m
+    /// past others'), so from there only its reports bring it in, but for as far
+    /// as it's sure to get from the speed it has (`TrainReplay.hard`).
     static let clear = 250.0
 
     /// A train is placed along its run up to this far short of the run's start or
@@ -232,8 +233,9 @@ struct TrainRun {
 ///   it last covered the ground at, for no more than `ahead` seconds, slowing for
 ///   the station it's heading for and stopping well short of it (`TrainRun.clear`:
 ///   the train may come to a stand anywhere from there on, so from there only its
-///   reports bring it in). Only while it's measurably moving: a standing train's
-///   GPS wobbles by a metre or two, which isn't it setting off.
+///   reports bring it in), or as far on as it's sure to get from the speed it has
+///   however hard it brakes (`hard`). Only while it's measurably moving: a
+///   standing train's GPS wobbles by a metre or two, which isn't it setting off.
 ///
 /// A new report can show that carrying on was off (the train braked, or a GPS
 /// position strayed): the map then puts it right in one quick slide, never easing
@@ -306,10 +308,16 @@ enum TrainReplay {
     /// ...and over no longer than this: reports further apart than that (some were
     /// missed) don't say how fast it's going now.
     static let within = 45.0
+    /// In a train's first seconds in view (just after the app opens), before it
+    /// has two reports `apart` seconds apart: its speed is taken from two at least
+    /// this far apart, once it has plainly moved between them (by `stirring` or
+    /// more), so it glides from its second report on rather than its third.
+    static let soonest = 4.0
 
     /// How far behind now a train is drawn, in seconds: about how old a report is
-    /// when the app gets it, so most of the time there's a report either side of
-    /// the moment drawn, and little carrying on to do. (At 5 it was closer to the
+    /// when the app gets it, so about half the time there's a report either side
+    /// of the moment drawn (the rest of the time it's carried on, for up to 15
+    /// seconds or so, until the next report is in). (At 5 it was closer to the
     /// train but ran ahead of it downtown and had to be put back more often; at 20
     /// it never had to be, and was further from the train than stepping.)
     static let delay: TimeInterval = 10
@@ -321,6 +329,12 @@ enum TrainReplay {
     static let cruising = 33.0
     /// How long past its latest report a train is carried on before it's held.
     static let ahead: TimeInterval = 40
+    /// The hardest a train brakes, in m/s² (about a full service brake). Whatever
+    /// it does next, from the speed it has it gets at least as far as it would
+    /// braking like that: it's carried on that far even into the last stretch
+    /// before a station (one still doing 70 km/h there has 190 m to go at the
+    /// very least; one creeping in at 10 km/h, 4 m).
+    static let hard = 1.0
 
     /// A train's reports (oldest first) as places along `run`, with what the latest
     /// says. Nil when none can be placed.
@@ -340,10 +354,18 @@ enum TrainReplay {
         guard let last = placed.last else { return nil }
         let sample = last.sample
         var speed: Double?
-        if let before = placed.dropLast().last(where: { sample.time - $0.sample.time >= apart })?.sample,
-           sample.time - before.time <= within, sample.off <= TrainRun.onTrack, before.off <= TrainRun.onTrack {
+        if let before = placed.dropLast().last(where: { sample.time - $0.sample.time >= apart })?.sample {
+            if sample.time - before.time <= within, sample.off <= TrainRun.onTrack, before.off <= TrainRun.onTrack {
+                let moved = abs(sample.distance - before.distance)
+                speed = moved < stirring ? 0 : moved / (sample.time - before.time)
+            }
+        } else if placed.count >= 2, let before = placed.first?.sample, sample.time - before.time >= soonest,
+                  sample.off <= TrainRun.onTrack, before.off <= TrainRun.onTrack {
+            // Its first seconds in view, with no report yet that long before its
+            // latest: by the first it has, once it has plainly moved since (less
+            // than that could be it standing, or crawling: nothing says yet).
             let moved = abs(sample.distance - before.distance)
-            speed = moved < stirring ? 0 : moved / (sample.time - before.time)
+            if moved >= stirring { speed = moved / (sample.time - before.time) }
         }
         var position = Position(distance: sample.distance, speed: speed, stop: sample.stop, isAt: sample.isAt)
         if sample.off > TrainRun.onTrack {
@@ -412,13 +434,19 @@ enum TrainReplay {
                 speed = min(speed, (last.distance - before.distance) / (last.time - before.time))
             }
         }
-        // Carried on no nearer the station it's heading for than well short of its
+        // Not at all while it stands.
+        guard moving, speed > 0 else { return last.distance }
+        let horizon = min(time - last.time, ahead)
+        // However hard it brakes from here, it gets this far (see `hard`): it's
+        // carried on at least there.
+        let braked = min(horizon, speed / hard)
+        let sure = last.distance + speed * braked - hard * braked * braked / 2
+        // Otherwise no nearer the station it's heading for than well short of its
         // own spot (`TrainRun.clear`): the train may come to a stand anywhere from
-        // there on, so from there only its reports say where it is. And not at all
-        // while it stands.
+        // there on, so from there only its reports say where it is.
         let spot = run.starts.indices.contains(last.stop) ? run.starts[last.stop] : run.length
         let goal = spot - TrainRun.clear
-        guard moving, speed > 0, goal - last.distance > 0.5 else { return last.distance }
+        guard goal - last.distance > 0.5 else { return sure }
         var speedingUp = 0.0
         if count >= 2, slopes[count - 2] == 0 {
             // Just set off: from a standstill, speeding up as trains do (its average
@@ -430,7 +458,6 @@ enum TrainReplay {
         let top = max(cruising, speed)
         var distance = last.distance
         var elapsed = 0.0
-        let horizon = min(time - last.time, ahead)
         while elapsed < horizon {
             let step = min(0.5, horizon - elapsed)
             let room = goal - distance
@@ -447,7 +474,7 @@ enum TrainReplay {
             speed = next
             elapsed += step
         }
-        return distance
+        return max(distance, sure)
     }
 
     /// The train's speed at each report, for a smooth curve through them that never
