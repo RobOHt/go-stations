@@ -19,6 +19,9 @@ on:
       minutes:
         description: "With mode record: how long to record, in minutes"
         default: "20"
+      replay:
+        description: "Run ids (space-separated) of earlier record runs: their recordings scored again, by this code"
+        default: ""
       trip:
         description: "DAY/NUMBER (e.g. 20261106/3837): just that trip's Schedule/Trip stops, as Metrolinx gives them"
         default: ""
@@ -38,6 +41,9 @@ on:
 jobs:
   probe:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
     timeout-minutes: 45
     env:
       METROLINX_API_KEY: ${{ secrets.METROLINX_API_KEY }}
@@ -50,6 +56,8 @@ jobs:
       CANCELLATIONS: ${{ inputs.cancellations }}
       STATION: ${{ inputs.station }}
       MINUTES: ${{ inputs.minutes }}
+      REPLAY: ${{ inputs.replay }}
+      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v5
       # (For tools/cancelled_cost.mjs, which reads the Worker's own code.)
@@ -74,6 +82,16 @@ jobs:
           fi
           if [ -n "$APPROACH" ]; then
             python3 tools/probe_live.py --approach "$APPROACH" --polls "${POLLS:-4}" --gap "${GAP:-15}"
+            exit 0
+          fi
+          if [ -n "$REPLAY" ]; then
+            # Earlier recordings (kept a day), scored again by this code.
+            files=""
+            for run in $REPLAY; do
+              gh run download "$run" -R "$GITHUB_REPOSITORY" -n feeds -D "rec-$run"
+              files="$files rec-$run/feeds.ndjson.gz"
+              node tools/replay_archive.mjs "rec-$run/feeds.ndjson.gz"
+            done
             exit 0
           fi
           if [ "$MODE" = "record" ]; then
