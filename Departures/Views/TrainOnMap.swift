@@ -305,11 +305,18 @@ final class TrainAnnotationView: MKAnnotationView {
             }
             projected.append(shown)
         }
-        guard !box.isNull, box.width.isFinite, box.height.isFinite, box.width < 20_000, box.height < 20_000 else {
+        guard !box.isNull, box.width.isFinite, box.height.isFinite else {
             hideModel()
             return
         }
-        box = box.insetBy(dx: -4, dy: -4).integral
+        // Only as much of it as is on the screen (zoomed right in, a train runs far off it).
+        let screen = CGRect(x: center.x - anchor.x, y: center.y - anchor.y,
+                            width: mapView.bounds.width, height: mapView.bounds.height).insetBy(dx: -40, dy: -40)
+        box = box.insetBy(dx: -4, dy: -4).intersection(screen).integral
+        guard !box.isNull, !box.isEmpty else {
+            hideModel()
+            return
+        }
         model.frame = box
         model.vehicles = projected.map { vehicle in
             let shift = { (point: CGPoint) in CGPoint(x: point.x - box.minX, y: point.y - box.minY) }
