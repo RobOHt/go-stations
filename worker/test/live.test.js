@@ -213,3 +213,30 @@ test("after a gap in the reports, a station it was seen at isn't left just now",
   steady = follow(steady, { ...seen[13] }, at("21:04:25")).job;
   assert.equal(steady.dep[2], at("21:04:22"));
 });
+
+test("passes on how many coaches a train has, from Service at a Glance", () => {
+  const now = at("21:00:16");
+  const vehicles = {
+    entity: [
+      { vehicle: { trip: { trip_id: "20261106-LW-1033" }, position: { latitude: 43.4561768, longitude: -79.68119 },
+                   timestamp: at("21:00:07"), current_status: "STOPPED_AT", stop_id: "OA" } },
+      { vehicle: { trip: { trip_id: "20261106-LW-1034" }, position: { latitude: 43.63479, longitude: -79.4715958 },
+                   timestamp: at("21:00:03"), current_status: "IN_TRANSIT_TO", stop_id: "EX" } },
+    ],
+  };
+  const glance = {
+    Metadata: { TimeStamp: "2026-11-06 21:00:16", ErrorCode: "200" },
+    Trips: { Trip: [
+      { TripNumber: "1033", LineCode: "LW", Cars: "12", Latitude: 43.456176, Longitude: -79.68119,
+        ModifiedDate: "2026-11-06 21:00:05" },
+      { TripNumber: "1034", LineCode: "LW", Cars: "nonsense", Latitude: 43.63479, Longitude: -79.4715958,
+        ModifiedDate: "2026-11-06 21:00:03" },
+      { TripNumber: "3034", LineCode: "GT", Cars: 10, Latitude: 43.643235, Longitude: -79.386355,
+        ModifiedDate: "2026-11-06 21:00:10" },
+    ] },
+  };
+  const byTrip = Object.fromEntries(mergeTrains(vehicles, glance, now).trains.map((train) => [train.trip, train]));
+  assert.equal(byTrip["1033"].cars, 12);
+  assert.equal("cars" in byTrip["1034"], false);
+  assert.equal(byTrip["3034"].cars, 10);
+});

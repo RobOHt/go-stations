@@ -762,7 +762,7 @@ struct NetworkMapView: UIViewRepresentable {
             let point = recognizer.location(in: mapView)
             if let train, let view = mapView.view(for: train) {
                 let frame = view.convert(view.bounds, to: mapView).insetBy(dx: -4, dy: -4)
-                if frame.contains(point) {
+                if frame.contains(point) || (view as? TrainAnnotationView)?.modelContains(point, from: mapView) == true {
                     onSelectTrain()
                     return
                 }
@@ -834,6 +834,7 @@ struct NetworkMapView: UIViewRepresentable {
                     trainView.configure(color: lineColor(trip.lineCode), animatesPointer: trainIsMoving())
                     trainView.setHeading(trainHeading(), animated: false)
                 }
+                trainView.layoutModel(in: mapView)
                 return view
             }
             if let place = annotation as? PlaceAnnotation {
@@ -896,6 +897,9 @@ struct NetworkMapView: UIViewRepresentable {
             if let train, let view = mapView.view(for: train) as? TrainAnnotationView {
                 view.setMapHeading(mapView.camera.heading)
             }
+            // The trains to scale keep to the map as it zooms, turns and tilts.
+            if let train { layoutModel(of: train, in: mapView) }
+            for marker in running.values { layoutModel(of: marker, in: mapView) }
 
             // Only re-render when the zoom crosses a step (and not back and forth as a
             // pinch hovers at one).
@@ -1101,6 +1105,7 @@ struct NetworkMapView: UIViewRepresentable {
                 guard let marker = running[key] else {
                     if let spot {
                         let fresh = TrainAnnotation(coordinate: Self.coordinate(spot.point), running: scheduled)
+                        fresh.model = spot.model
                         running[key] = fresh
                         added.append(fresh)
                     }
@@ -1113,6 +1118,8 @@ struct NetworkMapView: UIViewRepresentable {
                     continue
                 }
                 move(marker, to: Self.coordinate(spot.point), gliding: spot.carriesOn(from: before))
+                marker.model = spot.model
+                layoutModel(of: marker, in: mapView)
                 (mapView.view(for: marker) as? TrainAnnotationView)?.setHeading(spot.heading, animated: true)
             }
             if !added.isEmpty { appear(added, in: mapView) }
@@ -1132,6 +1139,8 @@ struct NetworkMapView: UIViewRepresentable {
             let isLive: Bool
             /// How far along its run it's drawn, in metres (nil away from its track).
             let along: Double?
+            /// The train to scale, laid along its track from there (nil away from it).
+            var model: TrainModel? = nil
 
             /// Standing at a station, by its report (or its times).
             var isAt: Bool { reached == next }
@@ -1267,7 +1276,7 @@ struct NetworkMapView: UIViewRepresentable {
                 endedAt[trip.id] = since
                 if now.timeIntervalSince(since) > TrainState.lingerAtEnd { return nil }
             }
-            return spot(on: run, at: position)
+            return spot(on: run, at: position, number: trip.tripNumber)
         }
 
         /// Moves a train's marker to where it is now. `gliding` (see
@@ -1286,8 +1295,8 @@ struct NetworkMapView: UIViewRepresentable {
             }
         }
 
-        /// Where `position` is on the map.
-        private func spot(on run: TrainRun, at position: TrainReplay.Position) -> Spot? {
+        /// Where `position` is on the map, with train `number` to scale there.
+        private func spot(on run: TrainRun, at position: TrainReplay.Position, number: String) -> Spot? {
             let reached = position.isAt ? position.stop : max(position.stop - 1, 0)
             // Away from its track (a yard, a detour): just where the report has it.
             if let away = position.away {
@@ -1295,8 +1304,27 @@ struct NetworkMapView: UIViewRepresentable {
                             speed: position.speed, isLive: position.isLive, along: nil)
             }
             guard let placed = run.point(at: position.distance) else { return nil }
-            return Spot(point: placed.point, heading: placed.heading, reached: reached, next: position.stop,
-                        speed: position.speed, isLive: position.isLive, along: position.distance)
+            var spot = Spot(point: placed.point, heading: placed.heading, reached: reached, next: position.stop,
+                            speed: position.speed, isLive: position.isLive, along: position.distance)
+            spot.model = TrainModel(consist: consist(of: number, on: run), anchor: position.distance, on: run)
+            return spot
+        }
+
+        /// Which end each run's trains have their locomotive at, by its stops.
+        private var locomotiveLeads: [String: Bool] = [:]
+
+        /// Train `number` as it's made up on `run`: as many coaches as GO says it has
+        /// (a full-length train when it doesn't say), its locomotive at the Union end.
+        private func consist(of number: String, on run: TrainRun) -> TrainConsist {
+            let key = run.codes.joined(separator: ",")
+            let leads = locomotiveLeads[key] ?? TrainConsist.locomotiveLeads(codes: run.codes) { geometry.station($0) }
+            locomotiveLeads[key] = leads
+            return TrainConsist(coaches: LiveTrains.shared.latest(number)?.cars, locomotiveLeads: leads)
+        }
+
+        /// Draws a train's model as the map shows it now (see `TrainAnnotationView.layoutModel`).
+        private func layoutModel(of marker: TrainAnnotation, in mapView: MKMapView) {
+            (mapView.view(for: marker) as? TrainAnnotationView)?.layoutModel(in: mapView)
         }
 
         /// The track between two neighbouring stops, measured once.
@@ -1336,7 +1364,9 @@ struct NetworkMapView: UIViewRepresentable {
             for marker in running.values {
                 guard let trip = marker.running, let view = mapView.view(for: marker), !view.isHidden else { continue }
                 let center = view.convert(CGPoint(x: view.bounds.midX, y: view.bounds.midY), to: mapView)
-                let distance = hypot(center.x - point.x, center.y - point.y)
+                // On its model counts as right on it.
+                let onModel = (view as? TrainAnnotationView)?.modelContains(point, from: mapView) == true
+                let distance = onModel ? 0 : hypot(center.x - point.x, center.y - point.y)
                 if distance <= 22 * runningScale + 6, distance < (best?.distance ?? .greatestFiniteMagnitude) {
                     best = (trip, distance)
                 }
@@ -1408,7 +1438,7 @@ struct NetworkMapView: UIViewRepresentable {
                 return
             }
             let drawn = settled(position, for: "tracked")
-            trackedSpot = spot(on: run, at: drawn)
+            trackedSpot = spot(on: run, at: drawn, number: trip.tripNumber)
             // How fast it's going, for its stops to show, while it's in service: not
             // standing at its first stop or its last. (Only ever measured: none while
             // it's drawn by its times.)
@@ -1563,14 +1593,17 @@ struct NetworkMapView: UIViewRepresentable {
             controller?.drawnTrain = DrawnTrain(coordinate: coordinate, reached: spot.reached, at: Date())
             if let train {
                 move(train, to: coordinate, gliding: spot.carriesOn(from: before))
+                train.model = spot.model
             } else {
                 let marker = TrainAnnotation(coordinate: coordinate)
+                marker.model = spot.model
                 train = marker
                 appear([marker], in: mapView)
             }
             if let train, let view = mapView.view(for: train) as? TrainAnnotationView {
                 view.configure(color: lineColor(trip.lineCode), animatesPointer: trainIsMoving())
                 view.setHeading(trainHeading(), animated: true)
+                view.layoutModel(in: mapView)
             }
         }
 

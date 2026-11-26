@@ -24,6 +24,9 @@ struct LiveTrain: Decodable, Equatable, Sendable {
     /// older than this report's, now and then a newer one). With them there are two
     /// positions to tell the train's speed by the moment the app opens.
     @FeedList var fixes: [Fix]? = nil
+    /// How many coaches it's pulling, the locomotive not counted (Service at a
+    /// Glance's `Cars`), when known: the map draws the train to scale with them.
+    var cars: Int? = nil
 
     /// Where GO's GPS had the train, and when.
     struct Fix: Decodable, Equatable, Sendable {

@@ -218,6 +218,98 @@ struct TrainRun {
     }
 }
 
+/// A GO train as it's made up, to scale: its locomotive at one end, its coaches
+/// behind it, the last of them a cab car (GO's trains are push-pull: the
+/// locomotive pulls one way and pushes the other, driven from the cab car).
+///
+/// GO's GPS fix of a train is its locomotive's, so the train is laid out from
+/// there: the locomotive centred on the fix, its coaches stretching back along the
+/// track from it. GO keeps its locomotives at the Union end of their trains (a
+/// train sets off from Union cab car first and comes back locomotive first), so
+/// heading for Union the coaches trail behind the fix, and heading away from it
+/// they run on ahead of it.
+///
+/// GO's feeds give how many coaches each train has (Service at a Glance's `Cars`)
+/// but not their lengths or the locomotive's, nor which end it's at (its consist
+/// feed is closed to the app's key): those are GO's standard equipment, below.
+struct TrainConsist: Equatable, Sendable {
+    enum Kind: Sendable { case locomotive, coach, cabCar }
+
+    /// One of its vehicles, by where it is along the train's run.
+    struct Vehicle: Equatable, Sendable {
+        let kind: Kind
+        /// Its ends, in metres along the run (`from` < `to`), couplers included.
+        let from: Double
+        let to: Double
+        /// For the locomotive and the cab car: its driving end is the one further
+        /// along the run (rather than the one nearer the run's start).
+        let leadsAhead: Bool
+
+        var length: Double { to - from }
+        var middle: Double { (from + to) / 2 }
+    }
+
+    /// A Siemens/MPI MP40PH-3C, GO's locomotive, over its couplers.
+    static let locomotiveLength = 22.0
+    /// A Bombardier BiLevel coach (and cab car), over its couplers.
+    static let coachLength = 25.9
+    /// Both are this wide...
+    static let width = 3.0
+    /// ...and this tall above the rails.
+    static let coachHeight = 4.84
+    static let locomotiveHeight = 4.6
+    /// Coaches for a train GO doesn't say how many it has: a full-length train.
+    static let usualCoaches = 12
+    /// Union Station's code: the end GO keeps its locomotives at.
+    static let union = "UN"
+
+    /// How many coaches, the cab car one of them.
+    let coaches: Int
+    /// The locomotive is at the front (the train's heading for Union), rather than
+    /// pushing from the back.
+    let locomotiveLeads: Bool
+
+    init(coaches: Int?, locomotiveLeads: Bool) {
+        self.coaches = min(max(coaches ?? Self.usualCoaches, 1), 16)
+        self.locomotiveLeads = locomotiveLeads
+    }
+
+    /// The whole train's length, locomotive and coaches.
+    var length: Double { Self.locomotiveLength + Double(coaches) * Self.coachLength }
+
+    /// Its vehicles, locomotive first, with the locomotive centred `anchor` metres
+    /// along the run (where GO's GPS has the train) and the train going the run's
+    /// way (towards higher distances).
+    func vehicles(at anchor: Double) -> [Vehicle] {
+        let half = Self.locomotiveLength / 2
+        var vehicles = [Vehicle(kind: .locomotive, from: anchor - half, to: anchor + half, leadsAhead: locomotiveLeads)]
+        // The coaches run on from the locomotive's inner end, away from Union.
+        let step = locomotiveLeads ? -Self.coachLength : Self.coachLength
+        var end = locomotiveLeads ? anchor - half : anchor + half
+        for index in 0..<coaches {
+            let next = end + step
+            let isCab = index == coaches - 1
+            vehicles.append(Vehicle(kind: isCab ? .cabCar : .coach, from: min(end, next), to: max(end, next),
+                                    leadsAhead: !locomotiveLeads))
+            end = next
+        }
+        return vehicles
+    }
+
+    /// Whether a train on a run through `codes` has its locomotive at the front: it
+    /// ends nearer Union than it starts (by `station`'s positions). Unknown: at the
+    /// front.
+    static func locomotiveLeads(codes: [String], station: (String) -> TrackGeometry.Point?) -> Bool {
+        guard let first = codes.first, let last = codes.last else { return true }
+        if last == union { return true }
+        if first == union { return false }
+        guard let union = station(union), let start = station(first), let end = station(last) else { return true }
+        func distance(_ point: TrackGeometry.Point) -> Double { hypot(point.x - union.x, point.y - union.y) }
+        return distance(end) <= distance(start)
+    }
+}
+
+
 /// Where a train is drawn along its run by its live reports: gliding through them.
 ///
 /// While a train has a live position (the GPS positions Metrolinx reports for it),

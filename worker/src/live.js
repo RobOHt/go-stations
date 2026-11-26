@@ -49,7 +49,7 @@ const TRIP_ID = /^(\d{8})-([A-Z]{2})-([A-Za-z0-9]{1,12})$/;
  * Live Activity is re-timed by).
  *
  *   { at, trains: [{ trip, line, lat, lon, time, status: "at" | "to" | null,
- *                    stop, delay?, moving?, course?, fixes?: [{ lat, lon, time }] }] }
+ *                    stop, delay?, moving?, course?, cars?, fixes?: [{ lat, lon, time }] }] }
  */
 export function mergeTrains(vehicles, glance, now) {
   const trains = new Map();
@@ -88,6 +88,10 @@ export function mergeTrains(vehicles, glance, now) {
     if (moving != null) extra.moving = moving;
     const course = numberFrom(train.Course);
     if (course != null) extra.course = course;
+    // How many coaches it's pulling (the locomotive not counted): the app draws the
+    // train to scale with them.
+    const cars = numberFrom(train.Cars);
+    if (cars != null && Number.isInteger(cars) && cars >= 1 && cars <= 16) extra.cars = cars;
     const lat = Number(train.Latitude);
     const lon = Number(train.Longitude);
     const known = trains.get(trip);
