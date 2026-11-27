@@ -36,6 +36,9 @@ final class TrainAnnotationView: MKAnnotationView {
     private var color: UIColor = .gray
     /// The marker makes way for the pill when that's big enough to see as a train.
     private var markerHidden = false
+    /// Holds the marker (`content`), so it can shrink away and fade as the pill
+    /// grows out of it.
+    private let markerHolder = UIView()
     private let pointer = UIView()
     private let arrow = CAShapeLayer()
     /// Copies of the arrow that stream ahead of it, one after the other.
@@ -65,12 +68,14 @@ final class TrainAnnotationView: MKAnnotationView {
         zPriority = MKAnnotationViewZPriority(rawValue: 990)
 
         model.frame = bounds
-        model.isHidden = true
         addSubview(model)
 
+        markerHolder.frame = bounds
+        markerHolder.isUserInteractionEnabled = false
+        addSubview(markerHolder)
         content.frame = bounds
         content.isUserInteractionEnabled = false
-        addSubview(content)
+        markerHolder.addSubview(content)
 
         let center = CGPoint(x: bounds.midX, y: bounds.midY)
         ripple.frame = bounds
@@ -264,9 +269,13 @@ final class TrainAnnotationView: MKAnnotationView {
     /// Draws the train as its pill (its annotation's `model`) as the map shows it
     /// now: where it is, how far the map is zoomed in, and how it's turned and
     /// tilted. Too small to make out, or with no model, it's the marker instead.
-    func layoutModel(in mapView: MKMapView) {
+    ///
+    /// The pill grows out of the marker along the track, and shrinks back into it
+    /// as the map zooms out (at once with `animated` false, as for a train coming
+    /// onto the screen).
+    func layoutModel(in mapView: MKMapView, animated: Bool = true) {
         guard let marker = annotation as? TrainAnnotation, let train = marker.model else {
-            hideModel()
+            hideModel(animated: animated)
             return
         }
         let coordinate = marker.coordinate
@@ -282,8 +291,14 @@ final class TrainAnnotationView: MKAnnotationView {
         }
         let east = screen(20, 0), north = screen(0, 20)
         let scale = hypot(east.x - anchor.x, north.x - anchor.x) / 20
-        guard scale.isFinite, scale > 0, CGFloat(train.length) * scale >= Self.pillFrom else {
-            hideModel()
+        guard scale.isFinite, scale > 0 else {
+            hideModel(animated: animated)
+            return
+        }
+        let shows = CGFloat(train.length) * scale >= Self.pillFrom
+        // Too small to show and not on its way out: nothing to lay out.
+        guard shows || model.isShown || model.isLeaving else {
+            hideModel(animated: animated)
             return
         }
         let center = CGPoint(x: bounds.midX, y: bounds.midY)
@@ -293,14 +308,15 @@ final class TrainAnnotationView: MKAnnotationView {
         }
         // The joints show while the coaches are far enough apart to tell.
         let showsJoints = CGFloat(TrainConsist.coachLength) * scale >= TrainPillView.jointsFrom
-        model.show(line: train.line.map(local), joints: showsJoints ? train.joints.map(local) : [], color: color)
-        model.isHidden = false
-        setMarkerHidden(true)
+        model.show(line: train.line.map(local), joints: train.joints.map(local), around: center, color: color)
+        model.setJointsShown(showsJoints, animated: animated)
+        model.setShown(shows, animated: animated)
+        setMarkerHidden(shows, animated: animated)
     }
 
     /// Whether `point` (in `view`'s coordinates) is on the train's pill, as drawn.
     func modelContains(_ point: CGPoint, from view: UIView) -> Bool {
-        guard !model.isHidden else { return false }
+        guard model.isShown else { return false }
         return model.contains(model.convert(point, from: view))
     }
 
@@ -310,20 +326,28 @@ final class TrainAnnotationView: MKAnnotationView {
         model.isMoving = moving
     }
 
-    private func hideModel() {
-        if !model.isHidden {
-            model.isHidden = true
-            model.clear()
-        }
-        setMarkerHidden(false)
+    private func hideModel(animated: Bool) {
+        model.setShown(false, animated: animated)
+        setMarkerHidden(false, animated: animated)
     }
 
-    /// The marker gives way to the pill while that shows the train, and comes back
-    /// once the pill is too small to make out.
-    private func setMarkerHidden(_ hidden: Bool) {
+    /// The marker shrinks and fades as the pill grows out of it, and comes back
+    /// as the pill shrinks into it.
+    private func setMarkerHidden(_ hidden: Bool, animated: Bool) {
         guard hidden != markerHidden else { return }
         markerHidden = hidden
-        content.isHidden = hidden
+        let change = {
+            self.markerHolder.alpha = hidden ? 0 : 1
+            self.markerHolder.transform = hidden ? CGAffineTransform(scaleX: 0.5, y: 0.5) : .identity
+        }
+        if animated, window != nil {
+            UIView.animate(withDuration: TrainPillView.duration, delay: 0,
+                           options: [.beginFromCurrentState, .allowUserInteraction, .curveEaseInOut],
+                           animations: change)
+        } else {
+            markerHolder.layer.removeAllAnimations()
+            change()
+        }
     }
 
     // MARK: Coming and going
@@ -355,11 +379,13 @@ final class TrainAnnotationView: MKAnnotationView {
         content.layer.removeAllAnimations()
         content.alpha = 1
         model.alpha = 1
-        model.isHidden = true
+        model.setShown(false, animated: false)
         model.clear()
         model.isMoving = false
         markerHidden = false
-        content.isHidden = false
+        markerHolder.layer.removeAllAnimations()
+        markerHolder.alpha = 1
+        markerHolder.transform = .identity
         heading = nil
         pointer.isHidden = true
         isAnimated = false
@@ -437,9 +463,22 @@ final class TrainPillView: UIView {
     /// The dots at the joints show once a coach is this many points long.
     static let jointsFrom: CGFloat = 13
 
+    /// How long the pill takes to grow out of the marker or shrink into it.
+    static let duration: TimeInterval = 0.3
+
+    /// Everything, faded in and out together.
+    private let group = CALayer()
     private let casing = CAShapeLayer()
     private let body = CAShapeLayer()
     private let dots = CAShapeLayer()
+    /// How far along the pill (0 its back, 1 its front) the marker sits: the pill
+    /// grows out from there, and shrinks back to it.
+    private var anchor: CGFloat = 0.5
+    /// Showing the train (or growing to), rather than shrunk into the marker.
+    private(set) var isShown = false
+    /// Shrinking into the marker, until it's done.
+    private(set) var isLeaving = false
+    private var jointsShown = false
     /// The arrow at the front, turned the way the train goes.
     private let tip = CALayer()
     private let arrow = CAShapeLayer()
@@ -455,11 +494,15 @@ final class TrainPillView: UIView {
         super.init(frame: frame)
         backgroundColor = .clear
         isUserInteractionEnabled = false
+        layer.addSublayer(group)
+        group.opacity = 0
         for line in [casing, body] {
             line.fillColor = nil
             line.lineCap = .round
             line.lineJoin = .round
-            layer.addSublayer(line)
+            line.strokeStart = 0.5
+            line.strokeEnd = 0.5
+            group.addSublayer(line)
         }
         casing.strokeColor = UIColor.white.cgColor
         casing.lineWidth = Self.casingWidth
@@ -469,7 +512,8 @@ final class TrainPillView: UIView {
         casing.shadowOffset = CGSize(width: 0, height: 1)
         body.lineWidth = Self.width
         dots.fillColor = UIColor.white.cgColor
-        layer.addSublayer(dots)
+        dots.opacity = 0
+        group.addSublayer(dots)
 
         // The marker's arrow, pointing up from the tip layer's middle: turned to
         // point the way the train goes, its base just clear of the pill's front.
@@ -493,15 +537,16 @@ final class TrainPillView: UIView {
         arrow.shadowRadius = 2
         arrow.shadowOffset = CGSize(width: 0, height: 1)
         for echo in echoes { echo.opacity = 0 }
-        layer.addSublayer(tip)
+        group.addSublayer(tip)
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
-    /// Draws the pill along `line` (back to front, in this view's coordinates),
-    /// with dots at `joints`.
-    func show(line: [CGPoint], joints: [CGPoint], color: UIColor) {
+    /// Lays the pill along `line` (back to front, in this view's coordinates),
+    /// with dots at `joints`, growing from and shrinking to where it passes
+    /// `around` (the marker).
+    func show(line: [CGPoint], joints: [CGPoint], around: CGPoint, color: UIColor) {
         guard line.count >= 2 else {
             clear()
             return
@@ -511,6 +556,16 @@ final class TrainPillView: UIView {
         let path = UIBezierPath()
         path.move(to: line[0])
         for point in line.dropFirst() { path.addLine(to: point) }
+        // Where along it the marker is: the nearest of its points, by length.
+        var lengths: [CGFloat] = [0]
+        for index in 1..<line.count {
+            lengths.append(lengths[index - 1] + hypot(line[index].x - line[index - 1].x, line[index].y - line[index - 1].y))
+        }
+        if let nearest = line.indices.min(by: {
+            hypot(line[$0].x - around.x, line[$0].y - around.y) < hypot(line[$1].x - around.x, line[$1].y - around.y)
+        }), let total = lengths.last, total > 0 {
+            anchor = lengths[nearest] / total
+        }
         casing.path = path.cgPath
         body.path = path.cgPath
         body.strokeColor = color.cgColor
@@ -540,6 +595,79 @@ final class TrainPillView: UIView {
         } else {
             tip.isHidden = true
         }
+        CATransaction.commit()
+    }
+
+    /// Grows the pill out of the marker (`shown`), or shrinks it back into it, with
+    /// the whole of it fading in or out as it goes.
+    func setShown(_ shown: Bool, animated: Bool) {
+        guard shown != isShown else { return }
+        isShown = shown
+        let start: CGFloat = shown ? 0 : anchor, end: CGFloat = shown ? 1 : anchor
+        let opacity: Float = shown ? 1 : 0
+        let animates = animated && window != nil
+        isLeaving = !shown && animates
+        // From where it is now, as drawn (a change of mind halfway turns it round);
+        // out of sight, from the marker.
+        let outOfSight = (group.presentation() ?? group).opacity == 0
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        if isLeaving {
+            CATransaction.setCompletionBlock { [weak self] in
+                guard let self, !self.isShown else { return }
+                self.isLeaving = false
+            }
+        }
+        func animate(_ layer: CALayer, _ key: String, from: Any, to: Any) {
+            let animation = CABasicAnimation(keyPath: key)
+            animation.fromValue = from
+            animation.toValue = to
+            animation.duration = Self.duration
+            animation.timingFunction = CAMediaTimingFunction(name: shown ? .easeOut : .easeIn)
+            layer.add(animation, forKey: key)
+        }
+        for line in [casing, body] {
+            if animates {
+                let now = line.presentation() ?? line
+                animate(line, "strokeStart", from: outOfSight ? anchor : now.strokeStart, to: start)
+                animate(line, "strokeEnd", from: outOfSight ? anchor : now.strokeEnd, to: end)
+            } else {
+                line.removeAllAnimations()
+            }
+            line.strokeStart = start
+            line.strokeEnd = end
+        }
+        if animates {
+            animate(group, "opacity", from: (group.presentation() ?? group).opacity, to: opacity)
+            // The arrow comes in once the pill has nearly reached the front, and goes first.
+            let arrive = CABasicAnimation(keyPath: "opacity")
+            arrive.fromValue = 0
+            arrive.toValue = 1
+            arrive.duration = shown ? Self.duration * 0.4 : Self.duration * 0.3
+            arrive.beginTime = tip.convertTime(CACurrentMediaTime(), from: nil) + (shown ? Self.duration * 0.7 : 0)
+            arrive.fillMode = .both
+            if !shown {
+                (arrive.fromValue, arrive.toValue) = (1, 0)
+                // Gone until the pill next grows (which replaces this).
+                arrive.isRemovedOnCompletion = false
+            }
+            tip.add(arrive, forKey: "opacity")
+        } else {
+            group.removeAllAnimations()
+            tip.removeAnimation(forKey: "opacity")
+        }
+        group.opacity = opacity
+        CATransaction.commit()
+    }
+
+    /// Fades the dots at the joints in or out.
+    func setJointsShown(_ shown: Bool, animated: Bool) {
+        guard shown != jointsShown else { return }
+        jointsShown = shown
+        CATransaction.begin()
+        CATransaction.setDisableActions(!(animated && window != nil))
+        CATransaction.setAnimationDuration(0.25)
+        dots.opacity = shown ? 1 : 0
         CATransaction.commit()
     }
 

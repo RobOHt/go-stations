@@ -836,7 +836,8 @@ struct NetworkMapView: UIViewRepresentable {
                     trainView.setHeading(trainHeading(), animated: false)
                     trainView.setMoving(trainIsMoving())
                 }
-                trainView.layoutModel(in: mapView)
+                // Coming onto the screen with the map: already as it should be.
+                trainView.layoutModel(in: mapView, animated: false)
                 return view
             }
             if let place = annotation as? PlaceAnnotation {
