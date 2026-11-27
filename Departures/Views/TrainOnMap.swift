@@ -30,11 +30,11 @@ final class TrainAnnotationView: MKAnnotationView {
 
     /// Everything, so the other trains can be drawn smaller than the tracked one.
     private let content = UIView()
-    /// The train to scale, under the marker (see `layoutModel(in:)`).
-    private let model = TrainModelView()
-    /// The line's colour, for the tracked train's model.
+    /// The train at its true length, as a pill along its track (see `layoutModel(in:)`).
+    private let model = TrainPillView()
+    /// The line's colour.
     private var color: UIColor = .gray
-    /// The marker makes way for the model when that's big enough to see as a train.
+    /// The marker makes way for the pill when that's big enough to see as a train.
     private var markerHidden = false
     private let pointer = UIView()
     private let arrow = CAShapeLayer()
@@ -64,6 +64,7 @@ final class TrainAnnotationView: MKAnnotationView {
         // Above stations and pins, below your own location dot.
         zPriority = MKAnnotationViewZPriority(rawValue: 990)
 
+        model.frame = bounds
         model.isHidden = true
         addSubview(model)
 
@@ -256,14 +257,13 @@ final class TrainAnnotationView: MKAnnotationView {
 
     // MARK: The train to scale
 
-    /// A model this many points long or longer is drawn...
-    static let modelFrom: CGFloat = 26
-    /// ...and from this long, it's drawn instead of the marker.
-    static let modelOnlyFrom: CGFloat = 72
+    /// A train this many points long or longer on the screen is drawn as its pill,
+    /// in place of the marker.
+    static let pillFrom: CGFloat = 44
 
-    /// Draws the train to scale (its annotation's `model`) as the map shows it
+    /// Draws the train as its pill (its annotation's `model`) as the map shows it
     /// now: where it is, how far the map is zoomed in, and how it's turned and
-    /// tilted. Too small to make out, or with no model, just the marker.
+    /// tilted. Too small to make out, or with no model, it's the marker instead.
     func layoutModel(in mapView: MKMapView) {
         guard let marker = annotation as? TrainAnnotation, let train = marker.model else {
             hideModel()
@@ -271,9 +271,9 @@ final class TrainAnnotationView: MKAnnotationView {
         }
         let coordinate = marker.coordinate
         let anchor = mapView.convert(coordinate, toPointTo: mapView)
-        // The map's scale and tilt where the train is, from where 20 m east and 20 m
-        // north of it fall on the screen: across the screen a metre on the ground is
-        // `scale` points whichever way it runs; up the screen it's shortened by the tilt.
+        // Points per metre where the train is: where 20 m east and 20 m north of it
+        // fall on the screen (across the screen, a metre is the same whichever way
+        // it runs, however the map is turned or tilted).
         let here = TrackGeometry.point(.init(latitude: coordinate.latitude, longitude: coordinate.longitude))
         func screen(_ dx: Double, _ dy: Double) -> CGPoint {
             let moved = TrackGeometry.coordinate(.init(x: here.x + dx, y: here.y + dy))
@@ -282,76 +282,48 @@ final class TrainAnnotationView: MKAnnotationView {
         }
         let east = screen(20, 0), north = screen(0, 20)
         let scale = hypot(east.x - anchor.x, north.x - anchor.x) / 20
-        let length = CGFloat(train.length) * scale
-        guard scale.isFinite, scale > 0, length >= Self.modelFrom else {
+        guard scale.isFinite, scale > 0, CGFloat(train.length) * scale >= Self.pillFrom else {
             hideModel()
             return
         }
-        let shortened = min(hypot(east.y - anchor.y, north.y - anchor.y) / 20 / scale, 1)
-        let tilt = (1 - shortened * shortened).squareRoot()
-
         let center = CGPoint(x: bounds.midX, y: bounds.midY)
-        var projected: [TrainModelView.Projected] = []
-        var box = CGRect.null
-        for vehicle in train.vehicles {
-            let ground = vehicle.outline.map { corner -> CGPoint in
-                let point = mapView.convert(corner, toPointTo: mapView)
-                return CGPoint(x: point.x - anchor.x + center.x, y: point.y - anchor.y + center.y)
-            }
-            let up = CGVector(dx: 0, dy: -CGFloat(vehicle.height) * scale * tilt)
-            let shown = TrainModelView.Projected(kind: vehicle.kind, ground: ground, up: up, leadsAhead: vehicle.leadsAhead)
-            for point in ground + shown.roof {
-                box = box.union(CGRect(origin: point, size: .zero))
-            }
-            projected.append(shown)
+        func local(_ point: CLLocationCoordinate2D) -> CGPoint {
+            let onMap = mapView.convert(point, toPointTo: mapView)
+            return CGPoint(x: onMap.x - anchor.x + center.x, y: onMap.y - anchor.y + center.y)
         }
-        guard !box.isNull, box.width.isFinite, box.height.isFinite else {
-            hideModel()
-            return
-        }
-        // Only as much of it as is on the screen (zoomed right in, a train runs far off it).
-        let screen = CGRect(x: center.x - anchor.x, y: center.y - anchor.y,
-                            width: mapView.bounds.width, height: mapView.bounds.height).insetBy(dx: -40, dy: -40)
-        box = box.insetBy(dx: -4, dy: -4).intersection(screen).integral
-        guard !box.isNull, !box.isEmpty else {
-            hideModel()
-            return
-        }
-        model.frame = box
-        model.vehicles = projected.map { vehicle in
-            let shift = { (point: CGPoint) in CGPoint(x: point.x - box.minX, y: point.y - box.minY) }
-            return .init(kind: vehicle.kind, ground: vehicle.ground.map(shift), up: vehicle.up,
-                         leadsAhead: vehicle.leadsAhead)
-        }
-        model.highlight = marker.running == nil ? color : nil
+        // The joints show while the coaches are far enough apart to tell.
+        let showsJoints = CGFloat(TrainConsist.coachLength) * scale >= TrainPillView.jointsFrom
+        model.show(line: train.line.map(local), joints: showsJoints ? train.joints.map(local) : [], color: color)
         model.isHidden = false
-        setMarkerHidden(length >= Self.modelOnlyFrom)
+        setMarkerHidden(true)
     }
 
-    /// Whether `point` (in `view`'s coordinates) is on the train's model, as drawn.
+    /// Whether `point` (in `view`'s coordinates) is on the train's pill, as drawn.
     func modelContains(_ point: CGPoint, from view: UIView) -> Bool {
         guard !model.isHidden else { return false }
         return model.contains(model.convert(point, from: view))
     }
 
+    /// Whether the train is on the move: the arrow at the front of its pill pushes
+    /// forward while it is.
+    func setMoving(_ moving: Bool) {
+        model.isMoving = moving
+    }
+
     private func hideModel() {
         if !model.isHidden {
             model.isHidden = true
-            model.vehicles = []
+            model.clear()
         }
         setMarkerHidden(false)
     }
 
-    /// Hides the marker (its disc and pointer) while the model shows the train, and
-    /// brings it back once the model is too small to make out.
+    /// The marker gives way to the pill while that shows the train, and comes back
+    /// once the pill is too small to make out.
     private func setMarkerHidden(_ hidden: Bool) {
         guard hidden != markerHidden else { return }
         markerHidden = hidden
-        ripple.isHidden = hidden
-        UIView.animate(withDuration: 0.25, delay: 0, options: [.beginFromCurrentState, .allowUserInteraction]) {
-            self.disc.alpha = hidden ? 0 : 1
-            self.pointer.alpha = hidden ? 0 : 1
-        }
+        content.isHidden = hidden
     }
 
     // MARK: Coming and going
@@ -382,14 +354,12 @@ final class TrainAnnotationView: MKAnnotationView {
         super.prepareForReuse()
         content.layer.removeAllAnimations()
         content.alpha = 1
-        model.layer.removeAllAnimations()
         model.alpha = 1
         model.isHidden = true
-        model.vehicles = []
+        model.clear()
+        model.isMoving = false
         markerHidden = false
-        ripple.isHidden = false
-        disc.alpha = 1
-        pointer.alpha = 1
+        content.isHidden = false
         heading = nil
         pointer.isHidden = true
         isAnimated = false
@@ -414,63 +384,38 @@ final class TrainRouteOverlay: MKPolyline {
     }
 }
 
-// MARK: - The train to scale
+// MARK: - The train at its true length
 
-/// A train's vehicles on the map, to scale and along its track (bending with it
-/// on a curve): each one's outline on the ground, as `TrainConsist` lays them out.
+/// Where a train's pill goes on the map: down the middle of its track from its
+/// back to its front (the way it's going), bending with the track, and where its
+/// vehicles meet, as `TrainConsist` lays them out.
 struct TrainModel {
-    struct Vehicle {
-        let kind: TrainConsist.Kind
-        /// Its outline on the ground: down its left side from its end nearer the
-        /// run's start to its other end (`sides` points), then back up its right.
-        let outline: [CLLocationCoordinate2D]
-        /// Its height above the rails, in metres.
-        let height: Double
-        /// The locomotive's or cab car's driving end is its end further along the run.
-        let leadsAhead: Bool
-    }
-
-    /// Points down each side of a vehicle: its ends and its middle, so it bends
-    /// with the track.
-    static let sides = 3
-    /// The gap left at each end of a vehicle, so the couplings show between them.
-    static let gap = 0.45
-
-    let vehicles: [Vehicle]
+    /// Its centreline, from its back to its front.
+    let line: [CLLocationCoordinate2D]
+    /// Where one vehicle meets the next.
+    let joints: [CLLocationCoordinate2D]
     /// The whole train's length, in metres.
     let length: Double
 
-    /// `consist`'s vehicles with its locomotive centred `anchor` metres along `run`.
-    /// Nil where the run has no track to lay them along.
+    /// Points along the centreline at most this many metres apart.
+    static let step = 8.0
+
+    /// `consist` with its locomotive centred `anchor` metres along `run`. Nil where
+    /// the run has no track to lay it along.
     init?(consist: TrainConsist, anchor: Double, on run: TrainRun) {
-        var vehicles: [Vehicle] = []
-        let half = TrainConsist.width / 2
-        for vehicle in consist.vehicles(at: anchor) {
-            let from = vehicle.from + Self.gap, to = vehicle.to - Self.gap
-            var left: [CLLocationCoordinate2D] = []
-            var right: [CLLocationCoordinate2D] = []
-            for step in 0..<Self.sides {
-                let along = from + (to - from) * Double(step) / Double(Self.sides - 1)
-                guard let placed = run.point(at: along) else { return nil }
-                // Its own heading, or failing that the way the run goes across it.
-                var heading = placed.heading
-                if heading == nil, let a = run.point(at: from)?.point, let b = run.point(at: to)?.point,
-                   a.x != b.x || a.y != b.y {
-                    heading = atan2(b.x - a.x, b.y - a.y) * 180 / .pi
-                }
-                guard let heading else { return nil }
-                let radians = heading * .pi / 180
-                // To the right of the way the run goes: east and north.
-                let rx = cos(radians), ry = -sin(radians)
-                let p = placed.point
-                left.append(Self.coordinate(.init(x: p.x - rx * half, y: p.y - ry * half)))
-                right.append(Self.coordinate(.init(x: p.x + rx * half, y: p.y + ry * half)))
-            }
-            let height = vehicle.kind == .locomotive ? TrainConsist.locomotiveHeight : TrainConsist.coachHeight
-            vehicles.append(Vehicle(kind: vehicle.kind, outline: left + right.reversed(), height: height,
-                                    leadsAhead: vehicle.leadsAhead))
+        let vehicles = consist.vehicles(at: anchor)
+        guard let back = vehicles.map(\.from).min(), let front = vehicles.map(\.to).max(), front > back else { return nil }
+        let count = max(Int(((front - back) / Self.step).rounded(.up)), 1)
+        var line: [CLLocationCoordinate2D] = []
+        for index in 0...count {
+            guard let placed = run.point(at: back + (front - back) * Double(index) / Double(count)) else { return nil }
+            line.append(Self.coordinate(placed.point))
         }
-        self.vehicles = vehicles
+        var ends = Set(vehicles.flatMap { [$0.from, $0.to] }.map { ($0 * 100).rounded() / 100 })
+        ends.remove((back * 100).rounded() / 100)
+        ends.remove((front * 100).rounded() / 100)
+        joints = ends.sorted().compactMap { run.point(at: $0).map { Self.coordinate($0.point) } }
+        self.line = line
         length = consist.length
     }
 
@@ -480,197 +425,174 @@ struct TrainModel {
     }
 }
 
-/// A train drawn to scale on the map, as a model: each vehicle a box standing on
-/// its outline, as tall as the real thing, seen as the map's camera sees it (from
-/// straight above, just their roofs; with the map tilted, their sides too). In
-/// GO's colours: the locomotive green, the BiLevel coaches white with their green
-/// band and two decks of windows, the cab car's driving end glazed.
-final class TrainModelView: UIView {
-    /// A vehicle as the camera sees it, in this view's coordinates.
-    struct Projected {
-        let kind: TrainConsist.Kind
-        /// Its outline on the ground.
-        let ground: [CGPoint]
-        /// The screen offset from the ground up to its roof.
-        let up: CGVector
-        let leadsAhead: Bool
+/// A train drawn at its true length: a pill in its line's colour with a white
+/// casing, laid along its track. Zoomed in far enough, white dots mark the joints
+/// between its vehicles. At its front, the marker's white arrow points the way it
+/// goes, and while it moves, pushes forward with two copies streaming ahead (still
+/// with Reduce Motion).
+final class TrainPillView: UIView {
+    /// The pill's width, in points (its casing adds to it).
+    static let width: CGFloat = 14
+    static let casingWidth: CGFloat = 19
+    /// The dots at the joints show once a coach is this many points long.
+    static let jointsFrom: CGFloat = 13
 
-        var roof: [CGPoint] { ground.map { CGPoint(x: $0.x + up.dx, y: $0.y + up.dy) } }
-        var middleY: CGFloat { ground.map(\.y).reduce(0, +) / CGFloat(max(ground.count, 1)) }
-    }
+    private let casing = CAShapeLayer()
+    private let body = CAShapeLayer()
+    private let dots = CAShapeLayer()
+    /// The arrow at the front, turned the way the train goes.
+    private let tip = CALayer()
+    private let arrow = CAShapeLayer()
+    private let echoes = [CAShapeLayer(), CAShapeLayer()]
+    /// The casing's outline, for taps.
+    private var outline: CGPath?
 
-    var vehicles: [Projected] = [] {
-        didSet { setNeedsDisplay() }
-    }
-    /// The tracked train's roofs are outlined in its line's colour.
-    var highlight: UIColor? {
-        didSet { setNeedsDisplay() }
+    var isMoving = false {
+        didSet { if isMoving != oldValue { updateMotion() } }
     }
 
     override init(frame: CGRect) {
         super.init(frame: frame)
-        isOpaque = false
         backgroundColor = .clear
         isUserInteractionEnabled = false
-        contentMode = .redraw
+        for line in [casing, body] {
+            line.fillColor = nil
+            line.lineCap = .round
+            line.lineJoin = .round
+            layer.addSublayer(line)
+        }
+        casing.strokeColor = UIColor.white.cgColor
+        casing.lineWidth = Self.casingWidth
+        casing.shadowColor = UIColor.black.cgColor
+        casing.shadowOpacity = 0.3
+        casing.shadowRadius = 2
+        casing.shadowOffset = CGSize(width: 0, height: 1)
+        body.lineWidth = Self.width
+        dots.fillColor = UIColor.white.cgColor
+        layer.addSublayer(dots)
+
+        // The marker's arrow, pointing up from the tip layer's middle: turned to
+        // point the way the train goes, its base just clear of the pill's front.
+        tip.bounds = CGRect(x: 0, y: 0, width: 30, height: 30)
+        let shape = UIBezierPath()
+        shape.move(to: CGPoint(x: 15, y: 15 - 11.5))
+        shape.addLine(to: CGPoint(x: 15 + 6.5, y: 15))
+        shape.addLine(to: CGPoint(x: 15 - 6.5, y: 15))
+        shape.close()
+        for layer in echoes + [arrow] {
+            layer.frame = tip.bounds
+            layer.path = shape.cgPath
+            layer.fillColor = UIColor.white.cgColor
+            layer.strokeColor = UIColor.white.cgColor
+            layer.lineWidth = 1.5
+            layer.lineJoin = .round
+            tip.addSublayer(layer)
+        }
+        arrow.shadowColor = UIColor.black.cgColor
+        arrow.shadowOpacity = 0.35
+        arrow.shadowRadius = 2
+        arrow.shadowOffset = CGSize(width: 0, height: 1)
+        for echo in echoes { echo.opacity = 0 }
+        layer.addSublayer(tip)
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
-    /// Whether `point` (in this view's coordinates) is on the train: on a roof or a side.
-    func contains(_ point: CGPoint) -> Bool {
-        vehicles.contains { vehicle in
-            Self.path(vehicle.roof).contains(point) || Self.path(vehicle.ground).contains(point)
+    /// Draws the pill along `line` (back to front, in this view's coordinates),
+    /// with dots at `joints`.
+    func show(line: [CGPoint], joints: [CGPoint], color: UIColor) {
+        guard line.count >= 2 else {
+            clear()
+            return
         }
-    }
-
-    // MARK: Colours
-
-    private static let coachBody = UIColor(red: 0.91, green: 0.92, blue: 0.93, alpha: 1)
-    private static let coachRoof = UIColor(red: 0.76, green: 0.78, blue: 0.80, alpha: 1)
-    private static let goGreen = UIColor(red: 0.00, green: 0.47, blue: 0.24, alpha: 1)
-    private static let locomotiveRoof = UIColor(red: 0.12, green: 0.36, blue: 0.22, alpha: 1)
-    private static let glass = UIColor(red: 0.13, green: 0.15, blue: 0.17, alpha: 1)
-    private static let edge = UIColor(red: 0.25, green: 0.27, blue: 0.29, alpha: 0.85)
-
-    // MARK: Drawing
-
-    override func draw(_ rect: CGRect) {
-        guard let context = UIGraphicsGetCurrentContext(), !vehicles.isEmpty else { return }
-        context.setLineJoin(.round)
-        // The farthest vehicle first, so the nearer ones stand in front of it.
-        let ordered = vehicles.sorted { $0.middleY < $1.middleY }
-
-        // Their shadows on the ground.
-        context.saveGState()
-        context.translateBy(x: 0.8, y: 1.2)
-        UIColor.black.withAlphaComponent(0.28).setFill()
-        for vehicle in ordered { Self.path(vehicle.ground).fill() }
-        context.restoreGState()
-
-        for vehicle in ordered { drawVehicle(vehicle) }
-    }
-
-    private func drawVehicle(_ vehicle: Projected) {
-        let ground = vehicle.ground
-        let count = ground.count
-        let sides = TrainModel.sides
-        let isLocomotive = vehicle.kind == .locomotive
-        let body = isLocomotive ? Self.goGreen : Self.coachBody
-        let center = CGPoint(x: ground.map(\.x).reduce(0, +) / CGFloat(count),
-                             y: ground.map(\.y).reduce(0, +) / CGFloat(count))
-
-        // Its walls, the far ones first: each edge of its outline, up to the roof.
-        let tall = hypot(vehicle.up.dx, vehicle.up.dy) > 0.4
-        if tall {
-            let walls = (0..<count).sorted { a, b in
-                (ground[a].y + ground[(a + 1) % count].y) < (ground[b].y + ground[(b + 1) % count].y)
-            }
-            for index in walls {
-                let a = ground[index], b = ground[(index + 1) % count]
-                let middle = CGPoint(x: (a.x + b.x) / 2, y: (a.y + b.y) / 2)
-                // The walls facing the camera (below the vehicle's middle on screen) in
-                // full light, the others in shade.
-                let facing = middle.y >= center.y
-                let isSide = index != sides - 1 && index != count - 1
-                // Which end this is: the "to" end (further along the run) or the "from".
-                let isAheadEnd = index == sides - 1
-                let isDrivingEnd = !isSide && vehicle.kind != .coach && isAheadEnd == vehicle.leadsAhead
-                fill(quad(a, b, 0, 1, up: vehicle.up), body.shaded(facing ? 1 : 0.72))
-                if isSide {
-                    if isLocomotive {
-                        // A white stripe along its flank.
-                        fill(quad(a, b, 0.55, 0.66, up: vehicle.up, inset: 0.04), UIColor.white.shaded(facing ? 0.95 : 0.7))
-                    } else {
-                        // The green band along the bottom, and the two decks of windows.
-                        fill(quad(a, b, 0.02, 0.24, up: vehicle.up), Self.goGreen.shaded(facing ? 1 : 0.72))
-                        fill(quad(a, b, 0.32, 0.46, up: vehicle.up, inset: 0.09), Self.glass)
-                        fill(quad(a, b, 0.60, 0.76, up: vehicle.up, inset: 0.09), Self.glass)
-                    }
-                } else if isDrivingEnd {
-                    fill(quad(a, b, 0.58, 0.84, up: vehicle.up, inset: 0.14), Self.glass)
-                    if !isLocomotive {
-                        fill(quad(a, b, 0.02, 0.30, up: vehicle.up), Self.goGreen.shaded(facing ? 1 : 0.72))
-                    }
-                }
-                Self.edge.setStroke()
-                let outline = quad(a, b, 0, 1, up: vehicle.up)
-                outline.lineWidth = 0.4
-                outline.stroke()
-            }
-        }
-
-        // Its roof.
-        let roof = vehicle.roof
-        let roofPath = Self.path(roof)
-        (isLocomotive ? Self.locomotiveRoof : Self.coachRoof).setFill()
-        roofPath.fill()
-        // A ridge down the middle of it, and the driving end's windscreen seen from above.
-        let leftRoof = Array(roof[0..<sides]), rightRoof = Array(roof[sides..<count].reversed())
-        let ridge = UIBezierPath()
-        for step in 0..<sides {
-            let point = CGPoint(x: (leftRoof[step].x + rightRoof[step].x) / 2, y: (leftRoof[step].y + rightRoof[step].y) / 2)
-            step == 0 ? ridge.move(to: point) : ridge.addLine(to: point)
-        }
-        UIColor.black.withAlphaComponent(0.12).setStroke()
-        ridge.lineWidth = max(0.5, min(hypot(leftRoof[0].x - rightRoof[0].x, leftRoof[0].y - rightRoof[0].y) * 0.18, 2))
-        ridge.stroke()
-        if vehicle.kind != .coach {
-            // The last tenth of it at the driving end.
-            let end = vehicle.leadsAhead ? sides - 1 : 0
-            let inner = vehicle.leadsAhead ? sides - 2 : 1
-            func toward(_ a: CGPoint, _ b: CGPoint, _ t: CGFloat) -> CGPoint {
-                CGPoint(x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t)
-            }
-            let t: CGFloat = 0.2
-            let cab = Self.path([leftRoof[end], rightRoof[end],
-                                 toward(rightRoof[end], rightRoof[inner], t), toward(leftRoof[end], leftRoof[inner], t)])
-            Self.glass.withAlphaComponent(isLocomotive ? 0.55 : 0.4).setFill()
-            cab.fill()
-        }
-        if let highlight {
-            highlight.setStroke()
-            roofPath.lineWidth = 1.6
-        } else {
-            Self.edge.setStroke()
-            roofPath.lineWidth = 0.5
-        }
-        roofPath.stroke()
-    }
-
-    /// A band up a wall from ground edge `a`–`b`: from `low` to `high` of the
-    /// way up, cut short by `inset` of its length at each end.
-    private func quad(_ a: CGPoint, _ b: CGPoint, _ low: CGFloat, _ high: CGFloat, up: CGVector,
-                      inset: CGFloat = 0) -> UIBezierPath {
-        let p = CGPoint(x: a.x + (b.x - a.x) * inset, y: a.y + (b.y - a.y) * inset)
-        let q = CGPoint(x: b.x + (a.x - b.x) * inset, y: b.y + (a.y - b.y) * inset)
-        func lift(_ point: CGPoint, _ by: CGFloat) -> CGPoint {
-            CGPoint(x: point.x + up.dx * by, y: point.y + up.dy * by)
-        }
-        return Self.path([lift(p, low), lift(q, low), lift(q, high), lift(p, high)])
-    }
-
-    private func fill(_ path: UIBezierPath, _ color: UIColor) {
-        color.setFill()
-        path.fill()
-    }
-
-    private static func path(_ points: [CGPoint]) -> UIBezierPath {
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
         let path = UIBezierPath()
-        for (index, point) in points.enumerated() {
-            index == 0 ? path.move(to: point) : path.addLine(to: point)
+        path.move(to: line[0])
+        for point in line.dropFirst() { path.addLine(to: point) }
+        casing.path = path.cgPath
+        body.path = path.cgPath
+        body.strokeColor = color.cgColor
+        let dotPath = UIBezierPath()
+        for joint in joints {
+            dotPath.append(UIBezierPath(ovalIn: CGRect(x: joint.x - 2, y: joint.y - 2, width: 4, height: 4)))
         }
-        path.close()
-        return path
-    }
-}
+        dots.path = dotPath.cgPath
+        outline = path.cgPath.copy(strokingWithWidth: Self.casingWidth + 8, lineCap: .round, lineJoin: .round,
+                                    miterLimit: 10)
 
-private extension UIColor {
-    /// This colour, darker by `light` (1: as it is).
-    func shaded(_ light: CGFloat) -> UIColor {
-        var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
-        guard getRed(&red, green: &green, blue: &blue, alpha: &alpha) else { return self }
-        return UIColor(red: red * light, green: green * light, blue: blue * light, alpha: alpha)
+        // The arrow: just ahead of the front, the way the last stretch of the pill runs.
+        let front = line[line.count - 1]
+        var from = line[line.count - 2]
+        for point in line.reversed() where hypot(front.x - point.x, front.y - point.y) >= 6 {
+            from = point
+            break
+        }
+        let dx = front.x - from.x, dy = front.y - from.y
+        let size = hypot(dx, dy)
+        if size > 0 {
+            let ux = dx / size, uy = dy / size
+            let ahead = Self.casingWidth / 2 + 1
+            tip.position = CGPoint(x: front.x + ux * ahead, y: front.y + uy * ahead)
+            tip.setAffineTransform(CGAffineTransform(rotationAngle: atan2(ux, -uy)))
+            tip.isHidden = false
+        } else {
+            tip.isHidden = true
+        }
+        CATransaction.commit()
+    }
+
+    func clear() {
+        casing.path = nil
+        body.path = nil
+        dots.path = nil
+        outline = nil
+        tip.isHidden = true
+    }
+
+    /// Whether `point` (in this view's coordinates) is on the pill.
+    func contains(_ point: CGPoint) -> Bool {
+        outline?.contains(point) ?? false
+    }
+
+    /// While the train moves, the arrow pushes forward and back with two copies of
+    /// it streaming ahead and fading, as on the marker.
+    private func updateMotion() {
+        arrow.removeAnimation(forKey: "push")
+        for echo in echoes {
+            echo.removeAnimation(forKey: "stream")
+            echo.opacity = 0
+        }
+        guard isMoving, window != nil, !UIAccessibility.isReduceMotionEnabled else { return }
+        let push = CABasicAnimation(keyPath: "transform.translation.y")
+        push.fromValue = 0
+        push.toValue = -4
+        push.duration = 0.45
+        push.autoreverses = true
+        push.repeatCount = .infinity
+        push.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+        arrow.add(push, forKey: "push")
+        for (index, echo) in echoes.enumerated() {
+            let slide = CABasicAnimation(keyPath: "transform.translation.y")
+            slide.fromValue = -2
+            slide.toValue = -15
+            let fade = CABasicAnimation(keyPath: "opacity")
+            fade.fromValue = 0.9
+            fade.toValue = 0
+            let stream = CAAnimationGroup()
+            stream.animations = [slide, fade]
+            stream.duration = 0.9
+            stream.beginTime = echo.convertTime(CACurrentMediaTime(), from: nil) + 0.45 * Double(index)
+            stream.repeatCount = .infinity
+            stream.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            echo.add(stream, forKey: "stream")
+        }
+    }
+
+    /// Core Animation drops the animations when the view leaves the screen.
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        if window != nil { updateMotion() }
     }
 }

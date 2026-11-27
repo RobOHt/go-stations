@@ -829,10 +829,12 @@ struct NetworkMapView: UIViewRepresentable {
                     trainView.configure(color: lineColor(running.lineCode), animatesPointer: false,
                                         scale: runningScale)
                     trainView.setHeading(spots[running.id]?.heading, animated: false)
+                    trainView.setMoving(spots[running.id]?.isMoving ?? false)
                 } else if let trip {
                     trainView.zPriority = MKAnnotationViewZPriority(rawValue: 990)
                     trainView.configure(color: lineColor(trip.lineCode), animatesPointer: trainIsMoving())
                     trainView.setHeading(trainHeading(), animated: false)
+                    trainView.setMoving(trainIsMoving())
                 }
                 trainView.layoutModel(in: mapView)
                 return view
@@ -1121,6 +1123,7 @@ struct NetworkMapView: UIViewRepresentable {
                 marker.model = spot.model
                 layoutModel(of: marker, in: mapView)
                 (mapView.view(for: marker) as? TrainAnnotationView)?.setHeading(spot.heading, animated: true)
+                (mapView.view(for: marker) as? TrainAnnotationView)?.setMoving(spot.isMoving)
             }
             if !added.isEmpty { appear(added, in: mapView) }
         }
@@ -1603,6 +1606,7 @@ struct NetworkMapView: UIViewRepresentable {
             if let train, let view = mapView.view(for: train) as? TrainAnnotationView {
                 view.configure(color: lineColor(trip.lineCode), animatesPointer: trainIsMoving())
                 view.setHeading(trainHeading(), animated: true)
+                view.setMoving(trainIsMoving())
                 view.layoutModel(in: mapView)
             }
         }
