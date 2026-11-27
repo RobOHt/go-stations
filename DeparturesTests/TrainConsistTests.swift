@@ -59,4 +59,20 @@ struct TrainConsistTests {
         #expect(try decoder.decode(LiveTrain.self, from: Data(with.utf8)).cars == 10)
         #expect(try decoder.decode(LiveTrain.self, from: Data(without.utf8)).cars == nil)
     }
+
+    @Test("a track shape that zigzags back on itself doesn't fold the train's pill over")
+    @MainActor
+    func zigzag() {
+        // East 100 m, back west 60 m, then on east again (as GO's shape does just east of Kitchener).
+        var points: [Point] = []
+        for x in stride(from: 0.0, through: 100, by: 8) { points.append(Point(x: x, y: 0)) }
+        for x in stride(from: 92.0, through: 40, by: -8) { points.append(Point(x: x, y: 2)) }
+        for x in stride(from: 48.0, through: 300, by: 8) { points.append(Point(x: x, y: 4)) }
+        let kept = TrainModel.forwardOnly(points)
+        #expect(zip(kept, kept.dropFirst()).allSatisfy { $1.x > $0.x })
+        #expect(kept.last?.x == 296)
+        // A curve is kept whole.
+        let curve = (0...20).map { i in Point(x: 300 * sin(Double(i) * 0.02), y: 300 * (1 - cos(Double(i) * 0.02))) }
+        #expect(TrainModel.forwardOnly(curve).count == curve.count)
+    }
 }

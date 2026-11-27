@@ -432,17 +432,57 @@ struct TrainModel {
         let vehicles = consist.vehicles(at: anchor)
         guard let back = vehicles.map(\.from).min(), let front = vehicles.map(\.to).max(), front > back else { return nil }
         let count = max(Int(((front - back) / Self.step).rounded(.up)), 1)
-        var line: [CLLocationCoordinate2D] = []
+        var samples: [TrackGeometry.Point] = []
         for index in 0...count {
             guard let placed = run.point(at: back + (front - back) * Double(index) / Double(count)) else { return nil }
-            line.append(Self.coordinate(placed.point))
+            samples.append(placed.point)
         }
+        let points = Self.forwardOnly(samples)
+        guard points.count >= 2 else { return nil }
+        // The joints, spaced along the pill as the vehicles are along the train.
+        var lengths: [Double] = [0]
+        for index in 1..<points.count {
+            lengths.append(lengths[index - 1] + hypot(points[index].x - points[index - 1].x, points[index].y - points[index - 1].y))
+        }
+        let total = lengths[lengths.count - 1]
         var ends = Set(vehicles.flatMap { [$0.from, $0.to] }.map { ($0 * 100).rounded() / 100 })
         ends.remove((back * 100).rounded() / 100)
         ends.remove((front * 100).rounded() / 100)
-        joints = ends.sorted().compactMap { run.point(at: $0).map { Self.coordinate($0.point) } }
-        self.line = line
+        joints = ends.sorted().map { end in
+            let along = (end - back) / (front - back) * total
+            var index = 1
+            while index < lengths.count - 1, lengths[index] < along { index += 1 }
+            let span = lengths[index] - lengths[index - 1]
+            let t = span > 0 ? (along - lengths[index - 1]) / span : 0
+            let a = points[index - 1], b = points[index]
+            return Self.coordinate(.init(x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t))
+        }
+        line = points.map(Self.coordinate)
         length = consist.length
+    }
+
+    /// `points` (back to front) without the stretches where they turn back on
+    /// themselves: GO's track shapes zigzag here and there (just east of Kitchener,
+    /// for one), which a train's length laid along them would fold over. A point is
+    /// kept only while it carries on the way the train was going.
+    static func forwardOnly(_ points: [TrackGeometry.Point]) -> [TrackGeometry.Point] {
+        guard var last = points.first, let end = points.last else { return [] }
+        var kept = [last]
+        // To start with, the way from its back to its front.
+        let chord = hypot(end.x - last.x, end.y - last.y)
+        var direction: (x: Double, y: Double)? = chord > 0 ? ((end.x - last.x) / chord, (end.y - last.y) / chord) : nil
+        for point in points.dropFirst() {
+            let dx = point.x - last.x, dy = point.y - last.y
+            let size = hypot(dx, dy)
+            guard size > 0.5 else { continue }
+            let unit = (x: dx / size, y: dy / size)
+            // More than 60° off the way it was going: a turn back, not a curve.
+            if let direction, unit.x * direction.x + unit.y * direction.y < 0.5 { continue }
+            kept.append(point)
+            direction = unit
+            last = point
+        }
+        return kept
     }
 
     private static func coordinate(_ point: TrackGeometry.Point) -> CLLocationCoordinate2D {
